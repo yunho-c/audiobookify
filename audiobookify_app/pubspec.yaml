@@ -19,6 +19,8 @@ dependencies:
   json_serializable: ^6.8.0
   json_annotation: ^4.9.0
   glob: ^2.1.2
+  archive: ^3.6.1
+  xml: ^6.5.0
 
 dev_dependencies:
   flutter_test:
