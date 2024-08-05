@@ -49,6 +49,11 @@ class DatabaseHelper {
 
     return result.map((json) => Item.fromJson(json)).toList();
   }
+
+  Future<void> resetDatabase() async {
+    final db = await instance.database;
+    await db.execute('DELETE FROM items');
+  }
 }
 
 class Item {
