@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:glob/glob.dart';
 import 'package:glob/list_local_fs.dart';
+import 'package:path/path.dart' as p;
 
 Future<File> saveFile(File file, String fileName) async {
   final directory = await getApplicationDocumentsDirectory();
@@ -43,9 +44,28 @@ String sanitizeFileName(String fileName) {
 
   // Replace reserved names
   List<String> reservedNames = [
-    'CON', 'PRN', 'AUX', 'NUL',
-    'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
-    'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'
+    'CON',
+    'PRN',
+    'AUX',
+    'NUL',
+    'COM1',
+    'COM2',
+    'COM3',
+    'COM4',
+    'COM5',
+    'COM6',
+    'COM7',
+    'COM8',
+    'COM9',
+    'LPT1',
+    'LPT2',
+    'LPT3',
+    'LPT4',
+    'LPT5',
+    'LPT6',
+    'LPT7',
+    'LPT8',
+    'LPT9'
   ];
 
   if (reservedNames.contains(sanitized.toUpperCase())) {
@@ -82,4 +102,34 @@ String sanitizeFileName(String fileName) {
   }
 
   return sanitized;
+}
+
+String prettifyFilename(String filename) {
+  // Remove the file extension
+  String basenameWithoutExtension = p.basenameWithoutExtension(filename);
+
+  // Replace dashes, underscores, and dots with spaces
+  String cleanName =
+      basenameWithoutExtension.replaceAll(RegExp(r'[-_\.]'), ' ');
+
+  // Convert to Title Case
+  String prettifiedName = cleanName.split(' ').map((word) {
+    return word.isNotEmpty
+        ? word[0].toUpperCase() + word.substring(1).toLowerCase()
+        : '';
+  }).join(' ');
+
+  // Remove extra spaces
+  return prettifiedName.trim();
+}
+
+Future<void> clearFolders(List<String> paths) async {
+  final directory = await getApplicationDocumentsDirectory();
+
+  for (final path in paths) {
+    final fullPath = Directory(directory.path + path);
+    if (await fullPath.exists()) {
+      await fullPath.delete(recursive: true);
+    }
+  }
 }

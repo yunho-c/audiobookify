@@ -32,7 +32,8 @@ class ApiService {
   Future<List<dynamic>> uploadEpub(File epubFile, {String? id}) async {
     var request = MultipartRequest('POST', Uri.parse('$baseUrl/convert'))
       ..files.add(await MultipartFile.fromPath('file', epubFile.path));
-    if (id != null) request.fields.addEntries(<String, String>{'id': id}.entries);
+    if (id != null)
+      request.fields.addEntries(<String, String>{'id': id}.entries);
 
     final response = await request.send();
     if (response.statusCode == 200) {
@@ -57,6 +58,19 @@ class ApiService {
       saveBytesToFile(response.bodyBytes, fileName);
     } else {
       throw Exception('Failed to download audio: $path');
+    }
+  }
+
+  // Future<dynamic> status(String bookId) async {
+  Future<Map<String, dynamic>> status(String bookId) async {
+    final response = await get(Uri.parse('$baseUrl/status?book_id=$bookId'));
+
+    if (response.statusCode == 200) {
+      // List<dynamic> body = json.decode(response.body);
+      Map<String, dynamic> body = json.decode(response.body);
+      return body;
+    } else {
+      throw Exception('Error decoding chapter status: $response');
     }
   }
 }

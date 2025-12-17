@@ -29,7 +29,7 @@ class _FileUploadFormState extends State<FileUploadForm> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select a file')),
+        const SnackBar(content: Text('Please select a file')),
       );
     }
   }
