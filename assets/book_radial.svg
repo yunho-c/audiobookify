@@ -1,0 +1,72 @@
+<svg width="988" height="1133" viewBox="0 0 988 1133" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Component 1">
+<g id="Book - Front">
+<rect width="744" height="1133" transform="translate(244)" fill="url(#paint0_angular_3_11)"/>
+<g id="Adventures of Robinson Crusoe" filter="url(#filter0_d_3_11)">
+<text fill="white" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="96" letter-spacing="0em"><tspan x="284" y="140.909">Adventures of </tspan><tspan x="284" y="256.909">Robinson </tspan><tspan x="284" y="372.909">Crusoe&#10;</tspan></text>
+</g>
+<g id="John F. Kafka" filter="url(#filter1_d_3_11)">
+<text fill="white" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="40" font-weight="600" letter-spacing="0em"><tspan x="693.859" y="1077.55">John F. Kafka</tspan></text>
+</g>
+</g>
+<g id="Book - Side">
+<rect width="200" height="1133" fill="url(#paint1_angular_3_11)"/>
+<g id="Kafka" filter="url(#filter2_d_3_11)">
+<text fill="white" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="32" font-weight="600" letter-spacing="0em"><tspan x="61.1562" y="1096.14">Kafka</tspan></text>
+</g>
+<g id="Adventures of Roboinson Crusoe" filter="url(#filter3_d_3_11)">
+<text transform="translate(182 40) rotate(90)" fill="white" xml:space="preserve" style="white-space: pre" font-family="Inter" font-size="62" font-weight="500" letter-spacing="0em"><tspan x="12.917" y="104.545">Adventures of Roboinson Crusoe</tspan></text>
+</g>
+</g>
+</g>
+<defs>
+<filter id="filter0_d_3_11" x="274.455" y="59.9091" width="658.006" height="330.182" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="6"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_3_11"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_3_11" result="shape"/>
+</filter>
+<filter id="filter1_d_3_11" x="687.024" y="1043.55" width="271.447" height="46.8949" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="4"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_3_11"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_3_11" result="shape"/>
+</filter>
+<filter id="filter2_d_3_11" x="55.4517" y="1067.64" width="100.369" height="40.7159" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="4"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_3_11"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_3_11" result="shape"/>
+</filter>
+<filter id="filter3_d_3_11" x="68.3174" y="50.4582" width="63.8871" height="988.746" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="4"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_3_11"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_3_11" result="shape"/>
+</filter>
+<radialGradient id="paint0_angular_3_11" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(372 566.5) rotate(90) scale(566.5 566.5)">
+<stop stop-color="#DD8282"/>
+<stop offset="1" stop-color="#802525"/>
+</radialGradient>
+<radialGradient id="paint1_angular_3_11" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(100 566.5) rotate(180) scale(572 572)">
+<stop stop-color="#DD8282"/>
+<stop offset="1" stop-color="#802525"/>
+</radialGradient>
+</defs>
+</svg>
