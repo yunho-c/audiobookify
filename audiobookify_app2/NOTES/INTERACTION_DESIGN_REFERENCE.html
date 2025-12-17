@@ -1,0 +1,590 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Play, Pause, SkipBack, SkipForward, Plus, Settings, X, Mic, Disc, Clock, FileText } from 'lucide-react';
+
+// --- Mock Data ---
+// Added 'texture' types to vary the look
+const BASE_BOOKS = [
+  { title: "Robinson Crusoe", author: "Daniel Defoe", color: "bg-[#052e16]", spineColor: "bg-[#14532d]", coverGradient: "from-green-900 to-green-800", textColor: "text-green-100", pages: 296, duration: "6h 12m", style: 'classic' },
+  { title: "Moby Dick", author: "Herman Melville", color: "bg-[#0f172a]", spineColor: "bg-[#1e3a8a]", coverGradient: "from-slate-900 to-slate-800", textColor: "text-blue-100", pages: 600, duration: "13h 20m", style: 'leather' },
+  { title: "Emma", author: "Jane Austen", color: "bg-[#4a044e]", spineColor: "bg-[#831843]", coverGradient: "from-fuchsia-900 to-pink-900", textColor: "text-rose-100", pages: 400, duration: "8h 20m", style: 'cloth' },
+  { title: "Dune", author: "Frank Herbert", color: "bg-[#451a03]", spineColor: "bg-[#7c2d12]", coverGradient: "from-orange-900 to-amber-900", textColor: "text-amber-100", pages: 800, duration: "20h 00m", style: 'leather' },
+  { title: "1984", author: "George Orwell", color: "bg-[#18181b]", spineColor: "bg-[#27272a]", coverGradient: "from-gray-950 to-gray-800", textColor: "text-gray-100", pages: 328, duration: "6h 40m", style: 'classic' },
+];
+
+// Generate Library
+const BOOKS = Array.from({ length: 28 }).map((_, i) => {
+  const template = BASE_BOOKS[i % BASE_BOOKS.length];
+  return {
+    ...template,
+    id: i + 1,
+    heightVar: Math.floor(Math.random() * 40),
+    chapters: [
+      { id: 1, title: "Chapter One", text: "It was a bright cold day in April, and the clocks were striking thirteen..." },
+      { id: 2, title: "Chapter Two", text: "The hallway smelt of boiled cabbage and old rag mats..." },
+      { id: 3, title: "Chapter Three", text: "Winston Smith, his chin nuzzled into his breast in an effort to escape the vile wind..." },
+    ]
+  };
+});
+
+const SHELF_CAPACITY = 14;
+const shelves = [];
+for (let i = 0; i < BOOKS.length; i += SHELF_CAPACITY) {
+  shelves.push(BOOKS.slice(i, i + SHELF_CAPACITY));
+}
+
+// --- Styles ---
+const Styles = () => (
+  <style>{`
+    .perspective-container { perspective: 1500px; }
+    
+    .book-3d-wrapper {
+      transform-style: preserve-3d;
+      will-change: transform, top, left, width, height;
+      transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .book-structure {
+      position: relative;
+      width: 100%; height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* STATES */
+    .view-spine { transform: rotateY(-90deg); }
+    .view-isometric { transform: rotateX(20deg) rotateY(-30deg) rotateZ(-5deg); }
+    .view-open { transform: rotateX(0deg) rotateY(0deg) scale(1.1); }
+
+    /* SKEUOMORPHIC SPINE STYLES */
+    
+    /* Simulate roundness */
+    .spine-shading {
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, 
+        rgba(0,0,0,0.6) 0%, 
+        rgba(255,255,255,0.05) 20%, 
+        rgba(255,255,255,0.15) 50%, 
+        rgba(255,255,255,0.05) 80%, 
+        rgba(0,0,0,0.6) 100%
+      );
+      pointer-events: none;
+      z-index: 10;
+      border-radius: 2px;
+      box-shadow: inset 0 0 2px rgba(0,0,0,0.5); /* subtle edge darkening */
+    }
+
+    /* Simulate binding cords (ridges) */
+    .spine-ridge {
+      position: absolute;
+      left: 0; right: 0;
+      height: 3px;
+      background: rgba(0,0,0,0.2);
+      border-top: 1px solid rgba(255,255,255,0.15);
+      border-bottom: 1px solid rgba(0,0,0,0.4);
+      z-index: 5;
+    }
+
+    /* Gold stamped text effect */
+    .gold-stamp {
+      color: #eebb66; 
+      text-shadow: 0px 1px 1px rgba(0,0,0,0.9), 0px 0px 2px rgba(238, 187, 102, 0.3);
+      opacity: 0.9;
+    }
+    
+    .silver-stamp {
+      color: #e2e8f0;
+      text-shadow: 0px 1px 1px rgba(0,0,0,0.9);
+      opacity: 0.8;
+    }
+
+    /* Headcap (top of spine) */
+    .headcap {
+      background: radial-gradient(circle at 50% 100%, rgba(255,255,255,0.3), rgba(0,0,0,0.3));
+    }
+
+
+    /* FACES */
+    .face { position: absolute; backface-visibility: hidden; }
+    
+    .face-front {
+      width: 100%; height: 100%;
+      transform: translateZ(25px);
+      z-index: 10;
+      border-radius: 2px 4px 4px 2px;
+    }
+
+    .face-back {
+      width: 100%; height: 100%;
+      transform: rotateY(180deg) translateZ(25px);
+      border-radius: 4px 2px 2px 4px;
+    }
+
+    .face-spine {
+      position: absolute;
+      top: 0; bottom: 0; left: 0;
+      width: 50px;
+      transform: rotateY(-90deg) translateZ(25px);
+      transform-origin: center;
+      border-radius: 2px;
+    }
+
+    .face-right {
+      position: absolute;
+      top: 2px; bottom: 2px; right: 0;
+      width: 46px;
+      transform: rotateY(90deg) translateZ(calc(100% - 25px)); 
+      transform-origin: right;
+      background: linear-gradient(90deg, #fdfbf7 0%, #e8e6e1 5%, #fdfbf7 10%, #e8e6e1 15%, #fdfbf7 100%);
+      border: 1px solid #d6d3cd;
+    }
+
+    /* Cover Opening Animation */
+    .cover-pivot {
+       position: absolute;
+       top: 0; left: 0; width: 100%; height: 100%;
+       transform-origin: left;
+       transform-style: preserve-3d;
+       transition: transform 0.8s ease;
+    }
+    .book-is-open .cover-pivot { transform: rotateY(-180deg); }
+    
+    .interior-left {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      transform: rotateY(180deg) translateZ(26px); /* Just above back face */
+      background: #fdfbf7;
+      border-radius: 4px 0 0 4px;
+      backface-visibility: visible;
+    }
+
+    .interior-right {
+      position: absolute;
+      top: 4px; bottom: 4px; left: 4px; right: 4px;
+      background: #fdfbf7;
+      transform: translateZ(20px);
+      border-radius: 0 4px 4px 0;
+    }
+
+    /* Isometric Text Overlay */
+    .iso-text-container {
+       transform: rotateX(20deg) rotateY(-30deg) rotateZ(-5deg) translateZ(50px);
+       transform-style: preserve-3d;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+  `}</style>
+);
+
+const Button = ({ children, onClick, className = "", variant = "primary" }) => {
+  const baseStyle = "font-bold rounded-full transition-transform active:scale-95 flex items-center justify-center shadow-md";
+  const variants = {
+    primary: "bg-[#5d4037] text-[#f5f5dc]", 
+    icon: "p-3 bg-[#5d4037] text-[#f5f5dc]",
+  };
+  return <button onClick={onClick} className={`${baseStyle} ${variants[variant]} ${className}`}>{children}</button>;
+};
+
+// --- Creator Disk Component ---
+const CreatorDisk = ({ onGenerate }) => {
+  const [activeSector, setActiveSector] = useState(null);
+  const sectors = [
+    { id: 'pitch', label: 'PITCH', color: 'bg-amber-300', rotate: '0deg' },
+    { id: 'speed', label: 'SPEED', color: 'bg-red-300', rotate: '90deg' },
+    { id: 'sample', label: 'SAMPLE', color: 'bg-green-300', rotate: '180deg' },
+    { id: 'style', label: 'STYLE', color: 'bg-purple-300', rotate: '270deg' },
+  ];
+
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center animate-fade-in">
+       <div className="relative w-48 h-48 rounded-full shadow-inner bg-white border-2 border-gray-100 overflow-hidden mb-4">
+           {/* Center Spindle */}
+           <div className="absolute inset-0 m-auto w-10 h-10 bg-white rounded-full z-20 border-2 border-gray-200 shadow-sm flex items-center justify-center">
+              <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
+           </div>
+           
+           {sectors.map((sector) => (
+             <div 
+               key={sector.id}
+               onClick={(e) => { e.stopPropagation(); setActiveSector(sector.id); }}
+               className={`
+                 absolute top-0 left-0 w-full h-full origin-center transition-all duration-300 cursor-pointer
+                 ${activeSector === sector.id ? 'opacity-100 scale-105 z-10' : 'opacity-80 hover:opacity-90'}
+               `}
+               style={{ clipPath: 'inset(0 0 50% 50%)', transform: `rotate(${sector.rotate})` }}
+             >
+                <div className={`w-full h-full ${sector.color} relative`}></div>
+             </div>
+           ))}
+       </div>
+       
+       <div className="text-center mb-4">
+          <div className="text-xs font-bold text-[#5d4037] uppercase tracking-widest">
+            {activeSector ? sectors.find(s=>s.id === activeSector).label : "Select Parameter"}
+          </div>
+       </div>
+
+       <button 
+         onClick={(e) => { e.stopPropagation(); onGenerate(); }}
+         className="px-6 py-2 bg-[#3e2723] text-[#f5f5dc] text-xs font-bold rounded-full shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+       >
+         <Mic size={12} />
+         GENERATE
+       </button>
+    </div>
+  );
+};
+
+// --- Main App Component ---
+export default function App() {
+  const [viewState, setViewState] = useState('shelf'); 
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [playingChapter, setPlayingChapter] = useState(null);
+  const [animRect, setAnimRect] = useState(null); 
+  const [animPhase, setAnimPhase] = useState('idle'); 
+
+  // --- Interaction Handlers ---
+
+  const handleBookClick = (book, e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setAnimRect(rect);
+    setSelectedBook(book);
+    setAnimPhase('spawning');
+    setViewState('iso-preview');
+    setTimeout(() => setAnimPhase('moving'), 50);
+    setTimeout(() => setAnimPhase('focused'), 850);
+  };
+
+  const handleIsoClick = () => {
+    setViewState('open-empty');
+  };
+
+  const handleEmptyClick = () => {
+    setViewState('creator');
+  };
+
+  const handleGenerate = () => {
+    setViewState('ready');
+  };
+
+  const handlePlayChapter = (chapter) => {
+    setPlayingChapter(chapter);
+    setViewState('reading');
+  };
+
+  const handleClose = () => {
+    setViewState('shelf');
+    setAnimPhase('moving'); 
+    setTimeout(() => {
+        setAnimPhase('spawning');
+        setAnimRect(null);
+        setSelectedBook(null);
+        setAnimPhase('idle');
+        setPlayingChapter(null);
+    }, 850);
+  };
+
+  const handleClosePlayer = () => {
+      setViewState('ready');
+      setPlayingChapter(null);
+  };
+
+  const getBookTransform = () => {
+    if (animPhase === 'spawning' || animPhase === 'moving') return 'view-spine';
+    if (viewState === 'iso-preview') return 'view-isometric';
+    if (['open-empty', 'creator', 'ready', 'reading'].includes(viewState)) return 'view-open';
+    return '';
+  };
+
+  const isBookOpen = ['open-empty', 'creator', 'ready', 'reading'].includes(viewState);
+
+  return (
+    <div className="w-full h-screen bg-[#1c1917] font-sans text-gray-900 overflow-hidden relative selection:bg-[#8d6e63] selection:text-white flex flex-col">
+      <Styles />
+      
+      {/* Background Texture - Dark Wood Library */}
+      <div className="absolute inset-0 pointer-events-none fixed z-0 bg-[#292524]">
+          <div className="absolute inset-0 opacity-5" 
+               style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0px, #000 2px, transparent 2px, transparent 8px)' }}>
+          </div>
+          {/* Vignette */}
+          <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/60"></div>
+      </div>
+
+      {/* Dark Backdrop Overlay */}
+      <div 
+        className={`fixed inset-0 bg-black/80 z-40 transition-opacity duration-700 pointer-events-none ${viewState !== 'shelf' ? 'opacity-100' : 'opacity-0'}`}
+      ></div>
+
+      {/* --- LAYER 1: The Library Shelves --- */}
+      <div className={`
+          flex-1 overflow-y-auto custom-scrollbar pt-12 px-4 w-full transition-all duration-1000 ease-in-out pb-32
+          ${viewState !== 'shelf' ? 'scale-95 blur-[4px] pointer-events-none overflow-hidden' : 'opacity-100 scale-100'}
+      `}>
+        <div className="max-w-6xl mx-auto w-full text-center">
+            <h1 className="text-5xl md:text-7xl font-serif text-[#e7e5e4] mb-16 tracking-tight drop-shadow-xl text-shadow-gold">Audiobookify</h1>
+
+            {shelves.map((shelfBooks, shelfIndex) => (
+                <div key={shelfIndex} className="relative w-full max-w-5xl mx-auto mb-20 perspective-container group">
+                    {/* The Wood Shelf - Darker, richer wood */}
+                    <div className="absolute bottom-0 w-[104%] -left-[2%] h-8 bg-[#431407] rounded-sm shadow-[0_10px_20px_rgba(0,0,0,0.5)] translate-y-4 flex items-center justify-center border-t border-[#78350f]">
+                        <div className="w-full h-full bg-gradient-to-r from-black/50 via-transparent to-black/50"></div>
+                    </div>
+                    
+                    <div className="flex items-end justify-center px-4 pb-4">
+                        {shelfBooks.map((book, idx) => (
+                        <div 
+                            key={book.id}
+                            onClick={(e) => handleBookClick(book, e)}
+                            className={`
+                            cursor-pointer relative transition-transform hover:-translate-y-4 hover:z-20
+                            w-11 md:w-16 mx-px
+                            ${book.spineColor}
+                            ${selectedBook?.id === book.id && viewState !== 'shelf' ? 'opacity-0' : 'opacity-100'} 
+                            `}
+                            style={{ 
+                                height: `${220 + book.heightVar}px`, 
+                                boxShadow: '0 5px 10px rgba(0,0,0,0.5)' // Deeper drop shadow
+                            }}
+                        >
+                            {/* SKEUOMORPHIC LAYERS */}
+                            
+                            {/* 1. Shading Overlay (Cylinder effect) */}
+                            <div className="spine-shading"></div>
+
+                            {/* 2. Ridges (Binding cords) - Only for 'classic' or 'leather' style books, randomized slightly */}
+                            {book.style !== 'modern' && (
+                                <>
+                                    <div className="spine-ridge" style={{ top: '15%' }}></div>
+                                    <div className="spine-ridge" style={{ top: '30%' }}></div>
+                                    <div className="spine-ridge" style={{ bottom: '30%' }}></div>
+                                    <div className="spine-ridge" style={{ bottom: '15%' }}></div>
+                                </>
+                            )}
+
+                            {/* 3. Headcap (Top edge detail) */}
+                            <div className="absolute -top-1 left-0 right-0 h-1 headcap rounded-t-sm"></div>
+
+                            {/* 4. Text Label */}
+                            <div className="absolute inset-0 flex items-center justify-center overflow-hidden z-20">
+                                <span className={`
+                                    block rotate-90 whitespace-nowrap text-xs md:text-sm font-bold tracking-widest truncate w-[180px] text-center font-serif
+                                    ${book.textColor === 'text-blue-100' ? 'silver-stamp' : 'gold-stamp'}
+                                `}>
+                                {book.title.toUpperCase()}
+                                </span>
+                            </div>
+                            
+                        </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+            <div className="h-24"></div>
+        </div>
+      </div>
+
+      {/* --- LAYER 2: The Hero Book & Interactions --- */}
+      {selectedBook && animRect && (
+        <div 
+            className="fixed z-50 book-3d-wrapper"
+            style={{
+                top: (animPhase === 'spawning' || animPhase === 'moving') ? animRect.top : '50%',
+                left: (animPhase === 'spawning' || animPhase === 'moving') ? animRect.left : '50%',
+                width: (animPhase === 'spawning' || animPhase === 'moving') ? animRect.width : 280, 
+                height: (animPhase === 'spawning' || animPhase === 'moving') ? animRect.height : 420,
+                transform: (animPhase === 'focused' || animPhase === 'moving' || animPhase === 'spawning') ? 'translate(0, 0)' : 'translate(-50%, -50%)',
+                marginLeft: (animPhase === 'focused' || isBookOpen) ? '-140px' : '0', 
+                marginTop: (animPhase === 'focused' || isBookOpen) ? '-210px' : '0', 
+                cursor: 'pointer'
+            }}
+            onClick={() => {
+                if (viewState === 'iso-preview') handleIsoClick();
+            }}
+        >
+             <div className={`book-structure ${getBookTransform()} ${isBookOpen ? 'book-is-open' : ''}`}>
+                 
+                 {/* SPINE (Hero Version) */}
+                 <div className={`face-spine ${selectedBook.spineColor} flex items-center justify-center overflow-hidden shadow-2xl`}>
+                    <div className="spine-shading"></div>
+                    {/* Replicate ridges for consistency */}
+                    {selectedBook.style !== 'modern' && (
+                        <>
+                            <div className="spine-ridge" style={{ top: '15%' }}></div>
+                            <div className="spine-ridge" style={{ top: '30%' }}></div>
+                            <div className="spine-ridge" style={{ bottom: '30%' }}></div>
+                            <div className="spine-ridge" style={{ bottom: '15%' }}></div>
+                        </>
+                    )}
+                    <div className="absolute -top-1 left-0 right-0 h-1 headcap rounded-t-sm"></div>
+                    <span className={`block rotate-90 whitespace-nowrap text-sm font-bold tracking-widest z-20 font-serif gold-stamp`}>
+                      {selectedBook.title.toUpperCase()}
+                    </span>
+                 </div>
+                 
+                 <div className="face-right"></div>
+                 <div className={`face-back ${selectedBook.color} shadow-2xl`}></div>
+
+                 <div className="cover-pivot">
+                    {/* Front Cover - Added texture */}
+                    <div className={`
+                        face-front ${selectedBook.color} bg-gradient-to-br ${selectedBook.coverGradient}
+                        flex flex-col justify-center items-center p-6 text-center border-l border-white/10
+                    `}>
+                        {/* Leather texture overlay */}
+                        <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ filter: 'contrast(120%) brightness(90%)', backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }}></div>
+                        
+                        {/* Gold Border */}
+                        <div className="absolute inset-4 border border-[#eebb66] opacity-50 rounded-sm"></div>
+                        
+                        <h2 className="font-serif text-3xl font-bold leading-tight mb-4 gold-stamp drop-shadow-md z-10">{selectedBook.title}</h2>
+                        <p className={`text-base italic opacity-90 ${selectedBook.textColor} z-10`}>{selectedBook.author}</p>
+                    </div>
+
+                    <div className="interior-left flex flex-col justify-center items-center p-6 border-r border-gray-200 shadow-inner">
+                        <div className="w-full h-full border-4 border-double border-[#d7ccc8] flex flex-col items-center justify-center p-4">
+                            <h3 className="font-serif text-xl text-[#3e2723] font-bold text-center">Ex Libris</h3>
+                            <div className="w-12 h-px bg-[#3e2723] my-2"></div>
+                            <p className="text-[10px] uppercase tracking-widest text-[#5d4037] text-center">Audiobookify Collection</p>
+                        </div>
+                    </div>
+                 </div>
+
+                 {/* INTERIOR RIGHT */}
+                 <div className="interior-right shadow-[inset_2px_0_10px_rgba(0,0,0,0.1)] flex flex-col relative overflow-hidden bg-[#fdfbf7]">
+                     {/* 1. EMPTY STATE */}
+                     {viewState === 'open-empty' && (
+                         <div 
+                           className="absolute inset-0 flex flex-col items-center justify-center animate-fade-in"
+                           onClick={(e) => { e.stopPropagation(); handleEmptyClick(); }}
+                         >
+                             <div className="w-48 h-48 rounded-full border-4 border-dashed border-gray-300 flex items-center justify-center mb-4 group hover:border-[#3e2723] hover:bg-[#3e2723]/5 transition-colors cursor-pointer">
+                                 <Plus className="text-gray-300 group-hover:text-[#3e2723] transition-colors" size={48} />
+                             </div>
+                             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">No Audio Generated</p>
+                             <p className="text-[10px] text-gray-400 mt-1">Tap to Create</p>
+                         </div>
+                     )}
+
+                     {/* 2. CREATOR STATE */}
+                     {viewState === 'creator' && (
+                         <CreatorDisk onGenerate={handleGenerate} />
+                     )}
+
+                     {/* 3. READY STATE */}
+                     {(viewState === 'ready' || viewState === 'reading') && (
+                         <div className="w-full h-full flex flex-col p-4 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+                             <h3 className="text-xs font-bold text-[#3e2723] uppercase tracking-widest mb-4 border-b border-gray-200 pb-2">Chapters</h3>
+                             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+                                {selectedBook.chapters.map((chapter) => (
+                                    <button 
+                                        key={chapter.id}
+                                        onClick={() => handlePlayChapter(chapter)}
+                                        className="w-full flex items-center justify-between p-2 rounded hover:bg-[#3e2723]/5 group transition-colors text-left"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-6 h-6 rounded-full bg-[#3e2723] text-[#f5f5dc] flex items-center justify-center text-[10px] font-bold">
+                                                {chapter.id}
+                                            </div>
+                                            <span className="text-xs font-medium text-[#3e2723]">{chapter.title}</span>
+                                        </div>
+                                        <Play size={10} className="text-[#3e2723] opacity-0 group-hover:opacity-100" fill="currentColor" />
+                                    </button>
+                                ))}
+                             </div>
+                         </div>
+                     )}
+                 </div>
+
+             </div>
+        </div>
+      )}
+
+      {/* --- LAYER 3: Isometric Text Overlay --- */}
+      {viewState === 'iso-preview' && selectedBook && (
+          <div className="fixed top-1/2 left-1/2 z-50 pointer-events-none perspective-container" style={{ marginLeft: '160px', marginTop: '-100px' }}>
+              <div className="iso-text-container animate-slide-up origin-left">
+                  <h1 className="text-4xl font-serif text-[#f5f5dc] mb-2 drop-shadow-lg gold-stamp">{selectedBook.title}</h1>
+                  <p className="text-xl text-[#d7ccc8] italic mb-6">{selectedBook.author}</p>
+                  
+                  <div className="space-y-3">
+                      <div className="flex items-center gap-3 text-white/80">
+                          <Disc size={18} />
+                          <span className="text-sm font-mono tracking-widest">NOT GENERATED</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-white/80">
+                          <FileText size={18} />
+                          <span className="text-sm font-mono tracking-widest">{selectedBook.pages} PAGES</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-white/80">
+                          <Clock size={18} />
+                          <span className="text-sm font-mono tracking-widest">{selectedBook.duration} EST</span>
+                      </div>
+                  </div>
+
+                  <div className="mt-8 text-white/50 text-xs uppercase tracking-[0.2em] animate-pulse">
+                      Click Book to Open
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* --- LAYER 4: Close Button --- */}
+      {viewState !== 'shelf' && (
+          <button 
+            onClick={handleClose}
+            className="fixed top-6 right-6 z-50 p-3 bg-white/10 text-white rounded-full hover:bg-white/20 backdrop-blur-md transition-all animate-fade-in border border-white/10"
+          >
+              <X size={24} />
+          </button>
+      )}
+
+      {/* --- LAYER 5: Reader View --- */}
+      {viewState === 'reading' && playingChapter && (
+        <div className="fixed inset-0 z-50 bg-[#fff8e1] animate-slide-up flex flex-col">
+            <div className="h-20 px-6 flex items-center justify-between border-b border-[#3e2723]/10 shrink-0 bg-[#fae8b4]">
+                <button onClick={handleClosePlayer} className="p-3 -ml-2 rounded-full hover:bg-[#3e2723]/5 transition-colors">
+                   <X size={28} className="text-[#3e2723]" />
+                </button>
+                <span className="font-bold text-sm uppercase tracking-widest px-4 py-2 bg-[#ffe0b2] rounded-full text-[#3e2723] shadow-sm border border-[#eec55d]">
+                   {playingChapter.id}. {playingChapter.title}
+                </span>
+                <div className="w-10"></div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 md:p-16 max-w-3xl mx-auto w-full font-serif text-xl leading-loose text-[#4e342e]">
+                 <p className="first-letter:text-6xl first-letter:float-left first-letter:mr-4 first-letter:text-[#3e2723] first-letter:font-black">
+                     {playingChapter.text}
+                 </p>
+            </div>
+
+            <div className="bg-[#fff8e1]/95 backdrop-blur-sm px-6 pb-12 pt-6 border-t border-[#3e2723]/5 shrink-0">
+                <div className="max-w-xl mx-auto flex justify-between items-center text-[#3e2723]">
+                    <SkipBack />
+                    <button className="w-16 h-16 bg-[#5d4037] text-[#f5f5dc] rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform border-4 border-[#3e2723]">
+                        <Pause size={32} fill="currentColor" />
+                    </button>
+                    <SkipForward />
+                </div>
+            </div>
+        </div>
+      )}
+      
+      {/* Navigation Dock - Updated to float better */}
+      <div className={`fixed bottom-8 left-0 right-0 z-30 flex justify-center px-6 transition-transform duration-500 ${viewState !== 'shelf' ? 'translate-y-32' : ''}`}>
+        <div className="bg-[#5d4037] rounded-full shadow-2xl flex items-center p-2 pr-2 gap-4 max-w-lg w-full ring-2 ring-[#78350f] border-t border-[#a16207]">
+            <div className="flex-1 flex justify-around items-center pl-4">
+                {['About', 'Settings', 'Feedback'].map(label => (
+                    <button key={label} className="text-[#e7e5e4] hover:text-[#fde047] transition-colors py-3 group">
+                        <span className="text-xs md:text-sm uppercase font-bold tracking-widest group-hover:underline decoration-2 underline-offset-4 decoration-[#fde047]">{label}</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}
