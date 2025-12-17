@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audiobookify</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body,
+        #root {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .font-serif {
+            font-family: 'Playfair Display', serif;
+        }
+
+        @keyframes fadeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeSlideIn 0.7s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <!-- Import Maps for ES Modules -->
+    <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom": "https://esm.sh/react-dom@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+      "three": "https://esm.sh/three@0.158.0",
+      "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.11?deps=react@18.2.0,three@0.158.0",
+      "@react-three/drei": "https://esm.sh/@react-three/drei@9.88.11?deps=react@18.2.0,three@0.158.0,@react-three/fiber@8.15.11",
+      "lucide-react": "https://esm.sh/lucide-react@0.294.0?deps=react@18.2.0"
+    }
+  }
+  </script>
+
+    <script type="module">
+        import React, { useState, useRef, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useFrame, useThree } from '@react-three/fiber';
+        import { Text, RoundedBox, SoftShadows } from '@react-three/drei';
+        import * as THREE from 'three';
+        import { Play, Pause, SkipBack, SkipForward, X, Volume2, Bookmark, Clock, Star } from 'lucide-react';
+
+        // --- Configuration & Data ---
+
+        const GOLDEN_RATIO = 1.618;
+        const SPINE_WIDTH_BASE = 0.15;
+        const BOOK_HEIGHT = 1.2;
+        const BOOK_DEPTH = 0.9;
+
+        const BOOKS = [
+            { id: 1, title: "THE MARTIAN", author: "Andy Weir", color: "#e74c3c", duration: 10.5, rating: 4.8, description: "Six days ago, astronaut Mark Watney became one of the first people to walk on Mars. Now, he's sure he'll be the first person to die there." },
+            { id: 2, title: "DUNE", author: "Frank Herbert", color: "#d35400", duration: 21.0, rating: 4.9, description: "Set on the desert planet Arrakis, Dune is the story of the boy Paul Atreides, heir to a noble family tasked with ruling an inhospitable world where the only thing of value is the 'spice' melange." },
+            { id: 3, title: "PROJECT HAIL MARY", author: "Andy Weir", color: "#f1c40f", duration: 16.2, rating: 4.9, description: "Ryland Grace is the sole survivor on a desperate, last-chance mission—and if he fails, humanity and the earth itself will perish." },
+            { id: 4, title: "ATOMIC HABITS", author: "James Clear", color: "#ecf0f1", textColor: "#2c3e50", duration: 5.5, rating: 4.7, description: "No matter your goals, Atomic Habits offers a proven framework for improving--every day." },
+            { id: 5, title: "STEVE JOBS", author: "Walter Isaacson", color: "#ffffff", textColor: "#000000", duration: 25.0, rating: 4.6, description: "Based on more than forty interviews with Jobs conducted over two years." },
+            { id: 6, title: "DARK MATTER", author: "Blake Crouch", color: "#2c3e50", duration: 9.0, rating: 4.5, description: "Are you happy in your life? Those are the last words Jason Dessen hears before the masked abductor knocks him unconscious." },
+            { id: 7, title: "1984", author: "George Orwell", color: "#8e44ad", duration: 11.0, rating: 4.6, description: "Among the seminal texts of the 20th century, Nineteen Eighty-Four is a rare work that grows more haunting as its futuristic purgatory becomes more real." },
+            { id: 8, title: "SAPIENS", author: "Yuval Noah Harari", color: "#27ae60", duration: 15.0, rating: 4.7, description: "From a renowned historian comes a groundbreaking narrative of humanity's creation and evolution." },
+        ];
+
+        // --- 3D Components ---
+
+        const Book = ({ data, index, totalBooks, onSelect, activeBookId }) => {
+            const mesh = useRef();
+            const [hovered, setHover] = useState(false);
+
+            // Calculate thickness based on duration (gamification visual)
+            const thickness = SPINE_WIDTH_BASE + (data.duration / 100);
+
+            // Determine if this book is the currently selected one
+            const isActive = activeBookId === data.id;
+            const isOtherActive = activeBookId !== null && !isActive;
+
+            // Animation Logic
+            useFrame((state, delta) => {
+                if (!mesh.current) return;
+
+                // Target positions
+                let targetPos = new THREE.Vector3();
+                let targetRot = new THREE.Euler();
+
+                if (isActive) {
+                    // Float in front of camera
+                    const t = state.clock.getElapsedTime();
+                    targetPos.set(0, 0.5, 3.5); // Center stage
+                    targetRot.set(0, Math.PI, 0); // Face camera
+
+                    // Add a gentle float when active
+                    targetPos.y += Math.sin(t) * 0.05;
+
+                } else if (isOtherActive) {
+                    // Fade into background/blur position
+                    const xPos = (index - totalBooks / 2) * 0.35;
+                    targetPos.set(xPos, -0.2, 0);
+                    targetRot.set(0, 0, 0);
+                } else {
+                    // Resting shelf position
+                    const xPos = (index - totalBooks / 2) * (SPINE_WIDTH_BASE + 0.25);
+                    targetPos.set(xPos, 0, 0);
+                    targetRot.set(0, 0, 0);
+
+                    // Hover effect: pull out slightly
+                    if (hovered) {
+                        targetPos.z = 0.3;
+                        targetPos.y = 0.1;
+                    }
+                }
+
+                // Smooth lerp to target
+                mesh.current.position.lerp(targetPos, 0.1);
+
+                // Rotation lerp is trickier with Eulers, converting to Quaternion for smoothness
+                const q = new THREE.Quaternion().setFromEuler(targetRot);
+                mesh.current.quaternion.slerp(q, 0.1);
+            });
+
+            return React.createElement('group', {
+                ref: mesh,
+                onClick: (e) => {
+                    e.stopPropagation();
+                    if (!activeBookId) onSelect(data.id);
+                },
+                onPointerOver: () => setHover(true),
+                onPointerOut: () => setHover(false),
+                style: { cursor: hovered && !activeBookId ? 'pointer' : 'default' }
+            },
+                // Book Cover/Spine Mesh
+                React.createElement(RoundedBox, { args: [thickness, BOOK_HEIGHT, BOOK_DEPTH], radius: 0.05, smoothness: 4 },
+                    React.createElement('meshStandardMaterial', { color: data.color, roughness: 0.4, metalness: 0.1 })
+                ),
+                // Pages (White block inside)
+                React.createElement('mesh', { position: [0, 0, 0] },
+                    React.createElement('boxGeometry', { args: [thickness - 0.02, BOOK_HEIGHT - 0.1, BOOK_DEPTH - 0.05] }),
+                    React.createElement('meshStandardMaterial', { color: '#fdfbf7' })
+                ),
+                // Spine Text
+                React.createElement('group', { position: [0, 0, BOOK_DEPTH / 2 + 0.01] },
+                    React.createElement(Text, {
+                        position: [0, 0.2, 0],
+                        rotation: [0, 0, -Math.PI / 2],
+                        fontSize: 0.12,
+                        maxWidth: BOOK_HEIGHT - 0.2,
+                        lineHeight: 1,
+                        font: "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff",
+                        anchorX: "center",
+                        anchorY: "middle",
+                        color: data.textColor || "#ffffff"
+                    }, data.title),
+                    React.createElement(Text, {
+                        position: [0, -0.4, 0],
+                        rotation: [0, 0, -Math.PI / 2],
+                        fontSize: 0.06,
+                        color: data.textColor || "#ffffff",
+                        anchorX: "center"
+                    }, data.author.toUpperCase())
+                )
+            );
+        };
+
+        const Shelf = () => {
+            return React.createElement('group', { position: [0, -0.65, 0] },
+                // Wood plank
+                React.createElement('mesh', { position: [0, 0, 0], receiveShadow: true },
+                    React.createElement('boxGeometry', { args: [10, 0.1, 3] }),
+                    React.createElement('meshStandardMaterial', { color: '#5d4037', roughness: 0.8 })
+                ),
+                // Back glow/wall
+                React.createElement('mesh', { position: [0, 2, -1.5] },
+                    React.createElement('planeGeometry', { args: [20, 10] }),
+                    React.createElement('meshStandardMaterial', { color: '#1a1a1a' })
+                )
+            );
+        };
+
+        const Lights = () => {
+            return React.createElement(React.Fragment, null,
+                React.createElement('ambientLight', { intensity: 0.4 }),
+                React.createElement('spotLight', {
+                    position: [5, 10, 5],
+                    angle: 0.5,
+                    penumbra: 1,
+                    intensity: 2,
+                    castShadow: true,
+                    'shadow-mapSize': 1024
+                }),
+                React.createElement('pointLight', { position: [-5, 5, 5], intensity: 0.5, color: '#ffd700' }),
+                React.createElement('pointLight', { position: [0, 2, 2], intensity: 1, distance: 5, color: '#fff' })
+            );
+        };
+
+        const CameraRig = ({ activeBookId }) => {
+            const { camera, mouse } = useThree();
+            const vec = new THREE.Vector3();
+
+            useFrame(() => {
+                if (!activeBookId) {
+                    // Parallax effect when browsing
+                    camera.position.lerp(vec.set(mouse.x * 0.5, mouse.y * 0.2 + 1, 6), 0.05);
+                    camera.lookAt(0, 0, 0);
+                } else {
+                    // Fixed position when reading
+                    camera.position.lerp(vec.set(0, 0.5, 6.5), 0.05);
+                    camera.lookAt(0, 0.5, 0);
+                }
+            });
+
+            return null;
+        };
+
+        // --- UI Components ---
+
+        const PlayerUI = ({ book, onClose }) => {
+            const [playing, setPlaying] = useState(false);
+            const [progress, setProgress] = useState(35);
+
+            if (!book) return null;
+
+            return React.createElement('div', { className: "absolute inset-0 flex items-center justify-center pointer-events-none z-50" },
+                React.createElement('div', { className: "w-full max-w-md p-8 pointer-events-auto animate-in" },
+                    // Glassmorphism Card
+                    React.createElement('div', { className: "bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl text-white" },
+                        // Header
+                        React.createElement('div', { className: "flex justify-between items-start mb-8" },
+                            React.createElement('button', { onClick: onClose, className: "p-2 hover:bg-white/10 rounded-full transition-colors" },
+                                React.createElement(X, { className: "w-5 h-5 text-white/70" })
+                            ),
+                            React.createElement('div', { className: "flex gap-2" },
+                                React.createElement(Bookmark, { className: "w-5 h-5 text-white/70 hover:text-white cursor-pointer" }),
+                                React.createElement(Star, { className: "w-5 h-5 text-yellow-400 fill-yellow-400" })
+                            )
+                        ),
+                        // Title Area
+                        React.createElement('div', { className: "text-center mb-8 space-y-2" },
+                            React.createElement('h2', { className: "text-3xl font-serif tracking-wide" }, book.title),
+                            React.createElement('p', { className: "text-white/60 font-medium tracking-widest text-xs uppercase" }, book.author)
+                        ),
+                        // Progress Viz
+                        React.createElement('div', { className: "mb-8" },
+                            React.createElement('div', { className: "flex justify-between text-xs text-white/40 mb-2 font-mono" },
+                                React.createElement('span', null, "04:12:30"),
+                                React.createElement('span', null, `-${Math.floor(book.duration - 4)}:00:00`)
+                            ),
+                            React.createElement('div', { className: "h-1.5 bg-white/10 rounded-full overflow-hidden cursor-pointer group" },
+                                React.createElement('div', {
+                                    className: "h-full bg-white rounded-full relative",
+                                    style: { width: `${progress}%` }
+                                },
+                                    React.createElement('div', { className: "absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 shadow-[0_0_10px_rgba(255,255,255,0.5)] transition-opacity" })
+                                )
+                            )
+                        ),
+                        // Controls
+                        React.createElement('div', { className: "flex items-center justify-between mb-8" },
+                            React.createElement(SkipBack, { className: "w-6 h-6 text-white/50 hover:text-white cursor-pointer transition-colors" }),
+                            React.createElement('button', {
+                                onClick: () => setPlaying(!playing),
+                                className: "w-16 h-16 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition-transform active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                            },
+                                playing
+                                    ? React.createElement(Pause, { className: "w-6 h-6 fill-black" })
+                                    : React.createElement(Play, { className: "w-6 h-6 fill-black ml-1" })
+                            ),
+                            React.createElement(SkipForward, { className: "w-6 h-6 text-white/50 hover:text-white cursor-pointer transition-colors" })
+                        ),
+                        // Footer Metadata
+                        React.createElement('div', { className: "flex justify-between items-center text-xs text-white/30 font-mono border-t border-white/5 pt-4" },
+                            React.createElement('div', { className: "flex items-center gap-1" },
+                                React.createElement(Clock, { className: "w-3 h-3" }),
+                                React.createElement('span', null, `${book.duration} HRS`)
+                            ),
+                            React.createElement('div', { className: "flex items-center gap-1" },
+                                React.createElement(Volume2, { className: "w-3 h-3" }),
+                                React.createElement('span', null, "CHAPTER 4")
+                            )
+                        )
+                    ),
+                    // Blurb Card (Floats below)
+                    React.createElement('div', { className: "mt-4 p-6 bg-white/5 backdrop-blur-md border border-white/5 rounded-2xl text-white/80 text-sm leading-relaxed font-light shadow-xl" },
+                        React.createElement('p', null, `"${book.description}"`)
+                    )
+                )
+            );
+        };
+
+        const HeaderUI = ({ activeBookId }) => {
+            return React.createElement('div', {
+                className: `absolute top-0 left-0 w-full p-8 flex justify-between items-start pointer-events-none transition-opacity duration-500 ${activeBookId ? 'opacity-0' : 'opacity-100'}`
+            },
+                React.createElement('div', null,
+                    React.createElement('h1', { className: "text-4xl font-serif text-white tracking-tight" }, "Library"),
+                    React.createElement('p', { className: "text-white/40 text-sm mt-1 font-light tracking-widest uppercase" }, "8 Books • 120 Hours Left")
+                ),
+                React.createElement('div', { className: "pointer-events-auto" },
+                    React.createElement('button', { className: "w-10 h-10 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all" },
+                        React.createElement('svg', { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.5" },
+                            React.createElement('circle', { cx: "11", cy: "11", r: "8" }),
+                            React.createElement('line', { x1: "21", y1: "21", x2: "16.65", y2: "16.65" })
+                        )
+                    )
+                )
+            );
+        };
+
+        // --- Main App ---
+
+        function App() {
+            const [activeBookId, setActiveBookId] = useState(null);
+
+            const activeBook = useMemo(() =>
+                BOOKS.find(b => b.id === activeBookId),
+                [activeBookId]
+            );
+
+            return React.createElement('div', { className: "w-full h-screen bg-[#111] relative overflow-hidden font-sans selection:bg-white/30" },
+                // 3D Scene
+                React.createElement(Canvas, { shadows: true, dpr: [1, 2], camera: { position: [0, 1, 6], fov: 45 } },
+                    React.createElement(SoftShadows, { size: 10, samples: 10, focus: 0.5 }),
+                    React.createElement(Lights, null),
+                    React.createElement(CameraRig, { activeBookId }),
+                    React.createElement('group', { position: [0, -0.5, 0] },
+                        ...BOOKS.map((book, i) =>
+                            React.createElement(Book, {
+                                key: book.id,
+                                data: book,
+                                index: i,
+                                totalBooks: BOOKS.length,
+                                onSelect: setActiveBookId,
+                                activeBookId
+                            })
+                        ),
+                        React.createElement(Shelf, null)
+                    ),
+                    // Environment particles/fog for atmosphere
+                    React.createElement('fog', { attach: "fog", args: ['#111', 5, 15] })
+                ),
+                // 2D UI Layers
+                React.createElement(HeaderUI, { activeBookId }),
+                activeBookId && React.createElement(PlayerUI, { book: activeBook, onClose: () => setActiveBookId(null) }),
+                // Vignette Overlay for focus
+                React.createElement('div', { className: "absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" })
+            );
+        }
+
+        // Render
+        const root = createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+
+</html>

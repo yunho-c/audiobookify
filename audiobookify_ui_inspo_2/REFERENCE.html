@@ -1,0 +1,346 @@
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Text, useCursor, Environment, RoundedBox, Float, MeshReflectorMaterial, SoftShadows } from '@react-three/drei';
+import * as THREE from 'three';
+import { Play, Pause, SkipBack, SkipForward, X, Volume2, Bookmark, Clock, Star } from 'lucide-react';
+
+// --- Configuration & Data ---
+
+const GOLDEN_RATIO = 1.618;
+const SPINE_WIDTH_BASE = 0.15;
+const BOOK_HEIGHT = 1.2;
+const BOOK_DEPTH = 0.9;
+
+const BOOKS = [
+  { id: 1, title: "THE MARTIAN", author: "Andy Weir", color: "#e74c3c", duration: 10.5, rating: 4.8, description: "Six days ago, astronaut Mark Watney became one of the first people to walk on Mars. Now, he's sure he'll be the first person to die there." },
+  { id: 2, title: "DUNE", author: "Frank Herbert", color: "#d35400", duration: 21.0, rating: 4.9, description: "Set on the desert planet Arrakis, Dune is the story of the boy Paul Atreides, heir to a noble family tasked with ruling an inhospitable world where the only thing of value is the 'spice' melange." },
+  { id: 3, title: "PROJECT HAIL MARY", author: "Andy Weir", color: "#f1c40f", duration: 16.2, rating: 4.9, description: "Ryland Grace is the sole survivor on a desperate, last-chance mission—and if he fails, humanity and the earth itself will perish." },
+  { id: 4, title: "ATOMIC HABITS", author: "James Clear", color: "#ecf0f1", textColor: "#2c3e50", duration: 5.5, rating: 4.7, description: "No matter your goals, Atomic Habits offers a proven framework for improving--every day." },
+  { id: 5, title: "STEVE JOBS", author: "Walter Isaacson", color: "#ffffff", textColor: "#000000", duration: 25.0, rating: 4.6, description: "Based on more than forty interviews with Jobs conducted over two years." },
+  { id: 6, title: "DARK MATTER", author: "Blake Crouch", color: "#2c3e50", duration: 9.0, rating: 4.5, description: "Are you happy in your life? Those are the last words Jason Dessen hears before the masked abductor knocks him unconscious." },
+  { id: 7, title: "1984", author: "George Orwell", color: "#8e44ad", duration: 11.0, rating: 4.6, description: "Among the seminal texts of the 20th century, Nineteen Eighty-Four is a rare work that grows more haunting as its futuristic purgatory becomes more real." },
+  { id: 8, title: "SAPIENS", author: "Yuval Noah Harari", color: "#27ae60", duration: 15.0, rating: 4.7, description: "From a renowned historian comes a groundbreaking narrative of humanity’s creation and evolution." },
+];
+
+// --- 3D Components ---
+
+const Book = ({ data, index, totalBooks, onSelect, activeBookId }) => {
+  const mesh = useRef();
+  const [hovered, setHover] = useState(false);
+  
+  // Calculate thickness based on duration (gamification visual)
+  const thickness = SPINE_WIDTH_BASE + (data.duration / 100); 
+  
+  // Determine if this book is the currently selected one
+  const isActive = activeBookId === data.id;
+  const isOtherActive = activeBookId !== null && !isActive;
+
+  useCursor(hovered && !activeBookId);
+
+  // Animation Logic
+  useFrame((state, delta) => {
+    if (!mesh.current) return;
+
+    // Target positions
+    let targetPos = new THREE.Vector3();
+    let targetRot = new THREE.Euler();
+
+    if (isActive) {
+      // Float in front of camera
+      const t = state.clock.getElapsedTime();
+      targetPos.set(0, 0.5, 3.5); // Center stage
+      targetRot.set(0, Math.PI, 0); // Face camera
+      
+      // Add a gentle float when active
+      targetPos.y += Math.sin(t) * 0.05;
+      
+    } else if (isOtherActive) {
+      // Fade into background/blur position
+      const xPos = (index - totalBooks / 2) * 0.35;
+      targetPos.set(xPos, -0.2, 0);
+      targetRot.set(0, 0, 0);
+    } else {
+      // Resting shelf position
+      const xPos = (index - totalBooks / 2) * (SPINE_WIDTH_BASE + 0.25);
+      targetPos.set(xPos, 0, 0);
+      targetRot.set(0, 0, 0);
+      
+      // Hover effect: pull out slightly
+      if (hovered) {
+        targetPos.z = 0.3;
+        targetPos.y = 0.1;
+      }
+    }
+
+    // Smooth lerp to target
+    mesh.current.position.lerp(targetPos, 0.1);
+    
+    // Rotation lerp is trickier with Eulers, converting to Quaternion for smoothness
+    const q = new THREE.Quaternion().setFromEuler(targetRot);
+    mesh.current.quaternion.slerp(q, 0.1);
+  });
+
+  return (
+    <group 
+      ref={mesh} 
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!activeBookId) onSelect(data.id);
+      }}
+      onPointerOver={() => setHover(true)}
+      onPointerOut={() => setHover(false)}
+    >
+      {/* Book Cover/Spine Mesh */}
+      <RoundedBox args={[thickness, BOOK_HEIGHT, BOOK_DEPTH]} radius={0.05} smoothness={4}>
+        <meshStandardMaterial 
+          color={data.color} 
+          roughness={0.4} 
+          metalness={0.1}
+        />
+      </RoundedBox>
+
+      {/* Pages (White block inside) */}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[thickness - 0.02, BOOK_HEIGHT - 0.1, BOOK_DEPTH - 0.05]} />
+        <meshStandardMaterial color="#fdfbf7" />
+      </mesh>
+
+      {/* Spine Text */}
+      <group position={[0, 0, BOOK_DEPTH / 2 + 0.01]}>
+        <Text
+          position={[0, 0.2, 0]}
+          rotation={[0, 0, -Math.PI / 2]}
+          fontSize={0.12}
+          maxWidth={BOOK_HEIGHT - 0.2}
+          lineHeight={1}
+          font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
+          anchorX="center"
+          anchorY="middle"
+          color={data.textColor || "#ffffff"}
+        >
+          {data.title}
+        </Text>
+        <Text
+           position={[0, -0.4, 0]}
+           rotation={[0, 0, -Math.PI / 2]}
+           fontSize={0.06}
+           color={data.textColor || "#ffffff"}
+           anchorX="center"
+        >
+          {data.author.toUpperCase()}
+        </Text>
+      </group>
+    </group>
+  );
+};
+
+const Shelf = () => {
+  return (
+    <group position={[0, -0.65, 0]}>
+      {/* Wood plank */}
+      <mesh position={[0, 0, 0]} receiveShadow>
+        <boxGeometry args={[10, 0.1, 3]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.8} />
+      </mesh>
+      {/* Back glow/wall */}
+      <mesh position={[0, 2, -1.5]}>
+        <planeGeometry args={[20, 10]} />
+        <meshStandardMaterial color="#1a1a1a" />
+      </mesh>
+    </group>
+  );
+};
+
+const Lights = () => {
+  return (
+    <>
+      <ambientLight intensity={0.4} />
+      <spotLight 
+        position={[5, 10, 5]} 
+        angle={0.5} 
+        penumbra={1} 
+        intensity={2} 
+        castShadow 
+        shadow-mapSize={1024}
+      />
+      <pointLight position={[-5, 5, 5]} intensity={0.5} color="#ffd700" />
+      <pointLight position={[0, 2, 2]} intensity={1} distance={5} color="#fff" />
+    </>
+  );
+};
+
+const CameraRig = ({ activeBookId }) => {
+  const { camera, mouse } = useThree();
+  const vec = new THREE.Vector3();
+
+  useFrame(() => {
+    if (!activeBookId) {
+      // Parallax effect when browsing
+      camera.position.lerp(vec.set(mouse.x * 0.5, mouse.y * 0.2 + 1, 6), 0.05);
+      camera.lookAt(0, 0, 0);
+    } else {
+      // Fixed position when reading
+      camera.position.lerp(vec.set(0, 0.5, 6.5), 0.05);
+      camera.lookAt(0, 0.5, 0);
+    }
+  });
+
+  return null;
+};
+
+// --- UI Components ---
+
+const PlayerUI = ({ book, onClose }) => {
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(35);
+
+  if (!book) return null;
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+      <div className="w-full max-w-md p-8 pointer-events-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
+        
+        {/* Glassmorphism Card */}
+        <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl text-white">
+          
+          {/* Header */}
+          <div className="flex justify-between items-start mb-8">
+             <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+               <X className="w-5 h-5 text-white/70" />
+             </button>
+             <div className="flex gap-2">
+                <Bookmark className="w-5 h-5 text-white/70 hover:text-white cursor-pointer" />
+                <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+             </div>
+          </div>
+
+          {/* Title Area */}
+          <div className="text-center mb-8 space-y-2">
+            <h2 className="text-3xl font-serif tracking-wide">{book.title}</h2>
+            <p className="text-white/60 font-medium tracking-widest text-xs uppercase">{book.author}</p>
+          </div>
+
+          {/* Progress Viz */}
+          <div className="mb-8">
+            <div className="flex justify-between text-xs text-white/40 mb-2 font-mono">
+              <span>04:12:30</span>
+              <span>-{Math.floor(book.duration - 4)}:00:00</span>
+            </div>
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden cursor-pointer group">
+              <div 
+                className="h-full bg-white rounded-full relative" 
+                style={{ width: `${progress}%` }}
+              >
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 shadow-[0_0_10px_rgba(255,255,255,0.5)] transition-opacity" />
+              </div>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center justify-between mb-8">
+            <SkipBack className="w-6 h-6 text-white/50 hover:text-white cursor-pointer transition-colors" />
+            <button 
+              onClick={() => setPlaying(!playing)}
+              className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 transition-transform active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+            >
+              {playing ? <Pause className="w-6 h-6 fill-black" /> : <Play className="w-6 h-6 fill-black ml-1" />}
+            </button>
+            <SkipForward className="w-6 h-6 text-white/50 hover:text-white cursor-pointer transition-colors" />
+          </div>
+
+          {/* Footer Metadata */}
+          <div className="flex justify-between items-center text-xs text-white/30 font-mono border-t border-white/5 pt-4">
+             <div className="flex items-center gap-1">
+               <Clock className="w-3 h-3" />
+               <span>{book.duration} HRS</span>
+             </div>
+             <div className="flex items-center gap-1">
+                <Volume2 className="w-3 h-3" />
+                <span>CHAPTER 4</span>
+             </div>
+          </div>
+
+        </div>
+
+        {/* Blurb Card (Floats below) */}
+        <div className="mt-4 p-6 bg-white/5 backdrop-blur-md border border-white/5 rounded-2xl text-white/80 text-sm leading-relaxed font-light shadow-xl">
+           <p>"{book.description}"</p>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+const HeaderUI = ({ activeBookId }) => {
+  return (
+    <div className={`absolute top-0 left-0 w-full p-8 flex justify-between items-start pointer-events-none transition-opacity duration-500 ${activeBookId ? 'opacity-0' : 'opacity-100'}`}>
+      <div>
+        <h1 className="text-4xl font-serif text-white tracking-tight">Library</h1>
+        <p className="text-white/40 text-sm mt-1 font-light tracking-widest uppercase">8 Books • 120 Hours Left</p>
+      </div>
+      <div className="pointer-events-auto">
+        <button className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+             <circle cx="11" cy="11" r="8"></circle>
+             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- Main App ---
+
+export default function App() {
+  const [activeBookId, setActiveBookId] = useState(null);
+  
+  const activeBook = useMemo(() => 
+    BOOKS.find(b => b.id === activeBookId), 
+    [activeBookId]
+  );
+
+  return (
+    <div className="w-full h-screen bg-[#111] relative overflow-hidden font-sans selection:bg-white/30">
+      
+      {/* 3D Scene */}
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 1, 6], fov: 45 }}>
+        <SoftShadows size={10} samples={10} focus={0.5} />
+        <Lights />
+        <CameraRig activeBookId={activeBookId} />
+        
+        <group position={[0, -0.5, 0]}>
+          {BOOKS.map((book, i) => (
+            <Book 
+              key={book.id} 
+              data={book} 
+              index={i} 
+              totalBooks={BOOKS.length} 
+              onSelect={setActiveBookId}
+              activeBookId={activeBookId}
+            />
+          ))}
+          <Shelf />
+        </group>
+        
+        {/* Environment particles/fog for atmosphere */}
+        <fog attach="fog" args={['#111', 5, 15]} />
+      </Canvas>
+
+      {/* 2D UI Layers */}
+      <HeaderUI activeBookId={activeBookId} />
+      
+      {activeBookId && (
+        <PlayerUI 
+          book={activeBook} 
+          onClose={() => setActiveBookId(null)} 
+        />
+      )}
+      
+      {/* Vignette Overlay for focus */}
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
+
+    </div>
+  );
+}
