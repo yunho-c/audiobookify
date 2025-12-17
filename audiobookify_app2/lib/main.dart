@@ -1,122 +1,591 @@
 import 'package:flutter/material.dart';
+import 'data/book_data.dart';
+import 'theme/app_theme.dart';
+import 'widgets/book_3d.dart';
+import 'widgets/creator_disk.dart';
+import 'widgets/chapter_list.dart';
+import 'widgets/navigation_dock.dart';
+import 'screens/shelf_screen.dart';
+import 'screens/reader_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const AudiobookifyApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+/// View states matching the React reference
+enum ViewState { shelf, isoPreview, openEmpty, creator, ready, reading }
 
-  // This widget is the root of your application.
+class AudiobookifyApp extends StatelessWidget {
+  const AudiobookifyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'Audiobookify',
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
+      home: const AudiobookifyHome(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class AudiobookifyHome extends StatefulWidget {
+  const AudiobookifyHome({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<AudiobookifyHome> createState() => _AudiobookifyHomeState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _AudiobookifyHomeState extends State<AudiobookifyHome>
+    with TickerProviderStateMixin {
+  // Data
+  late List<Book> _books;
+  late List<List<Book>> _shelves;
 
-  void _incrementCounter() {
+  // State
+  ViewState _viewState = ViewState.shelf;
+  Book? _selectedBook;
+  Chapter? _playingChapter;
+  Rect? _animRect;
+
+  // Animation
+  late AnimationController _positionController;
+  late Animation<Rect?> _rectAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _books = generateBooks();
+    _shelves = organizeBooksIntoShelves(_books);
+
+    _positionController = AnimationController(
+      duration: AppAnimations.bookTransformDuration,
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _positionController.dispose();
+    super.dispose();
+  }
+
+  // --- Interaction Handlers ---
+
+  void _handleBookTap(Book book, Rect rect) {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _selectedBook = book;
+      _animRect = rect;
+      _viewState = ViewState.isoPreview;
     });
+
+    // Animate to center
+    final screenSize = MediaQuery.of(context).size;
+    final targetRect = Rect.fromCenter(
+      center: Offset(screenSize.width / 2 - 80, screenSize.height / 2),
+      width: 280,
+      height: 420,
+    );
+
+    _rectAnimation = RectTween(begin: rect, end: targetRect).animate(
+      CurvedAnimation(
+        parent: _positionController,
+        curve: AppAnimations.bookTransformCurve,
+      ),
+    );
+
+    _positionController.forward(from: 0);
+  }
+
+  void _handleIsoClick() {
+    setState(() {
+      _viewState = ViewState.openEmpty;
+    });
+  }
+
+  void _handleEmptyClick() {
+    setState(() {
+      _viewState = ViewState.creator;
+    });
+  }
+
+  void _handleGenerate() {
+    setState(() {
+      _viewState = ViewState.ready;
+    });
+  }
+
+  void _handlePlayChapter(Chapter chapter) {
+    setState(() {
+      _playingChapter = chapter;
+      _viewState = ViewState.reading;
+    });
+  }
+
+  void _handleClose() {
+    if (_viewState == ViewState.reading) {
+      setState(() {
+        _viewState = ViewState.ready;
+        _playingChapter = null;
+      });
+    } else {
+      // Animate back to shelf
+      _positionController.reverse().then((_) {
+        setState(() {
+          _viewState = ViewState.shelf;
+          _selectedBook = null;
+          _animRect = null;
+          _playingChapter = null;
+        });
+      });
+    }
+  }
+
+  void _handleCloseReader() {
+    setState(() {
+      _viewState = ViewState.ready;
+      _playingChapter = null;
+    });
+  }
+
+  // --- Helpers ---
+
+  BookViewState _getBookViewState() {
+    switch (_viewState) {
+      case ViewState.shelf:
+        return BookViewState.spine;
+      case ViewState.isoPreview:
+        return BookViewState.isometric;
+      case ViewState.openEmpty:
+      case ViewState.creator:
+      case ViewState.ready:
+      case ViewState.reading:
+        return BookViewState.open;
+    }
+  }
+
+  Widget? _getInteriorContent() {
+    switch (_viewState) {
+      case ViewState.openEmpty:
+        return _EmptyState(onTap: _handleEmptyClick);
+      case ViewState.creator:
+        return CreatorDisk(onGenerate: _handleGenerate);
+      case ViewState.ready:
+      case ViewState.reading:
+        return ChapterList(
+          chapters: _selectedBook?.chapters ?? [],
+          onChapterTap: _handlePlayChapter,
+        );
+      default:
+        return null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+      backgroundColor: AppColors.background,
+      body: Stack(
+        children: [
+          // Layer 0: Background texture
+          _buildBackground(),
+
+          // Layer 1: Shelf view
+          ShelfScreen(
+            shelves: _shelves,
+            onBookTap: _handleBookTap,
+            isBlurred: _viewState != ViewState.shelf,
+          ),
+
+          // Layer 2: Backdrop overlay
+          if (_viewState != ViewState.shelf)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              color: Colors.black.withOpacity(0.8),
+            ),
+
+          // Layer 3: 3D Book
+          if (_selectedBook != null && _animRect != null)
+            AnimatedBuilder(
+              animation: _positionController,
+              builder: (context, child) {
+                final rect = _rectAnimation.value ?? _animRect!;
+                return Positioned(
+                  left: rect.left,
+                  top: rect.top,
+                  width: rect.width,
+                  height: rect.height,
+                  child: GestureDetector(
+                    onTap: _viewState == ViewState.isoPreview
+                        ? _handleIsoClick
+                        : null,
+                    child: Book3D(
+                      book: _selectedBook!,
+                      viewState: _getBookViewState(),
+                      interiorContent: _getInteriorContent(),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+          // Layer 4: Isometric text overlay
+          if (_viewState == ViewState.isoPreview && _selectedBook != null)
+            _buildIsoTextOverlay(),
+
+          // Layer 5: Close button
+          if (_viewState != ViewState.shelf && _viewState != ViewState.reading)
+            Positioned(
+              top: 24,
+              right: 24,
+              child: _CloseButton(onTap: _handleClose),
+            ),
+
+          // Layer 6: Reader view
+          if (_viewState == ViewState.reading &&
+              _selectedBook != null &&
+              _playingChapter != null)
+            Positioned.fill(
+              child: ReaderScreen(
+                book: _selectedBook!,
+                chapter: _playingChapter!,
+                onClose: _handleCloseReader,
+              ),
+            ),
+
+          // Layer 7: Navigation dock
+          Positioned(
+            bottom: 32,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: NavigationDock(
+                visible: _viewState == ViewState.shelf,
+              ),
+            ),
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
+    );
+  }
+
+  Widget _buildBackground() {
+    return Positioned.fill(
+      child: Container(
+        color: AppColors.backgroundLight,
+        child: Stack(
           children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            // Diagonal stripe pattern
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0.05,
+                child: CustomPaint(
+                  painter: _StripePainter(),
+                ),
+              ),
+            ),
+
+            // Vignette
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.6),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+    );
+  }
+
+  Widget _buildIsoTextOverlay() {
+    return Positioned(
+      top: MediaQuery.of(context).size.height / 2 - 100,
+      left: MediaQuery.of(context).size.width / 2 + 100,
+      child: IgnorePointer(
+        child: Transform(
+          alignment: Alignment.topLeft,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.001)
+            ..rotateX(20 * 3.14159 / 180)
+            ..rotateY(-30 * 3.14159 / 180)
+            ..rotateZ(-5 * 3.14159 / 180),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _selectedBook!.title,
+                style: AppTextStyles.goldStamp.copyWith(
+                  fontSize: 32,
+                  fontFamily: 'serif',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _selectedBook!.author,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.warmStone,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Metadata
+              _MetadataRow(
+                icon: Icons.album,
+                label: 'NOT GENERATED',
+              ),
+              const SizedBox(height: 12),
+              _MetadataRow(
+                icon: Icons.description,
+                label: '${_selectedBook!.pages} PAGES',
+              ),
+              const SizedBox(height: 12),
+              _MetadataRow(
+                icon: Icons.access_time,
+                label: '${_selectedBook!.duration} EST',
+              ),
+
+              const SizedBox(height: 32),
+
+              // Hint
+              _PulsingText(text: 'Click Book to Open'),
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+/// Empty state with dashed circle and plus icon
+class _EmptyState extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _EmptyState({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 160,
+            height: 160,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.grey.shade400,
+                width: 4,
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: CustomPaint(
+              painter: _DashedCirclePainter(),
+              child: Center(
+                child: Icon(
+                  Icons.add,
+                  size: 48,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'NO AUDIO GENERATED',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap to Create',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey.shade500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dashed circle painter
+class _DashedCirclePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.shade400
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 8;
+
+    const dashCount = 24;
+    const dashAngle = 3.14159 * 2 / dashCount;
+    const gapAngle = dashAngle * 0.4;
+
+    for (int i = 0; i < dashCount; i++) {
+      final startAngle = i * dashAngle;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        dashAngle - gapAngle,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Close button
+class _CloseButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _CloseButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withOpacity(0.1),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.1),
+            width: 1,
+          ),
+        ),
+        child: const Icon(
+          Icons.close,
+          size: 24,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+/// Metadata row with icon and label
+class _MetadataRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _MetadataRow({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.white.withOpacity(0.8)),
+        const SizedBox(width: 12),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontFamily: 'monospace',
+            letterSpacing: 2,
+            color: Colors.white.withOpacity(0.8),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Pulsing hint text
+class _PulsingText extends StatefulWidget {
+  final String text;
+
+  const _PulsingText({required this.text});
+
+  @override
+  State<_PulsingText> createState() => _PulsingTextState();
+}
+
+class _PulsingTextState extends State<_PulsingText>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Opacity(
+          opacity: 0.3 + (_controller.value * 0.4),
+          child: Text(
+            widget.text.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              letterSpacing: 4,
+              color: Colors.white,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Stripe pattern painter for background
+class _StripePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 2;
+
+    const spacing = 8.0;
+    var x = 0.0;
+
+    while (x < size.width + size.height) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x - size.height, size.height),
+        paint,
+      );
+      x += spacing;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
