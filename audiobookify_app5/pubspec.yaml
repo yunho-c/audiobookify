@@ -37,6 +37,9 @@ dependencies:
   google_fonts: ^6.1.0
   go_router: ^14.0.0
   lucide_icons: ^0.257.0
+  rust_lib_audiobookify_app5:
+    path: rust_builder
+  flutter_rust_bridge: 2.11.1
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +51,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  integration_test:
+    sdk: flutter
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

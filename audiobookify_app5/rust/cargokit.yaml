@@ -1,0 +1,9 @@
+# Cargokit configuration for Rust builds
+# Using nightly toolchain to support Rust Edition 2024 (required by rbook 0.6.9)
+cargo:
+  debug:
+    toolchain: nightly
+  release:
+    toolchain: nightly
+  profile:
+    toolchain: nightly
