@@ -541,13 +541,18 @@ class _ChapterList extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (toc.isNotEmpty)
-            ...toc.asMap().entries.map(
-              (entry) => _TocItem(
-                index: entry.key + 1,
-                title: entry.value.title,
-                bookId: bookId,
-              ),
-            )
+            ...toc
+                .where((t) => t.title.trim().isNotEmpty) // Filter empty titles
+                .toList()
+                .asMap()
+                .entries
+                .map(
+                  (entry) => _TocItem(
+                    index: entry.key + 1,
+                    title: entry.value.title,
+                    bookId: bookId,
+                  ),
+                )
           else
             ...chapters.asMap().entries.map(
               (entry) => _TocItem(
