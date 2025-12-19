@@ -24,6 +24,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final ScrollController _scrollController = ScrollController();
+  List<GlobalKey> _paragraphKeys = [];
 
   // Data
   Book? _book;
@@ -117,6 +118,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() {
       _currentChapterIndex = index;
       _paragraphs = paragraphs;
+      _paragraphKeys =
+          List.generate(paragraphs.length, (_) => GlobalKey());
+      _lastScrolledToParagraph = -1;
       _isLoading = false;
     });
 
@@ -158,6 +162,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _scrollToParagraph(int index) {
+    if (index < 0 || index >= _paragraphKeys.length) return;
+    final targetContext = _paragraphKeys[index].currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        alignment: 0.1,
+      );
+      return;
+    }
+
     final scrollPosition = index * 120.0;
     _scrollController.animateTo(
       scrollPosition,
@@ -203,6 +219,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _saveProgress();
+    ref.read(ttsProvider.notifier).stop();
     ref.read(ttsProvider.notifier).onComplete = null;
     _scrollController.dispose();
     super.dispose();
@@ -358,6 +375,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         padding: const EdgeInsets.fromLTRB(32, 16, 32, 200),
                         itemCount: _paragraphs.length,
                         itemBuilder: (context, index) {
+                          final paragraphKey = index < _paragraphKeys.length
+                              ? _paragraphKeys[index]
+                              : GlobalKey();
                           final isActiveParagraph =
                               index == currentParagraphIndex;
                           final sentences =
@@ -366,6 +386,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               : <String>[];
 
                           return GestureDetector(
+                            key: paragraphKey,
                             onTap: () {
                               ref
                                   .read(ttsProvider.notifier)
