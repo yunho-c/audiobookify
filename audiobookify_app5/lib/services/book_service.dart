@@ -110,6 +110,25 @@ class BookService {
     return bucket.buckets;
   }
 
+  /// Stream bucket progress for a chapter (0/1 values).
+  Stream<Uint8List> watchBucketProgress({
+    required int bookId,
+    required int chapterIndex,
+    int bucketCount = 64,
+  }) {
+    final query = _progressBox.query(
+      BookProgressBucket_.bookId.equals(bookId) &
+          BookProgressBucket_.chapterIndex.equals(chapterIndex),
+    );
+    return query.watch(triggerImmediately: true).map((result) {
+      final bucket = result.findFirst();
+      if (bucket == null || bucket.buckets.length != bucketCount) {
+        return Uint8List(bucketCount);
+      }
+      return bucket.buckets;
+    });
+  }
+
   /// Delete a book
   bool deleteBook(int id) {
     return _bookBox.remove(id);

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
@@ -143,4 +144,40 @@ final ttsSettingsSyncProvider = Provider<void>((ref) {
   ref.listen<PlayerSettings>(playerSettingsProvider, (previous, next) {
     tts.applySettings(next);
   });
+});
+
+// ========================================
+// Bucketed Progress
+// ========================================
+
+class BucketProgressArgs {
+  final int bookId;
+  final int chapterIndex;
+  final int bucketCount;
+
+  const BucketProgressArgs({
+    required this.bookId,
+    required this.chapterIndex,
+    this.bucketCount = 64,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is BucketProgressArgs &&
+        other.bookId == bookId &&
+        other.chapterIndex == chapterIndex &&
+        other.bucketCount == bucketCount;
+  }
+
+  @override
+  int get hashCode => Object.hash(bookId, chapterIndex, bucketCount);
+}
+
+final bucketProgressProvider =
+    StreamProvider.family<Uint8List, BucketProgressArgs>((ref, args) {
+  return ref.watch(bookServiceProvider).watchBucketProgress(
+        bookId: args.bookId,
+        chapterIndex: args.chapterIndex,
+        bucketCount: args.bucketCount,
+      );
 });

@@ -513,7 +513,6 @@ class _ChapterList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookService = ref.read(bookServiceProvider);
     const bucketCount = 64;
     final filteredToc =
         toc.where((t) => t.title.trim().isNotEmpty).toList();
@@ -587,11 +586,7 @@ class _ChapterList extends ConsumerWidget {
                       filteredToc.length,
                       progress,
                     ),
-                    buckets: bookService.getBucketProgress(
-                      bookId: bookId,
-                      chapterIndex: entry.key + 1,
-                      bucketCount: bucketCount,
-                    ),
+                    bucketCount: bucketCount,
                   ),
                 )
           else
@@ -605,11 +600,7 @@ class _ChapterList extends ConsumerWidget {
                   chapters.length,
                   progress,
                 ),
-                buckets: bookService.getBucketProgress(
-                  bookId: bookId,
-                  chapterIndex: entry.key + 1,
-                  bucketCount: bucketCount,
-                ),
+                bucketCount: bucketCount,
               ),
             ),
         ],
@@ -637,25 +628,35 @@ _ChapterStatus _chapterStatus(int index, int total, int progress) {
   return _ChapterStatus.newChapter;
 }
 
-class _TocItem extends StatelessWidget {
+class _TocItem extends ConsumerWidget {
   final int index;
   final String title;
   final int bookId;
   final _ChapterStatus status;
-  final Uint8List buckets;
+  final int bucketCount;
 
   const _TocItem({
     required this.index,
     required this.title,
     required this.bookId,
     required this.status,
-    required this.buckets,
+    required this.bucketCount,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final bucketState = ref.watch(
+      bucketProgressProvider(
+        BucketProgressArgs(
+          bookId: bookId,
+          chapterIndex: index,
+          bucketCount: bucketCount,
+        ),
+      ),
+    );
+    final buckets = bucketState.value ?? Uint8List(bucketCount);
     return _FadeTap(
       onTap: () => context.push('/player/$bookId?chapter=$index'),
       child: Padding(
