@@ -1,10 +1,14 @@
+import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:html/parser.dart' as html_parser;
+import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../core/route_observer.dart';
 import '../services/tts_service.dart';
@@ -182,6 +186,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     return paragraphs;
   }
 
+  void _showActionMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _openSettings() {
+    HapticFeedback.selectionClick();
+    setState(() => _showSettings = true);
+  }
+
+  void _bookmarkProgress() {
+    HapticFeedback.selectionClick();
+    _saveProgress();
+    _showActionMessage('Progress saved');
+  }
+
   void _scrollToParagraph(int index) {
     if (index < 0 || index >= _paragraphKeys.length) return;
     final targetContext = _paragraphKeys[index].currentContext;
@@ -204,6 +230,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   }
 
   void _togglePlayPause() async {
+    HapticFeedback.lightImpact();
     final tts = ref.read(ttsProvider.notifier);
     final ttsState = ref.read(ttsProvider);
 
@@ -215,12 +242,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   }
 
   void _previousChapter() {
+    HapticFeedback.selectionClick();
     if (_currentChapterIndex > 0) {
       _loadChapter(_currentChapterIndex - 1);
     }
   }
 
   void _nextChapter() {
+    HapticFeedback.selectionClick();
     if (_epubBook != null &&
         _currentChapterIndex < _epubBook!.chapters.length - 1) {
       _loadChapter(_currentChapterIndex + 1);
@@ -266,6 +295,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     final currentSentenceIndex = ttsState.sentenceIndex;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground =
+        extras?.glassBackground ?? colorScheme.surface.withAlpha(200);
+    final glassBorder =
+        extras?.glassBorder ?? colorScheme.onSurface.withAlpha(40);
+    final glassShadow =
+        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(30);
+    final bookTitle = (_book?.title?.trim().isNotEmpty ?? false)
+        ? _book!.title!.trim()
+        : 'Untitled';
+    final bookAuthor = (_book?.author?.trim().isNotEmpty ?? false)
+        ? _book!.author!.trim()
+        : 'Unknown author';
+    final coverImage = _book?.coverImage;
 
     // Auto-scroll when paragraph changes
     if (currentParagraphIndex != _lastScrolledToParagraph && isPlaying) {
@@ -333,53 +376,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
         : (currentParagraphIndex + 1) / _paragraphs.length;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
+          _AmbientBackground(
+            coverImage: coverImage,
+            fallbackColor: Theme.of(context).scaffoldBackgroundColor,
+          ),
           // Main content
           Column(
             children: [
-              // Header
-              Container(
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + 8,
-                  left: 16,
-                  right: 16,
-                  bottom: 16,
-                ),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        _saveProgress();
-                        context.pop();
-                      },
-                      child: Icon(
-                        LucideIcons.arrowLeft,
-                        color: colorScheme.onSurfaceVariant,
-                        size: 24,
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Row(
+                    children: [
+                      _GlassIconButton(
+                        icon: LucideIcons.arrowLeft,
+                        onTap: () {
+                          _saveProgress();
+                          context.pop();
+                        },
                       ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        _currentChapterTitle,
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              bookTitle,
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: colorScheme.onSurface,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$bookAuthor \u2022 $_currentChapterTitle',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    GestureDetector(
-                      onTap: () => setState(() => _showSettings = true),
-                      child: Icon(
-                        LucideIcons.settings2,
-                        color: colorScheme.onSurfaceVariant,
-                        size: 24,
+                      const SizedBox(width: 12),
+                      _GlassIconButton(
+                        icon: LucideIcons.settings2,
+                        onTap: _openSettings,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               // Text content
@@ -395,7 +445,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                       )
                     : ListView.builder(
                         controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(32, 16, 32, 200),
+                        padding: const EdgeInsets.fromLTRB(28, 12, 28, 260),
                         itemCount: _paragraphs.length,
                         itemBuilder: (context, index) {
                           final paragraphKey = index < _paragraphKeys.length
@@ -408,107 +458,136 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                               ? ttsState.sentencesPerParagraph[index]
                               : <String>[];
 
-                          return GestureDetector(
-                            key: paragraphKey,
-                            onTap: () {
-                              ref
-                                  .read(ttsProvider.notifier)
-                                  .jumpToParagraph(index);
-                            },
-                            child: IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  // Vertical line indicator
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    width: isActiveParagraph ? 3 : 0,
-                                    margin: EdgeInsets.only(
-                                      right: isActiveParagraph ? 12 : 0,
-                                      bottom: 20,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isActiveParagraph
-                                          ? colorScheme.primary
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                  // Text content
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 20,
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () {
+                                ref
+                                    .read(ttsProvider.notifier)
+                                    .jumpToParagraph(index);
+                              },
+                              child: AnimatedContainer(
+                                key: paragraphKey,
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isActiveParagraph
+                                      ? colorScheme.primary.withAlpha(18)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: IntrinsicHeight(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // Vertical line indicator
+                                      AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        width: isActiveParagraph ? 3 : 0,
+                                        margin: EdgeInsets.only(
+                                          right: isActiveParagraph ? 12 : 0,
+                                          bottom: 20,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isActiveParagraph
+                                              ? colorScheme.primary
+                                              : Colors.transparent,
+                                          borderRadius:
+                                              BorderRadius.circular(2),
+                                        ),
                                       ),
-                                      child: sentences.isEmpty
-                                          ? Text(
-                                              _paragraphs[index],
-                                              style: GoogleFonts.lora(
-                                                fontSize: 18,
-                                                height: 1.8,
-                                                color: isActiveParagraph
-                                                    ? colorScheme.onSurface
-                                                    : colorScheme
-                                                        .onSurfaceVariant,
-                                              ),
-                                            )
-                                          : RichText(
-                                              text: TextSpan(
-                                                children: sentences.asMap().entries.map((
-                                                  entry,
-                                                ) {
-                                                  final sentenceIdx = entry.key;
-                                                  final sentence = entry.value;
-                                                  final isCurrentSentence =
-                                                      isActiveParagraph &&
-                                                      sentenceIdx ==
-                                                          currentSentenceIndex;
+                                      // Text content
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 20,
+                                          ),
+                                          child: sentences.isEmpty
+                                              ? Text(
+                                                  _paragraphs[index],
+                                                  style: GoogleFonts.lora(
+                                                    fontSize: 18,
+                                                    height: 1.8,
+                                                    color: isActiveParagraph
+                                                        ? colorScheme.onSurface
+                                                        : colorScheme
+                                                            .onSurfaceVariant,
+                                                  ),
+                                                )
+                                              : RichText(
+                                                  text: TextSpan(
+                                                    children: sentences
+                                                        .asMap()
+                                                        .entries
+                                                        .map((entry) {
+                                                      final sentenceIdx =
+                                                          entry.key;
+                                                      final sentence =
+                                                          entry.value;
+                                                      final isCurrentSentence =
+                                                          isActiveParagraph &&
+                                                          sentenceIdx ==
+                                                              currentSentenceIndex;
 
-                                                  return TextSpan(
-                                                    text:
-                                                        sentence +
-                                                        (sentenceIdx <
-                                                                sentences
-                                                                        .length -
-                                                                    1
-                                                            ? ' '
-                                                            : ''),
-                                                    style: GoogleFonts.lora(
-                                                      fontSize: 18,
-                                                      height: 1.8,
-                                                      color: isCurrentSentence
-                                                          ? colorScheme.onSurface
-                                                          : isActiveParagraph
-                                                          ? colorScheme
-                                                              .onSurfaceVariant
-                                                          : colorScheme
-                                                              .onSurfaceVariant,
-                                                      backgroundColor:
-                                                          isCurrentSentence
-                                                          ? colorScheme.primary
-                                                              .withAlpha(60)
-                                                          : Colors.transparent,
-                                                    ),
-                                                    recognizer:
-                                                        TapGestureRecognizer()
-                                                          ..onTap = () {
-                                                            ref
-                                                                .read(
-                                                                  ttsProvider
-                                                                      .notifier,
-                                                                )
-                                                                .jumpToSentence(
-                                                                  index,
-                                                                  sentenceIdx,
-                                                                );
-                                                          },
-                                                  );
-                                                }).toList(),
-                                              ),
-                                            ),
-                                    ),
+                                                      return TextSpan(
+                                                        text:
+                                                            sentence +
+                                                            (sentenceIdx <
+                                                                    sentences
+                                                                            .length -
+                                                                        1
+                                                                ? ' '
+                                                                : ''),
+                                                        style: GoogleFonts.lora(
+                                                          fontSize: 18,
+                                                          height: 1.8,
+                                                          color:
+                                                              isCurrentSentence
+                                                                  ? colorScheme
+                                                                      .onSurface
+                                                                  : isActiveParagraph
+                                                                  ? colorScheme
+                                                                      .onSurfaceVariant
+                                                                  : colorScheme
+                                                                      .onSurfaceVariant,
+                                                          backgroundColor:
+                                                              isCurrentSentence
+                                                                  ? colorScheme
+                                                                      .primary
+                                                                      .withAlpha(
+                                                                      60,
+                                                                    )
+                                                                  : Colors
+                                                                      .transparent,
+                                                        ),
+                                                        recognizer:
+                                                            TapGestureRecognizer()
+                                                              ..onTap = () {
+                                                                ref
+                                                                    .read(
+                                                                      ttsProvider
+                                                                          .notifier,
+                                                                    )
+                                                                    .jumpToSentence(
+                                                                      index,
+                                                                      sentenceIdx,
+                                                                    );
+                                                              },
+                                                      );
+                                                    }).toList(),
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           );
@@ -527,9 +606,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
               progress: progress,
               currentParagraph: currentParagraphIndex + 1,
               totalParagraphs: _paragraphs.length,
+              bookTitle: bookTitle,
+              bookAuthor: bookAuthor,
+              chapterTitle: _currentChapterTitle,
+              coverImage: coverImage,
+              glassBackground: glassBackground,
+              glassBorder: glassBorder,
+              glassShadow: glassShadow,
               onPlayPause: _togglePlayPause,
               onPrevious: _previousChapter,
               onNext: _nextChapter,
+              onOpenSettings: _openSettings,
+              onBookmark: _bookmarkProgress,
               canGoPrevious: _currentChapterIndex > 0,
               canGoNext:
                   _epubBook != null &&
@@ -555,9 +643,18 @@ class _PlayerControlsEnhanced extends StatelessWidget {
   final double progress;
   final int currentParagraph;
   final int totalParagraphs;
+  final String bookTitle;
+  final String bookAuthor;
+  final String chapterTitle;
+  final Uint8List? coverImage;
+  final Color glassBackground;
+  final Color glassBorder;
+  final Color glassShadow;
   final VoidCallback onPlayPause;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onBookmark;
   final bool canGoPrevious;
   final bool canGoNext;
 
@@ -566,9 +663,18 @@ class _PlayerControlsEnhanced extends StatelessWidget {
     required this.progress,
     required this.currentParagraph,
     required this.totalParagraphs,
+    required this.bookTitle,
+    required this.bookAuthor,
+    required this.chapterTitle,
+    required this.coverImage,
+    required this.glassBackground,
+    required this.glassBorder,
+    required this.glassShadow,
     required this.onPlayPause,
     required this.onPrevious,
     required this.onNext,
+    required this.onOpenSettings,
+    required this.onBookmark,
     required this.canGoPrevious,
     required this.canGoNext,
   });
@@ -577,104 +683,409 @@ class _PlayerControlsEnhanced extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final accentPalette = extras?.accentPalette ??
+        const [
+          AppColors.rose600,
+          AppColors.amber600,
+          AppColors.blue600,
+          AppColors.emerald600,
+        ];
+    final accentSoftPalette = extras?.accentSoftPalette ??
+        const [
+          AppColors.rose100,
+          AppColors.amber100,
+          AppColors.blue100,
+          AppColors.emerald100,
+        ];
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottomPadding),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            decoration: BoxDecoration(
+              color: glassBackground,
+              border: Border.all(color: glassBorder, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: glassShadow,
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Now Playing'.toUpperCase(),
+                    style: textTheme.labelSmall?.copyWith(
+                      letterSpacing: 1.2,
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _CoverArt(coverImage: coverImage),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            bookTitle,
+                            style: textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            bookAuthor,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            chapterTitle,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _GlassIconButton(
+                      icon: LucideIcons.settings2,
+                      onTap: onOpenSettings,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: progress.clamp(0.0, 1.0),
+                    backgroundColor: colorScheme.surfaceVariant,
+                    valueColor: AlwaysStoppedAnimation(colorScheme.primary),
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$currentParagraph / $totalParagraphs',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      '${(progress * 100).toInt()}%',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ControlChip(
+                      icon: LucideIcons.gauge,
+                      label: 'Speed',
+                      bgColor: accentSoftPalette[0],
+                      fgColor: accentPalette[0],
+                      onTap: onOpenSettings,
+                    ),
+                    _ControlChip(
+                      icon: LucideIcons.mic2,
+                      label: 'Voice',
+                      bgColor: accentSoftPalette[1],
+                      fgColor: accentPalette[1],
+                      onTap: onOpenSettings,
+                    ),
+                    _ControlChip(
+                      icon: LucideIcons.bookmark,
+                      label: 'Bookmark',
+                      bgColor: accentSoftPalette[2],
+                      fgColor: accentPalette[2],
+                      onTap: onBookmark,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      onPressed: canGoPrevious ? onPrevious : null,
+                      icon: Icon(
+                        LucideIcons.skipBack,
+                        color: canGoPrevious
+                            ? colorScheme.onSurface
+                            : colorScheme.outline,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    AnimatedScale(
+                      duration: const Duration(milliseconds: 150),
+                      scale: isPlaying ? 0.96 : 1,
+                      child: GestureDetector(
+                        onTap: onPlayPause,
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(32),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Theme.of(context)
+                                    .shadowColor
+                                    .withAlpha(50),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, animation) {
+                              return ScaleTransition(
+                                scale: animation,
+                                child: child,
+                              );
+                            },
+                            child: Icon(
+                              isPlaying
+                                  ? LucideIcons.pause
+                                  : LucideIcons.play,
+                              key: ValueKey(isPlaying),
+                              color: colorScheme.onPrimary,
+                              size: 28,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    IconButton(
+                      onPressed: canGoNext ? onNext : null,
+                      icon: Icon(
+                        LucideIcons.skipForward,
+                        color: canGoNext
+                            ? colorScheme.onSurface
+                            : colorScheme.outline,
+                        size: 28,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AmbientBackground extends StatelessWidget {
+  final Uint8List? coverImage;
+  final Color fallbackColor;
+
+  const _AmbientBackground({
+    required this.coverImage,
+    required this.fallbackColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DecoratedBox(decoration: BoxDecoration(color: fallbackColor)),
+        if (coverImage != null)
+          ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Image.memory(
+              coverImage!,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
+          ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                colorScheme.surface.withAlpha(30),
+                fallbackColor.withAlpha(230),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GlassIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _GlassIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground =
+        extras?.glassBackground ?? colorScheme.surface.withAlpha(200);
+    final glassBorder =
+        extras?.glassBorder ?? colorScheme.onSurface.withAlpha(40);
+    final glassShadow =
+        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(30);
+
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).shadowColor.withAlpha(25),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
+            color: glassShadow,
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0),
-              backgroundColor: colorScheme.surfaceVariant,
-              valueColor: AlwaysStoppedAnimation(colorScheme.primary),
-              minHeight: 4,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Material(
+            color: glassBackground,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: glassBorder, width: 1),
+            ),
+            child: InkWell(
+              onTap: onTap,
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Icon(
+                  icon,
+                  color: colorScheme.onSurface,
+                  size: 20,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          // Progress text
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '$currentParagraph / $totalParagraphs',
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              Text(
-                '${(progress * 100).toInt()}%',
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                onPressed: canGoPrevious ? onPrevious : null,
-                icon: Icon(
-                  LucideIcons.skipBack,
-                  color: canGoPrevious
-                      ? colorScheme.onSurface
-                      : colorScheme.outline,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 24),
-              GestureDetector(
-                onTap: onPlayPause,
-                child: Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Theme.of(context).shadowColor.withAlpha(50),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    isPlaying ? LucideIcons.pause : LucideIcons.play,
-                    color: colorScheme.onPrimary,
-                    size: 28,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 24),
-              IconButton(
-                onPressed: canGoNext ? onNext : null,
-                icon: Icon(
-                  LucideIcons.skipForward,
-                  color: canGoNext
-                      ? colorScheme.onSurface
-                      : colorScheme.outline,
-                  size: 28,
-                ),
-              ),
-            ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverArt extends StatelessWidget {
+  final Uint8List? coverImage;
+
+  const _CoverArt({required this.coverImage});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: colorScheme.surfaceVariant,
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withAlpha(30),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: coverImage != null
+            ? Image.memory(coverImage!, fit: BoxFit.cover)
+            : Icon(
+                LucideIcons.bookOpen,
+                color: colorScheme.onSurfaceVariant,
+                size: 24,
+              ),
+      ),
+    );
+  }
+}
+
+class _ControlChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color bgColor;
+  final Color fgColor;
+  final VoidCallback onTap;
+
+  const _ControlChip({
+    required this.icon,
+    required this.label,
+    required this.bgColor,
+    required this.fgColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: fgColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: fgColor,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
