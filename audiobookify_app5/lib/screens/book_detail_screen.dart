@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -139,137 +141,147 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
 
     final book = _book!;
     final color = _getColor(context);
-
+    final bookTitle = (book.title?.trim().isNotEmpty ?? false)
+        ? book.title!.trim()
+        : 'Untitled';
+    final bookAuthor = (book.author?.trim().isNotEmpty ?? false)
+        ? book.author!.trim()
+        : 'Unknown author';
+    final bookDescription = (book.description?.trim().isNotEmpty ?? false)
+        ? book.description!.trim()
+        : null;
+    final progress = (book.progress.clamp(0, 100)) / 100;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          // All content in one scroll view - header is part of scroll, painted FIRST
+          _DetailBackdrop(
+            coverImage: book.coverImage,
+            fallbackColor: colorScheme.background,
+          ),
           SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 120),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header background (scrolls with content)
-                Container(
-                  height: 256,
-                  color: color,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Cover image as background (translucent)
-                      if (book.coverImage != null)
-                        Opacity(
-                          opacity: 0.3,
-                          child: Image.memory(
-                            book.coverImage!,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      // Gradient overlay
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withAlpha(75),
-                              Theme.of(context).scaffoldBackgroundColor,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Book cover - overlaps into header (painted AFTER header, so on top)
-                Transform.translate(
-                  offset: const Offset(0, -144),
-                  child: Center(
-                    child: _BookCover3D(book: book, color: color),
-                  ),
-                ),
-                // Content (with negative margin to account for overlap)
-                Transform.translate(
-                  offset: const Offset(0, -120),
+                SafeArea(
+                  bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
                       children: [
-                        _StatsRow(book: book),
-                        const SizedBox(height: 24),
-                        _ChapterList(
-                          bookId: book.id,
-                          toc: _epubBook?.toc ?? [],
-                          chapters: _epubBook?.chapters ?? [],
+                        _GlassIconButton(
+                          icon: LucideIcons.arrowLeft,
+                          onTap: () => context.pop(),
                         ),
-                        const SizedBox(height: 100), // Space for FAB
                       ],
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          // Back button - on top of scroll
-          Positioned(
-            top: 48,
-            left: 24,
-            child: GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface.withAlpha(80),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  LucideIcons.arrowLeft,
-                  color: colorScheme.onSurface,
-                  size: 24,
-                ),
-              ),
-            ),
-          ),
-          // Floating play button
-          Positioned(
-            bottom: 24,
-            right: 24,
-            child: GestureDetector(
-              onTap: () => context.push('/player/${book.id}'),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(context).shadowColor.withAlpha(50),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      LucideIcons.playCircle,
-                      color: colorScheme.onPrimary,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      book.progress > 0 ? 'Resume' : 'Start',
-                      style: textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onPrimary,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(child: _BookCover3D(book: book, color: color)),
+                      const SizedBox(height: 20),
+                      _StatsRow(book: book),
+                      const SizedBox(height: 24),
+                      Text(
+                        bookTitle,
+                        style: textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurface,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        bookAuthor,
+                        style: textTheme.bodyLarge?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (bookDescription != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          bookDescription,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: progress.clamp(0.0, 1.0),
+                          backgroundColor: colorScheme.surfaceVariant,
+                          valueColor:
+                              AlwaysStoppedAnimation(colorScheme.primary),
+                          minHeight: 6,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${book.progress}% listened',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _FadeTap(
+                        onTap: () => context.push('/player/${book.id}'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Theme.of(context)
+                                    .shadowColor
+                                    .withAlpha(50),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                LucideIcons.playCircle,
+                                color: colorScheme.onPrimary,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                book.progress > 0 ? 'Resume' : 'Start',
+                                style: textTheme.bodyLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _ChapterList(
+                        bookId: book.id,
+                        toc: _epubBook?.toc ?? [],
+                        chapters: _epubBook?.chapters ?? [],
+                      ),
+                      const SizedBox(height: 48),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -289,16 +301,16 @@ class _BookCover3D extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Center(
       child: Container(
-        width: 192,
-        height: 288,
+        width: 200,
+        height: 300,
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(75),
+              color: Theme.of(context).shadowColor.withAlpha(60),
               blurRadius: 30,
-              offset: const Offset(10, 20),
+              offset: const Offset(0, 18),
             ),
           ],
         ),
@@ -314,7 +326,7 @@ class _BookCover3D extends StatelessWidget {
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(16),
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -345,7 +357,7 @@ class _BookCover3D extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.black.withAlpha(50),
                   borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(8),
+                    left: Radius.circular(16),
                   ),
                 ),
               ),
@@ -597,10 +609,10 @@ class _TocItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return GestureDetector(
+    return _FadeTap(
       onTap: () => context.push('/player/$bookId?chapter=$index'),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
             SizedBox(
@@ -632,6 +644,153 @@ class _TocItem extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DetailBackdrop extends StatelessWidget {
+  final Uint8List? coverImage;
+  final Color fallbackColor;
+
+  const _DetailBackdrop({
+    required this.coverImage,
+    required this.fallbackColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DecoratedBox(decoration: BoxDecoration(color: fallbackColor)),
+        if (coverImage != null)
+          Opacity(
+            opacity: 0.45,
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Image.memory(
+                coverImage!,
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              ),
+            ),
+          ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: fallbackColor.withAlpha(170),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                colorScheme.surface.withAlpha(70),
+                fallbackColor.withAlpha(235),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GlassIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _GlassIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground =
+        extras?.glassBackground ?? colorScheme.surface.withAlpha(200);
+    final glassBorder =
+        extras?.glassBorder ?? colorScheme.onSurface.withAlpha(40);
+    final glassShadow =
+        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(30);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: glassShadow,
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: _FadeTap(
+            onTap: onTap,
+            pressedOpacity: 0.7,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: glassBackground,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: glassBorder, width: 1),
+              ),
+              child: Icon(
+                icon,
+                color: colorScheme.onSurface,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FadeTap extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double pressedOpacity;
+  final Duration duration;
+
+  const _FadeTap({
+    required this.child,
+    this.onTap,
+    this.pressedOpacity = 0.75,
+    this.duration = const Duration(milliseconds: 140),
+  });
+
+  @override
+  State<_FadeTap> createState() => _FadeTapState();
+}
+
+class _FadeTapState extends State<_FadeTap> {
+  bool _isPressed = false;
+
+  void _setPressed(bool value) {
+    if (_isPressed == value) return;
+    setState(() => _isPressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
+      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
+      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
+      onTap: widget.onTap,
+      child: AnimatedOpacity(
+        duration: widget.duration,
+        opacity: _isPressed ? widget.pressedOpacity : 1,
+        child: widget.child,
       ),
     );
   }
