@@ -190,7 +190,15 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Center(child: _BookCover3D(book: book, color: color)),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.96, end: 1),
+                        duration: const Duration(milliseconds: 420),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, child) {
+                          return Transform.scale(scale: value, child: child);
+                        },
+                        child: _BookCover3D(book: book, color: color),
+                      ),
                       const SizedBox(height: 20),
                       _StatsRow(book: book),
                       const SizedBox(height: 24),

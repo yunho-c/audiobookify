@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify_app5/src/rust/frb_generated.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
 import 'core/app_theme.dart';
+import 'core/nav_transition.dart';
 import 'core/providers.dart';
 import 'core/route_observer.dart';
 import 'widgets/bottom_nav.dart';
@@ -91,14 +92,20 @@ final _router = GoRouter(
         return AppShell(currentIndex: index, child: child);
       },
       routes: [
-        GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+        GoRoute(
+          path: '/',
+          pageBuilder: (context, state) =>
+              _navTransitionPage(state, const HomeScreen()),
+        ),
         GoRoute(
           path: '/create',
-          builder: (context, state) => const CreateScreen(),
+          pageBuilder: (context, state) =>
+              _navTransitionPage(state, const CreateScreen()),
         ),
         GoRoute(
           path: '/settings',
-          builder: (context, state) => const SettingsScreen(),
+          pageBuilder: (context, state) =>
+              _navTransitionPage(state, const SettingsScreen()),
         ),
       ],
     ),
@@ -115,3 +122,31 @@ final _router = GoRouter(
     ),
   ],
 );
+
+CustomTransitionPage<void> _navTransitionPage(
+  GoRouterState state,
+  Widget child,
+) {
+  final extra = state.extra;
+  final isForward =
+      extra is NavTransitionData ? extra.isForward : true;
+  final isCreateRoute = state.uri.path.startsWith('/create');
+  final beginOffset = isCreateRoute
+      ? (isForward ? const Offset(0, 0.12) : const Offset(0, -0.12))
+      : (isForward ? const Offset(0.12, 0) : const Offset(-0.12, 0));
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 220),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: beginOffset,
+          end: Offset.zero,
+        ).animate(curved),
+        child: FadeTransition(opacity: curved, child: child),
+      );
+    },
+  );
+}

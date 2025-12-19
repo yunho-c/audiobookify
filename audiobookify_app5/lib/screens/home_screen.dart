@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -492,12 +493,14 @@ class _FadeTap extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double pressedOpacity;
+  final double pressedScale;
   final Duration duration;
 
   const _FadeTap({
     required this.child,
     this.onTap,
     this.pressedOpacity = 0.75,
+    this.pressedScale = 0.98,
     this.duration = const Duration(milliseconds: 140),
   });
 
@@ -519,11 +522,20 @@ class _FadeTapState extends State<_FadeTap> {
       onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
       onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
       onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap,
+      onTap: widget.onTap == null
+          ? null
+          : () {
+              HapticFeedback.selectionClick();
+              widget.onTap!();
+            },
       child: AnimatedOpacity(
         duration: widget.duration,
         opacity: _isPressed ? widget.pressedOpacity : 1,
-        child: widget.child,
+        child: AnimatedScale(
+          duration: widget.duration,
+          scale: _isPressed ? widget.pressedScale : 1,
+          child: widget.child,
+        ),
       ),
     );
   }

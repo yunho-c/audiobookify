@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/app_theme.dart';
@@ -49,7 +50,7 @@ class BookCard extends StatelessWidget {
     final palette = extras?.bookCoverPalette ?? fallbackPalette;
     final bgColor = color ?? palette[id % palette.length];
 
-    return GestureDetector(
+    return _Pressable(
       onTap: () => context.push('/book/$id'),
       child: AspectRatio(
         aspectRatio: 2 / 3,
@@ -207,7 +208,7 @@ class AddBookCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return _Pressable(
       onTap: () => context.go('/create'),
       child: AspectRatio(
         aspectRatio: 2 / 3,
@@ -290,4 +291,47 @@ class DashedBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _Pressable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+
+  const _Pressable({required this.child, required this.onTap});
+
+  @override
+  State<_Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<_Pressable> {
+  bool _isPressed = false;
+
+  void _setPressed(bool value) {
+    if (_isPressed == value) return;
+    setState(() => _isPressed = value);
+  }
+
+  void _handleTap() {
+    HapticFeedback.selectionClick();
+    widget.onTap();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: _handleTap,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 120),
+        opacity: _isPressed ? 0.85 : 1,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 120),
+          scale: _isPressed ? 0.98 : 1,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
 }
