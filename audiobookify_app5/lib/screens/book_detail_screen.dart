@@ -138,70 +138,72 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       backgroundColor: AppColors.stone100,
       body: Stack(
         children: [
-          // Background header with translucent cover
-          Container(
-            height: 256,
-            color: color,
-            child: Stack(
-              children: [
-                // Cover image as background (translucent)
-                if (book.coverImage != null)
-                  Positioned.fill(
-                    child: Opacity(
-                      opacity: 0.3,
-                      child: Image.memory(book.coverImage!, fit: BoxFit.cover),
-                    ),
-                  ),
-                // Gradient overlay
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withAlpha(75),
-                          AppColors.stone100,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Scrollable content - scrolls OVER the header background
+          // All content in one scroll view - header is part of scroll, painted FIRST
           SingleChildScrollView(
             child: Column(
               children: [
-                // Transparent spacer for header area
-                const SizedBox(height: 128),
-                // Book cover (scrolls with content)
-                Center(
-                  child: _BookCover3D(book: book, color: color),
-                ),
-                const SizedBox(height: 24),
-                // Stats
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
+                // Header background (scrolls with content)
+                Container(
+                  height: 256,
+                  color: color,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      _StatsRow(book: book),
-                      const SizedBox(height: 24),
-                      // Chapter list
-                      _ChapterList(
-                        bookId: book.id,
-                        toc: _epubBook?.toc ?? [],
-                        chapters: _epubBook?.chapters ?? [],
+                      // Cover image as background (translucent)
+                      if (book.coverImage != null)
+                        Opacity(
+                          opacity: 0.3,
+                          child: Image.memory(
+                            book.coverImage!,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      // Gradient overlay
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withAlpha(75),
+                              AppColors.stone100,
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 100), // Space for FAB
                     ],
+                  ),
+                ),
+                // Book cover - overlaps into header (painted AFTER header, so on top)
+                Transform.translate(
+                  offset: const Offset(0, -144),
+                  child: Center(
+                    child: _BookCover3D(book: book, color: color),
+                  ),
+                ),
+                // Content (with negative margin to account for overlap)
+                Transform.translate(
+                  offset: const Offset(0, -120),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        _StatsRow(book: book),
+                        const SizedBox(height: 24),
+                        _ChapterList(
+                          bookId: book.id,
+                          toc: _epubBook?.toc ?? [],
+                          chapters: _epubBook?.chapters ?? [],
+                        ),
+                        const SizedBox(height: 100), // Space for FAB
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          // Back button - on top of everything
+          // Back button - on top of scroll
           Positioned(
             top: 48,
             left: 24,
