@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
@@ -15,11 +14,28 @@ class SettingsWheel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(playerSettingsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final accentPalette = extras?.accentPalette ??
+        const [
+          AppColors.rose600,
+          AppColors.amber600,
+          AppColors.blue600,
+          AppColors.emerald600,
+        ];
+    final accentSoftPalette = extras?.accentSoftPalette ??
+        const [
+          AppColors.rose100,
+          AppColors.amber100,
+          AppColors.blue100,
+          AppColors.emerald100,
+        ];
 
     return GestureDetector(
       onTap: onClose,
       child: Container(
-        color: Colors.black.withAlpha(50),
+        color: colorScheme.scrim.withAlpha(120),
         child: Center(
           child: GestureDetector(
             onTap: () {}, // Prevent tap-through
@@ -27,11 +43,11 @@ class SettingsWheel extends ConsumerWidget {
               width: 320,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withAlpha(50),
+                    color: Theme.of(context).shadowColor.withAlpha(50),
                     blurRadius: 40,
                     offset: const Offset(0, 10),
                   ),
@@ -46,18 +62,16 @@ class SettingsWheel extends ConsumerWidget {
                     children: [
                       Text(
                         'Audio Settings',
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 18,
+                        style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.stone800,
                         ),
                       ),
                       GestureDetector(
                         onTap: onClose,
-                        child: const Icon(
+                        child: Icon(
                           LucideIcons.x,
                           size: 20,
-                          color: AppColors.stone400,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -71,8 +85,8 @@ class SettingsWheel extends ConsumerWidget {
                     min: 0.5,
                     max: 2.0,
                     displayValue: '${settings.speed.toStringAsFixed(1)}x',
-                    bgColor: AppColors.rose100,
-                    fgColor: AppColors.rose600,
+                    bgColor: accentSoftPalette[0],
+                    fgColor: accentPalette[0],
                     onChanged: (value) {
                       ref.read(playerSettingsProvider.notifier).setSpeed(value);
                     },
@@ -86,8 +100,8 @@ class SettingsWheel extends ConsumerWidget {
                     min: 0.5,
                     max: 2.0,
                     displayValue: settings.pitch.toStringAsFixed(1),
-                    bgColor: AppColors.amber100,
-                    fgColor: AppColors.amber600,
+                    bgColor: accentSoftPalette[1],
+                    fgColor: accentPalette[1],
                     onChanged: (value) {
                       ref.read(playerSettingsProvider.notifier).setPitch(value);
                     },
@@ -103,8 +117,8 @@ class SettingsWheel extends ConsumerWidget {
                           label: 'Style',
                           value:
                               settings.voiceName?.split('.').last ?? 'Default',
-                          bgColor: AppColors.blue100,
-                          fgColor: AppColors.blue600,
+                          bgColor: accentSoftPalette[2],
+                          fgColor: accentPalette[2],
                           onTap: () => _showVoiceSelector(context, ref),
                         ),
                       ),
@@ -115,8 +129,8 @@ class SettingsWheel extends ConsumerWidget {
                           icon: LucideIcons.languages,
                           label: 'Accent',
                           value: 'British',
-                          bgColor: AppColors.emerald100,
-                          fgColor: AppColors.emerald600,
+                          bgColor: accentSoftPalette[3],
+                          fgColor: accentPalette[3],
                           onTap: () {}, // No-op
                         ),
                       ),
@@ -130,9 +144,8 @@ class SettingsWheel extends ConsumerWidget {
                     },
                     child: Text(
                       'Reset to Defaults',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: AppColors.stone500,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -142,13 +155,16 @@ class SettingsWheel extends ConsumerWidget {
                     width: 64,
                     height: 64,
                     child: CustomPaint(
-                      painter: _WheelPainter(),
+                      painter: _WheelPainter(
+                        colors: accentPalette,
+                        borderColor: colorScheme.outlineVariant,
+                      ),
                       child: Center(
                         child: Container(
                           width: 16,
                           height: 16,
                           decoration: BoxDecoration(
-                            color: AppColors.stone800,
+                            color: colorScheme.onSurface,
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
@@ -191,6 +207,7 @@ class _SettingSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -206,8 +223,7 @@ class _SettingSlider extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label.toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 10,
+                style: textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1,
                   color: fgColor.withAlpha(180),
@@ -216,8 +232,7 @@ class _SettingSlider extends StatelessWidget {
               const Spacer(),
               Text(
                 displayValue,
-                style: GoogleFonts.inter(
-                  fontSize: 16,
+                style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: fgColor,
                 ),
@@ -267,6 +282,7 @@ class _SettingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -282,8 +298,7 @@ class _SettingCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label.toUpperCase(),
-              style: GoogleFonts.inter(
-                fontSize: 10,
+              style: textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1,
                 color: fgColor.withAlpha(180),
@@ -292,8 +307,7 @@ class _SettingCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               value,
-              style: GoogleFonts.inter(
-                fontSize: 14,
+              style: textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: fgColor,
               ),
@@ -311,7 +325,7 @@ class _SettingCard extends StatelessWidget {
 void _showVoiceSelector(BuildContext context, WidgetRef ref) {
   showModalBottomSheet(
     context: context,
-    backgroundColor: Colors.white,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -363,6 +377,8 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
   @override
   Widget build(BuildContext context) {
     final settings = widget.ref.watch(playerSettingsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -372,22 +388,24 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
         children: [
           Text(
             'Select Voice',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 20,
+            style: textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.stone800,
             ),
           ),
           const SizedBox(height: 16),
           if (_isLoading)
-            const Center(child: CircularProgressIndicator())
+            Center(
+              child: CircularProgressIndicator(color: colorScheme.primary),
+            )
           else if (_voices.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Text(
                   'Using system default voice',
-                  style: GoogleFonts.inter(color: AppColors.stone500),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             )
@@ -403,9 +421,9 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
                     title: Text(voice['name'] ?? 'Unknown'),
                     subtitle: Text(voice['locale'] ?? ''),
                     trailing: isSelected
-                        ? const Icon(
+                        ? Icon(
                             LucideIcons.check,
-                            color: AppColors.blue600,
+                            color: colorScheme.primary,
                           )
                         : null,
                     onTap: () {
@@ -425,17 +443,18 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
 }
 
 class _WheelPainter extends CustomPainter {
+  final List<Color> colors;
+  final Color borderColor;
+
+  _WheelPainter({
+    required this.colors,
+    required this.borderColor,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
-
-    final colors = [
-      AppColors.rose600,
-      AppColors.amber600,
-      AppColors.blue600,
-      AppColors.emerald600,
-    ];
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
@@ -457,7 +476,7 @@ class _WheelPainter extends CustomPainter {
     final borderPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
-      ..color = AppColors.stone100;
+      ..color = borderColor;
     canvas.drawCircle(center, radius - 10, borderPaint);
   }
 

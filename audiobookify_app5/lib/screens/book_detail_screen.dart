@@ -76,38 +76,42 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     }
   }
 
-  Color _getColor() {
+  Color _getColor(BuildContext context) {
     if (_book == null) return AppColors.emerald700;
-    final colors = [
-      AppColors.emerald700,
-      AppColors.indigo700,
-      AppColors.slate700,
-      AppColors.rose700,
-      AppColors.amber800,
-      AppColors.sky700,
-    ];
-    return colors[_book!.id % colors.length];
+    final palette =
+        Theme.of(context).extension<AppThemeExtras>()?.bookCoverPalette ??
+            const [
+              AppColors.emerald700,
+              AppColors.indigo700,
+              AppColors.slate700,
+              AppColors.rose700,
+              AppColors.amber800,
+              AppColors.sky700,
+            ];
+    return palette[_book!.id % palette.length];
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.stone100,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppColors.orange600),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: CircularProgressIndicator(color: colorScheme.primary),
         ),
       );
     }
 
     if (_error != null || _book == null) {
       return Scaffold(
-        backgroundColor: AppColors.stone100,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.stone800),
+            icon: Icon(LucideIcons.arrowLeft, color: colorScheme.onSurface),
             onPressed: () => context.pop(),
           ),
         ),
@@ -115,15 +119,17 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 LucideIcons.alertCircle,
                 size: 48,
-                color: AppColors.stone400,
+                color: colorScheme.onSurfaceVariant,
               ),
               const SizedBox(height: 16),
               Text(
                 _error ?? 'Book not found',
-                style: GoogleFonts.inter(color: AppColors.stone600),
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -132,10 +138,10 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     }
 
     final book = _book!;
-    final color = _getColor();
+    final color = _getColor(context);
 
     return Scaffold(
-      backgroundColor: AppColors.stone100,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           // All content in one scroll view - header is part of scroll, painted FIRST
@@ -166,7 +172,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.black.withAlpha(75),
-                              AppColors.stone100,
+                              Theme.of(context).scaffoldBackgroundColor,
                             ],
                           ),
                         ),
@@ -212,12 +218,12 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(50),
+                  color: colorScheme.surface.withAlpha(80),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(
+                child: Icon(
                   LucideIcons.arrowLeft,
-                  color: Colors.white,
+                  color: colorScheme.onSurface,
                   size: 24,
                 ),
               ),
@@ -235,11 +241,11 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.stone800,
+                  color: colorScheme.primary,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withAlpha(50),
+                      color: Theme.of(context).shadowColor.withAlpha(50),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -248,18 +254,17 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       LucideIcons.playCircle,
-                      color: Colors.white,
+                      color: colorScheme.onPrimary,
                       size: 24,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       book.progress > 0 ? 'Resume' : 'Start',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
+                      style: textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: colorScheme.onPrimary,
                       ),
                     ),
                   ],
@@ -281,6 +286,7 @@ class _BookCover3D extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Center(
       child: Container(
         width: 192,
@@ -364,8 +370,7 @@ class _BookCover3D extends StatelessWidget {
                   children: [
                     Text(
                       book.title ?? 'Unknown',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 18,
+                      style: textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         height: 1.2,
@@ -376,9 +381,8 @@ class _BookCover3D extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       book.author ?? 'Unknown Author',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                      style: textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
                         color: Colors.white.withAlpha(200),
                       ),
                     ),
@@ -400,6 +404,7 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -412,7 +417,7 @@ class _StatsRow extends StatelessWidget {
           width: 1,
           height: 40,
           margin: const EdgeInsets.symmetric(horizontal: 32),
-          color: AppColors.stone300,
+          color: colorScheme.outlineVariant,
         ),
         _StatItem(
           icon: LucideIcons.percent,
@@ -437,25 +442,25 @@ class _StatItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Column(
       children: [
-        Icon(icon, size: 20, color: AppColors.stone400),
+        Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
         const SizedBox(height: 4),
         Text(
           value,
-          style: GoogleFonts.inter(
-            fontSize: 20,
+          style: textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-            color: AppColors.stone600,
+            color: colorScheme.onSurface,
           ),
         ),
         Text(
           label.toUpperCase(),
-          style: GoogleFonts.inter(
-            fontSize: 10,
+          style: textTheme.labelSmall?.copyWith(
             letterSpacing: 1.5,
-            fontWeight: FontWeight.w500,
-            color: AppColors.stone400,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -491,11 +496,11 @@ class _ChapterList extends StatelessWidget {
     if (items.isEmpty) {
       return Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(15),
+              color: Theme.of(context).shadowColor.withAlpha(15),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -504,15 +509,17 @@ class _ChapterList extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(
+            Icon(
               LucideIcons.fileText,
               size: 32,
-              color: AppColors.stone300,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 12),
             Text(
               'No chapters available',
-              style: GoogleFonts.inter(color: AppColors.stone500),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
           ],
         ),
@@ -521,11 +528,11 @@ class _ChapterList extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(15),
+            color: Theme.of(context).shadowColor.withAlpha(15),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -537,11 +544,9 @@ class _ChapterList extends StatelessWidget {
         children: [
           Text(
             'Chapters',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.stone800,
-            ),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 16),
           if (toc.isNotEmpty)
@@ -590,6 +595,8 @@ class _TocItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return GestureDetector(
       onTap: () => context.push('/player/$bookId?chapter=$index'),
       child: Padding(
@@ -602,7 +609,7 @@ class _TocItem extends StatelessWidget {
                 '$index.',
                 style: GoogleFonts.robotoMono(
                   fontSize: 14,
-                  color: AppColors.stone300,
+                  color: colorScheme.outline,
                 ),
               ),
             ),
@@ -610,16 +617,19 @@ class _TocItem extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.stone700,
+                style: textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Icon(LucideIcons.play, size: 16, color: AppColors.stone300),
+            Icon(
+              LucideIcons.play,
+              size: 16,
+              color: colorScheme.outline,
+            ),
           ],
         ),
       ),

@@ -26,20 +26,10 @@ class BookCard extends StatelessWidget {
 
   /// Factory to create BookCard from a Book model
   factory BookCard.fromBook(Book book) {
-    // Generate color based on book ID
-    const colors = [
-      AppColors.emerald700,
-      AppColors.indigo700,
-      AppColors.slate700,
-      AppColors.rose700,
-      AppColors.amber800,
-      AppColors.sky700,
-    ];
     return BookCard(
       id: book.id,
       title: book.title ?? 'Unknown',
       author: book.author ?? 'Unknown Author',
-      color: colors[book.id % colors.length],
       coverImage: book.coverImage,
       progress: book.progress,
     );
@@ -47,7 +37,17 @@ class BookCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = color ?? AppColors.emerald700;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final fallbackPalette = const <Color>[
+      AppColors.emerald700,
+      AppColors.indigo700,
+      AppColors.slate700,
+      AppColors.rose700,
+      AppColors.amber800,
+      AppColors.sky700,
+    ];
+    final palette = extras?.bookCoverPalette ?? fallbackPalette;
+    final bgColor = color ?? palette[id % palette.length];
 
     return GestureDetector(
       onTap: () => context.push('/book/$id'),
@@ -186,7 +186,9 @@ class BookCard extends StatelessWidget {
                       Container(color: Colors.black.withAlpha(75)),
                       FractionallySizedBox(
                         widthFactor: progress / 100,
-                        child: Container(color: AppColors.orange400),
+                        child: Container(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                     ],
                   ),
@@ -213,14 +215,14 @@ class AddBookCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppColors.stone300,
+              color: Theme.of(context).colorScheme.outline,
               width: 2,
               strokeAlign: BorderSide.strokeAlignInside,
             ),
           ),
           child: CustomPaint(
             painter: DashedBorderPainter(
-              color: AppColors.stone300,
+              color: Theme.of(context).colorScheme.outline,
               strokeWidth: 2,
               dashWidth: 8,
               dashSpace: 4,
@@ -233,16 +235,16 @@ class AddBookCard extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: AppColors.stone100,
+                    color: Theme.of(context).colorScheme.surfaceVariant,
                     borderRadius: BorderRadius.circular(24),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
                       '+',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w300,
-                        color: AppColors.stone400,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -253,7 +255,7 @@ class AddBookCard extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.stone400,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],

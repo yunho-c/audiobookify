@@ -12,6 +12,14 @@ class BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground =
+        extras?.glassBackground ?? colorScheme.surface.withAlpha(200);
+    final glassBorder =
+        extras?.glassBorder ?? colorScheme.onSurface.withAlpha(50);
+    final glassShadow =
+        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(25);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Stack(
@@ -26,16 +34,16 @@ class BottomNav extends StatelessWidget {
               child: Container(
                 height: 64,
                 decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(200),
+                  color: glassBackground,
                   border: Border(
                     top: BorderSide(
-                      color: Colors.white.withAlpha(50),
+                      color: glassBorder,
                       width: 1,
                     ),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withAlpha(25),
+                      color: glassShadow,
                       blurRadius: 20,
                       offset: const Offset(0, -4),
                     ),
@@ -95,39 +103,43 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     // Primary button (add) has orange background and glow
     if (isPrimary) {
+      final colorScheme = Theme.of(context).colorScheme;
       return GestureDetector(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.orange600,
+            color: colorScheme.primary,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: AppColors.orange600.withAlpha(100),
+                color: colorScheme.primary.withAlpha(100),
                 blurRadius: 12,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: Icon(icon, size: 24, color: Colors.white),
+          child: Icon(icon, size: 24, color: colorScheme.onPrimary),
         ),
       );
     }
 
     // Regular nav item
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.orange50 : Colors.transparent,
+          color: isActive
+              ? colorScheme.primary.withAlpha(20)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(24),
         ),
         child: Icon(
           icon,
           size: 24,
-          color: isActive ? AppColors.orange600 : AppColors.stone500,
+          color: isActive ? colorScheme.primary : colorScheme.onSurfaceVariant,
         ),
       ),
     );

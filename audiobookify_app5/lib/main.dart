@@ -45,10 +45,13 @@ class AudiobookifyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(ttsSettingsSyncProvider);
+    final themePreference = ref.watch(themePreferenceProvider);
     return MaterialApp.router(
       title: 'Audiobookify',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.themeFor(themePreference),
+      darkTheme: AppTheme.dark,
+      themeMode: AppTheme.modeFor(themePreference),
       routerConfig: _router,
     );
   }

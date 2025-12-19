@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../widgets/book_card.dart';
 import '../models/book.dart';
@@ -15,9 +13,11 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final booksAsync = ref.watch(booksProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: AppColors.stone50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -28,34 +28,26 @@ class HomeScreen extends ConsumerWidget {
               // Header
               Text(
                 'Audiobookify',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.stone800,
-                  letterSpacing: -0.5,
-                ),
+                style: textTheme.displayLarge?.copyWith(letterSpacing: -0.5),
               ),
               const SizedBox(height: 4),
               booksAsync.when(
                 data: (books) => Text(
                   books.isEmpty ? 'Your library is empty' : 'Your library',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    color: AppColors.stone500,
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 loading: () => Text(
                   'Loading...',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    color: AppColors.stone500,
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 error: (_, __) => Text(
                   'Error loading library',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    color: AppColors.stone500,
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -66,9 +58,9 @@ class HomeScreen extends ConsumerWidget {
                   data: (books) => books.isEmpty
                       ? _buildEmptyState(context)
                       : _buildBookGrid(context, books),
-                  loading: () => const Center(
+                  loading: () => Center(
                     child: CircularProgressIndicator(
-                      color: AppColors.orange600,
+                      color: colorScheme.primary,
                     ),
                   ),
                   error: (e, _) => Center(child: Text('Error: $e')),
@@ -82,6 +74,8 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildEmptyState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -90,28 +84,26 @@ class HomeScreen extends ConsumerWidget {
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: AppColors.stone100,
+              color: colorScheme.surfaceVariant,
               borderRadius: BorderRadius.circular(50),
             ),
-            child: const Icon(
+            child: Icon(
               LucideIcons.bookOpen,
               size: 48,
-              color: AppColors.stone300,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 24),
           Text(
             'No books yet',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.stone700,
-            ),
+            style: textTheme.headlineLarge,
           ),
           const SizedBox(height: 8),
           Text(
             'Import an EPUB to get started',
-            style: GoogleFonts.inter(fontSize: 16, color: AppColors.stone500),
+            style: textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 32),
           ElevatedButton.icon(
@@ -119,11 +111,12 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(LucideIcons.upload, size: 20),
             label: Text(
               'Import EPUB',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              style: textTheme.labelLarge?.copyWith(
+                color: colorScheme.onPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.orange600,
-              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),

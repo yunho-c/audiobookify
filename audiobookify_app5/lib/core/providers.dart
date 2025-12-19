@@ -4,6 +4,7 @@ import 'package:audiobookify_app5/objectbox.g.dart';
 import '../services/book_service.dart';
 import '../services/tts_service.dart';
 import '../models/player_settings.dart';
+import 'app_theme.dart';
 
 /// ObjectBox Store provider - overridden in main.dart
 final storeProvider = Provider<Store>((ref) {
@@ -26,6 +27,41 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
     'SharedPreferences must be overridden in ProviderScope',
   );
 });
+
+/// Theme preference notifier with persistence.
+class ThemePreferenceNotifier extends Notifier<AppThemePreference> {
+  static const _themeKey = 'app_theme_preference';
+
+  @override
+  AppThemePreference build() {
+    return _loadFromPrefs();
+  }
+
+  AppThemePreference _loadFromPrefs() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final value = prefs.getString(_themeKey);
+    return AppThemePreference.values.firstWhere(
+      (theme) => theme.name == value,
+      orElse: () => AppThemePreference.system,
+    );
+  }
+
+  Future<void> _saveToPrefs(AppThemePreference preference) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString(_themeKey, preference.name);
+  }
+
+  void setPreference(AppThemePreference preference) {
+    state = preference;
+    _saveToPrefs(preference);
+  }
+}
+
+/// Theme preference provider.
+final themePreferenceProvider =
+    NotifierProvider<ThemePreferenceNotifier, AppThemePreference>(
+      ThemePreferenceNotifier.new,
+    );
 
 /// Player settings notifier with persistence
 class PlayerSettingsNotifier extends Notifier<PlayerSettings> {

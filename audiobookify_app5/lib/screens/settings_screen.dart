@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
+import '../core/providers.dart';
 
 /// Settings screen with profile card and menu items
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final themePreference = ref.watch(themePreferenceProvider);
     return Scaffold(
-      backgroundColor: AppColors.stone50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -21,27 +25,11 @@ class SettingsScreen extends StatelessWidget {
               // Header
               Text(
                 'Settings',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.stone800,
-                ),
+                style: textTheme.displayLarge,
               ),
               const SizedBox(height: 24),
               // Profile card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(15),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
+              _SettingsCard(
                 child: Row(
                   children: [
                     // Avatar
@@ -49,14 +37,14 @@ class SettingsScreen extends StatelessWidget {
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: AppColors.stone200,
+                        color: colorScheme.surfaceVariant,
                         borderRadius: BorderRadius.circular(32),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Icon(
                           LucideIcons.user,
                           size: 28,
-                          color: AppColors.stone500,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -68,18 +56,15 @@ class SettingsScreen extends StatelessWidget {
                         children: [
                           Text(
                             'John Doe',
-                            style: GoogleFonts.inter(
-                              fontSize: 18,
+                            style: textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: AppColors.stone800,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Premium Member',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              color: AppColors.stone500,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -88,10 +73,47 @@ class SettingsScreen extends StatelessWidget {
                     // Edit button
                     Text(
                       'Edit',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.orange600,
+                      style: textTheme.labelLarge?.copyWith(
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _SettingsCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Appearance',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final preference in AppThemePreference.values)
+                          ChoiceChip(
+                            label: Text(preference.label),
+                            selected: themePreference == preference,
+                            onSelected: (_) {
+                              ref
+                                  .read(themePreferenceProvider.notifier)
+                                  .setPreference(preference);
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'System matches your device settings.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -99,18 +121,8 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               // Menu items group 1
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(15),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
+              _SettingsCard(
+                padding: EdgeInsets.zero,
                 child: Column(
                   children: [
                     _MenuItem(
@@ -133,18 +145,8 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               // Menu items group 2
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(15),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
+              _SettingsCard(
+                padding: EdgeInsets.zero,
                 child: Column(
                   children: [
                     _MenuItem(
@@ -166,9 +168,8 @@ class SettingsScreen extends StatelessWidget {
               Center(
                 child: Text(
                   'Version 1.0.0',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.stone400,
+                  style: textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -196,6 +197,8 @@ class _MenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Column(
       children: [
         Padding(
@@ -205,38 +208,65 @@ class _MenuItem extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: isDestructive ? AppColors.red400 : AppColors.stone400,
+                color: isDestructive
+                    ? colorScheme.error
+                    : colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   label,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: isDestructive
-                        ? AppColors.red600
-                        : AppColors.stone700,
+                  style: textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isDestructive ? colorScheme.error : colorScheme.onSurface,
                   ),
                 ),
               ),
               if (!isDestructive)
-                const Icon(
+                Icon(
                   LucideIcons.chevronRight,
                   size: 18,
-                  color: AppColors.stone300,
+                  color: colorScheme.outline,
                 ),
             ],
           ),
         ),
         if (showDivider)
-          const Divider(
-            height: 1,
-            indent: 16,
-            endIndent: 16,
-            color: AppColors.stone100,
-          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
       ],
+    );
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const _SettingsCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final shadowColor = Theme.of(context).shadowColor.withAlpha(15);
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }

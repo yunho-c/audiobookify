@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:html/parser.dart' as html_parser;
-import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../core/route_observer.dart';
 import '../services/tts_service.dart';
@@ -265,6 +264,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     final isPlaying = ttsState.status == TtsStatus.playing;
     final currentParagraphIndex = ttsState.paragraphIndex;
     final currentSentenceIndex = ttsState.sentenceIndex;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     // Auto-scroll when paragraph changes
     if (currentParagraphIndex != _lastScrolledToParagraph && isPlaying) {
@@ -276,21 +277,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
 
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.orange50,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppColors.orange600),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: CircularProgressIndicator(color: colorScheme.primary),
         ),
       );
     }
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: AppColors.orange50,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.stone800),
+            icon: Icon(LucideIcons.arrowLeft, color: colorScheme.onSurface),
             onPressed: () => context.pop(),
           ),
         ),
@@ -298,17 +299,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 LucideIcons.alertCircle,
                 size: 48,
-                color: AppColors.stone400,
+                color: colorScheme.onSurfaceVariant,
               ),
               const SizedBox(height: 16),
               Text(
                 'Error loading book',
-                style: GoogleFonts.inter(
-                  color: AppColors.stone600,
-                  fontSize: 16,
+                style: textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 8),
@@ -316,9 +316,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: Text(
                   _error!,
-                  style: GoogleFonts.inter(
-                    color: AppColors.stone400,
-                    fontSize: 12,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -334,7 +333,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
         : (currentParagraphIndex + 1) / _paragraphs.length;
 
     return Scaffold(
-      backgroundColor: AppColors.orange50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           // Main content
@@ -355,19 +354,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                         _saveProgress();
                         context.pop();
                       },
-                      child: const Icon(
+                      child: Icon(
                         LucideIcons.arrowLeft,
-                        color: AppColors.stone600,
+                        color: colorScheme.onSurfaceVariant,
                         size: 24,
                       ),
                     ),
                     Expanded(
                       child: Text(
                         _currentChapterTitle,
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 18,
+                        style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.stone800,
+                          color: colorScheme.onSurface,
                         ),
                         textAlign: TextAlign.center,
                         overflow: TextOverflow.ellipsis,
@@ -375,9 +373,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                     ),
                     GestureDetector(
                       onTap: () => setState(() => _showSettings = true),
-                      child: const Icon(
+                      child: Icon(
                         LucideIcons.settings2,
-                        color: AppColors.stone600,
+                        color: colorScheme.onSurfaceVariant,
                         size: 24,
                       ),
                     ),
@@ -390,7 +388,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                     ? Center(
                         child: Text(
                           'No content available',
-                          style: GoogleFonts.inter(color: AppColors.stone500),
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       )
                     : ListView.builder(
@@ -429,7 +429,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                                     ),
                                     decoration: BoxDecoration(
                                       color: isActiveParagraph
-                                          ? AppColors.orange600
+                                          ? colorScheme.primary
                                           : Colors.transparent,
                                       borderRadius: BorderRadius.circular(2),
                                     ),
@@ -447,8 +447,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                                                 fontSize: 18,
                                                 height: 1.8,
                                                 color: isActiveParagraph
-                                                    ? AppColors.stone700
-                                                    : AppColors.stone500,
+                                                    ? colorScheme.onSurface
+                                                    : colorScheme
+                                                        .onSurfaceVariant,
                                               ),
                                             )
                                           : RichText(
@@ -476,14 +477,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                                                       fontSize: 18,
                                                       height: 1.8,
                                                       color: isCurrentSentence
-                                                          ? AppColors.stone800
+                                                          ? colorScheme.onSurface
                                                           : isActiveParagraph
-                                                          ? AppColors.stone600
-                                                          : AppColors.stone500,
+                                                          ? colorScheme
+                                                              .onSurfaceVariant
+                                                          : colorScheme
+                                                              .onSurfaceVariant,
                                                       backgroundColor:
                                                           isCurrentSentence
-                                                          ? AppColors.orange200
-                                                                .withAlpha(150)
+                                                          ? colorScheme.primary
+                                                              .withAlpha(60)
                                                           : Colors.transparent,
                                                     ),
                                                     recognizer:
@@ -572,14 +575,16 @@ class _PlayerControlsEnhanced extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(25),
+            color: Theme.of(context).shadowColor.withAlpha(25),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -593,8 +598,8 @@ class _PlayerControlsEnhanced extends StatelessWidget {
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: progress.clamp(0.0, 1.0),
-              backgroundColor: AppColors.stone100,
-              valueColor: const AlwaysStoppedAnimation(AppColors.orange600),
+              backgroundColor: colorScheme.surfaceVariant,
+              valueColor: AlwaysStoppedAnimation(colorScheme.primary),
               minHeight: 4,
             ),
           ),
@@ -605,16 +610,14 @@ class _PlayerControlsEnhanced extends StatelessWidget {
             children: [
               Text(
                 '$currentParagraph / $totalParagraphs',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AppColors.stone500,
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               Text(
                 '${(progress * 100).toInt()}%',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AppColors.stone500,
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -629,8 +632,8 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                 icon: Icon(
                   LucideIcons.skipBack,
                   color: canGoPrevious
-                      ? AppColors.stone700
-                      : AppColors.stone300,
+                      ? colorScheme.onSurface
+                      : colorScheme.outline,
                   size: 28,
                 ),
               ),
@@ -641,11 +644,11 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: AppColors.stone800,
+                    color: colorScheme.primary,
                     borderRadius: BorderRadius.circular(32),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(50),
+                        color: Theme.of(context).shadowColor.withAlpha(50),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -653,7 +656,7 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                   ),
                   child: Icon(
                     isPlaying ? LucideIcons.pause : LucideIcons.play,
-                    color: Colors.white,
+                    color: colorScheme.onPrimary,
                     size: 28,
                   ),
                 ),
@@ -663,7 +666,9 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                 onPressed: canGoNext ? onNext : null,
                 icon: Icon(
                   LucideIcons.skipForward,
-                  color: canGoNext ? AppColors.stone700 : AppColors.stone300,
+                  color: canGoNext
+                      ? colorScheme.onSurface
+                      : colorScheme.outline,
                   size: 28,
                 ),
               ),

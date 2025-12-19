@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
@@ -48,10 +47,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           });
 
           if (mounted) {
+            final colorScheme = Theme.of(context).colorScheme;
+            final extras = Theme.of(context).extension<AppThemeExtras>();
+            final successColor =
+                extras?.accentPalette[3] ?? colorScheme.primary;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Loaded: ${book.metadata.title ?? "Unknown"}'),
-                backgroundColor: AppColors.emerald600,
+                backgroundColor: successColor,
               ),
             );
           }
@@ -67,10 +70,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         _errorMessage = e.message;
       });
       if (mounted) {
+        final colorScheme = Theme.of(context).colorScheme;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.message}'),
-            backgroundColor: Colors.red,
+            backgroundColor: colorScheme.error,
           ),
         );
       }
@@ -84,8 +88,25 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final accentPalette = extras?.accentPalette ??
+        [
+          colorScheme.primary,
+          colorScheme.primary,
+          colorScheme.primary,
+          colorScheme.primary,
+        ];
+    final accentSoftPalette = extras?.accentSoftPalette ??
+        [
+          colorScheme.primary.withAlpha(15),
+          colorScheme.primary.withAlpha(15),
+          colorScheme.primary.withAlpha(15),
+          colorScheme.primary.withAlpha(15),
+        ];
     return Scaffold(
-      backgroundColor: AppColors.stone50,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -95,18 +116,13 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               // Header
               Text(
                 'Create Audiobook',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.stone800,
-                ),
+                style: textTheme.displayMedium,
               ),
               const SizedBox(height: 8),
               Text(
                 'Turn your text into lifelike speech',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: AppColors.stone500,
+                style: textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 48),
@@ -118,18 +134,18 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   height: 280,
                   decoration: BoxDecoration(
                     color: _loadedBook != null
-                        ? AppColors.emerald50
-                        : Colors.white,
+                        ? colorScheme.primary.withAlpha(15)
+                        : colorScheme.surface,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: _loadedBook != null
-                          ? AppColors.emerald400
-                          : AppColors.stone200,
+                          ? colorScheme.primary
+                          : colorScheme.outline,
                       width: 2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(15),
+                        color: Theme.of(context).shadowColor.withAlpha(15),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
@@ -150,8 +166,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     child: _OptionCard(
                       icon: LucideIcons.fileText,
                       label: 'Paste Text',
-                      bgColor: AppColors.blue100,
-                      fgColor: AppColors.blue600,
+                      bgColor: accentSoftPalette[2],
+                      fgColor: accentPalette[2],
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -159,8 +175,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     child: _OptionCard(
                       icon: LucideIcons.mic,
                       label: 'Record Voice',
-                      bgColor: AppColors.emerald100,
-                      fgColor: AppColors.emerald600,
+                      bgColor: accentSoftPalette[3],
+                      fgColor: accentPalette[3],
                     ),
                   ),
                 ],
@@ -171,21 +187,19 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Recent Drafts',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
+                  style: textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.stone800,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withAlpha(15),
+                      color: Theme.of(context).shadowColor.withAlpha(15),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -200,36 +214,33 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppColors.stone100,
+                      color: colorScheme.surfaceVariant,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         LucideIcons.fileText,
                         size: 18,
-                        color: AppColors.stone400,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
                   title: Text(
                     'My Biography',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.stone800,
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   subtitle: Text(
                     'Edited 2h ago',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppColors.stone400,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  trailing: const Icon(
+                  trailing: Icon(
                     LucideIcons.arrowRight,
                     size: 18,
-                    color: AppColors.stone300,
+                    color: colorScheme.outline,
                   ),
                 ),
               ),
@@ -242,6 +253,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   Widget _buildUploadState() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -249,36 +262,36 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           width: 80,
           height: 80,
           decoration: BoxDecoration(
-            color: AppColors.orange100,
+            color: colorScheme.primary.withAlpha(15),
             borderRadius: BorderRadius.circular(40),
           ),
-          child: const Center(
+          child: Center(
             child: Icon(
               LucideIcons.upload,
               size: 32,
-              color: AppColors.orange600,
+              color: colorScheme.primary,
             ),
           ),
         ),
         const SizedBox(height: 24),
         Text(
           'Upload EPUB',
-          style: GoogleFonts.inter(
-            fontSize: 20,
+          style: textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-            color: AppColors.stone800,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Tap to select an EPUB file',
-          style: GoogleFonts.inter(fontSize: 14, color: AppColors.stone500),
+          style: textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
         if (_errorMessage != null) ...[
           const SizedBox(height: 12),
           Text(
             _errorMessage!,
-            style: GoogleFonts.inter(fontSize: 12, color: Colors.red),
+            style: textTheme.bodySmall?.copyWith(color: colorScheme.error),
             textAlign: TextAlign.center,
           ),
         ],
@@ -287,20 +300,30 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   Widget _buildLoadingState() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const CircularProgressIndicator(color: AppColors.orange600),
+        CircularProgressIndicator(color: colorScheme.primary),
         const SizedBox(height: 24),
         Text(
           'Loading EPUB...',
-          style: GoogleFonts.inter(fontSize: 16, color: AppColors.stone600),
+          style: textTheme.bodyLarge?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
   }
 
   Widget _buildLoadedState() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final successColor = extras?.accentPalette[3] ?? colorScheme.primary;
+    final successSoft =
+        extras?.accentSoftPalette[3] ?? colorScheme.primary.withAlpha(15);
     final book = _loadedBook!;
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -311,11 +334,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             width: 100,
             height: 140,
             decoration: BoxDecoration(
-              color: AppColors.stone200,
+              color: colorScheme.surfaceVariant,
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withAlpha(30),
+                  color: Theme.of(context).shadowColor.withAlpha(30),
                   blurRadius: 8,
                   offset: const Offset(2, 4),
                 ),
@@ -324,11 +347,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             clipBehavior: Clip.antiAlias,
             child: book.coverImage != null
                 ? Image.memory(book.coverImage!, fit: BoxFit.cover)
-                : const Center(
+                : Center(
                     child: Icon(
                       LucideIcons.book,
                       size: 32,
-                      color: AppColors.stone400,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
           ),
@@ -347,15 +370,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.emerald100,
+                        color: successSoft,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         '✓ Loaded',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
+                        style: textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: AppColors.emerald700,
+                          color: successColor,
                         ),
                       ),
                     ),
@@ -364,10 +386,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 const SizedBox(height: 12),
                 Text(
                   book.metadata.title ?? 'Unknown Title',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 18,
+                  style: textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.stone800,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -375,17 +395,15 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 const SizedBox(height: 4),
                 Text(
                   book.metadata.creator ?? 'Unknown Author',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.stone500,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '${book.chapters.length} chapters',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.stone400,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -398,26 +416,24 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                         final savedBook = ref
                             .read(bookServiceProvider)
                             .saveBook(_loadedBook!, _loadedFilePath!);
-                        setState(() {
-                          _savedBook = savedBook;
-                        });
+                          setState(() {
+                            _savedBook = savedBook;
+                          });
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Added "${savedBook.title}" to library',
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Added "${savedBook.title}" to library',
+                              ),
+                              backgroundColor: successColor,
                             ),
-                            backgroundColor: AppColors.emerald600,
-                          ),
-                        );
+                          );
 
-                        // Navigate to home screen
-                        context.go('/');
-                      }
+                          // Navigate to home screen
+                          context.go('/');
+                        }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.orange600,
-                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -425,7 +441,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     ),
                     child: Text(
                       'Create Audiobook',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      style: textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -453,14 +471,16 @@ class _OptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(15),
+            color: Theme.of(context).shadowColor.withAlpha(15),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -481,10 +501,9 @@ class _OptionCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             label,
-            style: GoogleFonts.inter(
-              fontSize: 16,
+            style: textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.stone700,
+              color: colorScheme.onSurface,
             ),
           ),
         ],

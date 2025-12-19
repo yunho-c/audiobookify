@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../core/app_theme.dart';
 
 /// Audio player controls with progress bar and playback buttons
 class PlayerControls extends StatelessWidget {
@@ -26,13 +25,14 @@ class PlayerControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.stone100.withAlpha(230),
+        color: colorScheme.surfaceVariant.withAlpha(230),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(25),
+            color: Theme.of(context).shadowColor.withAlpha(25),
             blurRadius: 40,
             offset: const Offset(0, -10),
           ),
@@ -53,14 +53,14 @@ class PlayerControls extends StatelessWidget {
                     currentTime,
                     style: GoogleFonts.robotoMono(
                       fontSize: 12,
-                      color: AppColors.stone500,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                   Text(
                     duration,
                     style: GoogleFonts.robotoMono(
                       fontSize: 12,
-                      color: AppColors.stone500,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -74,7 +74,7 @@ class PlayerControls extends StatelessWidget {
                     // Background
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.stone300,
+                        color: colorScheme.outlineVariant,
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -83,7 +83,7 @@ class PlayerControls extends StatelessWidget {
                       widthFactor: progress.clamp(0.0, 1.0),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: AppColors.orange600,
+                          color: colorScheme.primary,
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
@@ -102,13 +102,13 @@ class PlayerControls extends StatelessWidget {
               IconButton(
                 onPressed: () {},
                 icon: const Icon(LucideIcons.shuffle, size: 20),
-                color: AppColors.stone400,
+                color: colorScheme.onSurfaceVariant,
               ),
               // Skip back
               IconButton(
                 onPressed: onSkipBack,
                 icon: const Icon(LucideIcons.skipBack, size: 28),
-                color: AppColors.stone600,
+                color: colorScheme.onSurface,
               ),
               // Play/Pause
               GestureDetector(
@@ -117,11 +117,11 @@ class PlayerControls extends StatelessWidget {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: AppColors.stone800,
+                    color: colorScheme.primary,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(50),
+                        color: Theme.of(context).shadowColor.withAlpha(50),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -130,7 +130,7 @@ class PlayerControls extends StatelessWidget {
                   child: Center(
                     child: Icon(
                       isPlaying ? LucideIcons.pause : LucideIcons.play,
-                      color: Colors.white,
+                      color: colorScheme.onPrimary,
                       size: 32,
                     ),
                   ),
@@ -140,13 +140,13 @@ class PlayerControls extends StatelessWidget {
               IconButton(
                 onPressed: onSkipForward,
                 icon: const Icon(LucideIcons.skipForward, size: 28),
-                color: AppColors.stone600,
+                color: colorScheme.onSurface,
               ),
               // Repeat
               IconButton(
                 onPressed: () {},
                 icon: const Icon(LucideIcons.repeat, size: 20),
-                color: AppColors.stone400,
+                color: colorScheme.onSurfaceVariant,
               ),
             ],
           ),
