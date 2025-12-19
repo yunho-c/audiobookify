@@ -139,9 +139,15 @@ class TtsService {
     }
   }
 
-  /// Set speech rate (0.0 - 1.0)
-  Future<void> setRate(double rate) async {
-    await _flutterTts.setSpeechRate(rate);
+  /// Set speech rate
+  /// User speed: 0.5 (half) to 2.0 (double)
+  /// TTS engine rate: 0.25 to 0.75 where 0.5 is normal on macOS
+  Future<void> setRate(double userSpeed) async {
+    // Normalize: 1.0x user speed = 0.5 TTS rate (normal)
+    // 0.5x user speed = 0.25 TTS rate (slow)
+    // 2.0x user speed = 0.75 TTS rate (fast)
+    final ttsRate = (userSpeed * 0.5).clamp(0.1, 1.0);
+    await _flutterTts.setSpeechRate(ttsRate);
   }
 
   /// Get available voices
