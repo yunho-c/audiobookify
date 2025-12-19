@@ -11,6 +11,7 @@ import 'package:html/parser.dart' as html_parser;
 import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../core/route_observer.dart';
+import '../services/book_service.dart';
 import '../services/tts_service.dart';
 import '../models/book.dart';
 import '../src/rust/api/epub.dart';
@@ -34,6 +35,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   Book? _book;
   EpubBook? _epubBook;
   List<String> _paragraphs = [];
+  late final BookService _bookService;
+  late final TtsService _ttsService;
 
   // UI-specific state (TTS state comes from provider)
   bool _isLoading = true;
@@ -46,6 +49,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
+    _bookService = ref.read(bookServiceProvider);
+    _ttsService = ref.read(ttsProvider.notifier);
     _initTts();
     _loadContent();
   }
@@ -61,19 +66,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
 
   @override
   void didPop() {
-    ref.read(ttsProvider.notifier).stop();
+    if (mounted) {
+      _ttsService.stop();
+    }
     super.didPop();
   }
 
   @override
   void didPushNext() {
-    ref.read(ttsProvider.notifier).stop();
+    if (mounted) {
+      _ttsService.stop();
+    }
     super.didPushNext();
   }
 
   Future<void> _initTts() async {
     // Set completion callback
-    ref.read(ttsProvider.notifier).onComplete = () {
+    _ttsService.onComplete = () {
       if (!mounted) return;
       // Try to advance to next chapter
       if (_currentChapterIndex < (_epubBook?.chapters.length ?? 1) - 1) {
@@ -88,6 +97,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     try {
       final bookId = int.tryParse(widget.bookId);
       if (bookId == null) {
+        if (!mounted) return;
         setState(() {
           _error = 'Invalid book ID';
           _isLoading = false;
@@ -96,8 +106,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
       }
 
       // Load book from ObjectBox
-      final book = ref.read(bookServiceProvider).getBook(bookId);
+      final book = _bookService.getBook(bookId);
       if (book == null) {
+        if (!mounted) return;
         setState(() {
           _error = 'Book not found';
           _isLoading = false;
@@ -108,6 +119,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
       // Load EPUB
       final epub = await openEpub(path: book.filePath);
 
+      if (!mounted) return;
       setState(() {
         _book = book;
         _epubBook = epub;
@@ -122,6 +134,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
 
       await _loadChapter(chapterIndex);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -152,13 +165,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     });
 
     // Load content into TTS provider
-    final tts = ref.read(ttsProvider.notifier);
-    final wasPlaying = ref.read(ttsProvider).status == TtsStatus.playing;
-    tts.loadContent(paragraphs);
+    final wasPlaying = _ttsService.state.status == TtsStatus.playing;
+    _ttsService.loadContent(paragraphs);
 
     // Resume playback if we were playing
     if (wasPlaying) {
-      await tts.play();
+      await _ttsService.play();
     }
   }
 
@@ -216,23 +228,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
 
   void _updateBucketProgress(int paragraphIndex, int totalParagraphs) {
     if (_book == null) return;
-    ref.read(bookServiceProvider).markBucketProgress(
-          bookId: _book!.id,
-          chapterIndex: _currentChapterIndex + 1,
-          paragraphIndex: paragraphIndex,
-          totalParagraphs: totalParagraphs,
-        );
+    _bookService.markBucketProgress(
+      bookId: _book!.id,
+      chapterIndex: _currentChapterIndex + 1,
+      paragraphIndex: paragraphIndex,
+      totalParagraphs: totalParagraphs,
+    );
   }
 
   void _togglePlayPause() async {
     HapticFeedback.lightImpact();
-    final tts = ref.read(ttsProvider.notifier);
-    final ttsState = ref.read(ttsProvider);
+    final ttsState = _ttsService.state;
 
     if (ttsState.status == TtsStatus.playing) {
-      await tts.pause();
+      await _ttsService.pause();
     } else {
-      await tts.play();
+      await _ttsService.play();
     }
   }
 
@@ -258,15 +269,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     final progress = (((_currentChapterIndex + 1) / totalChapters) * 100)
         .round();
 
-    ref.read(bookServiceProvider).updateProgress(_book!.id, progress);
+    _bookService.updateProgress(_book!.id, progress);
   }
 
   @override
   void dispose() {
     _saveProgress();
     routeObserver.unsubscribe(this);
-    ref.read(ttsProvider.notifier).stop();
-    ref.read(ttsProvider.notifier).onComplete = null;
+    _ttsService.onComplete = null;
+    Future.microtask(_ttsService.stop);
     _scrollController.dispose();
     super.dispose();
   }
