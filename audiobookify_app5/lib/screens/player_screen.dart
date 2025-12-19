@@ -41,6 +41,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   bool _showSettings = false;
   int _currentChapterIndex = 0;
   int _lastScrolledToParagraph = -1;
+  int _lastBucketParagraph = -1;
 
   @override
   void initState() {
@@ -146,6 +147,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
       _paragraphKeys =
           List.generate(paragraphs.length, (_) => GlobalKey());
       _lastScrolledToParagraph = -1;
+      _lastBucketParagraph = -1;
       _isLoading = false;
     });
 
@@ -210,6 +212,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  void _updateBucketProgress(int paragraphIndex, int totalParagraphs) {
+    if (_book == null) return;
+    ref.read(bookServiceProvider).markBucketProgress(
+          bookId: _book!.id,
+          chapterIndex: _currentChapterIndex + 1,
+          paragraphIndex: paragraphIndex,
+          totalParagraphs: totalParagraphs,
+        );
   }
 
   void _togglePlayPause() async {
@@ -299,6 +311,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
         _scrollToParagraph(currentParagraphIndex);
         _lastScrolledToParagraph = currentParagraphIndex;
       });
+    }
+
+    if (_book != null &&
+        _paragraphs.isNotEmpty &&
+        currentParagraphIndex != _lastBucketParagraph) {
+      _updateBucketProgress(currentParagraphIndex, _paragraphs.length);
+      _lastBucketParagraph = currentParagraphIndex;
     }
 
     if (_isLoading) {

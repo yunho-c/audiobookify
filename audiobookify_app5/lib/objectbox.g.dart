@@ -15,6 +15,7 @@ import 'package:objectbox/objectbox.dart' as obx;
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'models/book.dart';
+import 'models/book_progress_bucket.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
 
@@ -95,6 +96,54 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(2, 4944664329475420838),
+    name: 'BookProgressBucket',
+    lastPropertyId: const obx_int.IdUid(6, 4390403936958834032),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 138427811942739891),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 329306948109652511),
+        name: 'bookId',
+        type: 6,
+        flags: 8,
+        indexId: const obx_int.IdUid(1, 5957401034128826151),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 1825286908082543672),
+        name: 'chapterIndex',
+        type: 6,
+        flags: 8,
+        indexId: const obx_int.IdUid(2, 1749288359301555385),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 5218193227090322120),
+        name: 'bucketCount',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 5279271330096239173),
+        name: 'buckets',
+        type: 23,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 4390403936958834032),
+        name: 'updatedAt',
+        type: 10,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -140,8 +189,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(1, 4231649898290285961),
-    lastIndexId: const obx_int.IdUid(0, 0),
+    lastEntityId: const obx_int.IdUid(2, 4944664329475420838),
+    lastIndexId: const obx_int.IdUid(2, 1749288359301555385),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -261,6 +310,73 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    BookProgressBucket: obx_int.EntityDefinition<BookProgressBucket>(
+      model: _entities[1],
+      toOneRelations: (BookProgressBucket object) => [],
+      toManyRelations: (BookProgressBucket object) => {},
+      getId: (BookProgressBucket object) => object.id,
+      setId: (BookProgressBucket object, int id) {
+        object.id = id;
+      },
+      objectToFB: (BookProgressBucket object, fb.Builder fbb) {
+        final bucketsOffset = fbb.writeListInt8(object.buckets);
+        fbb.startTable(7);
+        fbb.addInt64(0, object.id);
+        fbb.addInt64(1, object.bookId);
+        fbb.addInt64(2, object.chapterIndex);
+        fbb.addInt64(3, object.bucketCount);
+        fbb.addOffset(4, bucketsOffset);
+        fbb.addInt64(5, object.updatedAt.millisecondsSinceEpoch);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final bookIdParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          6,
+          0,
+        );
+        final chapterIndexParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          8,
+          0,
+        );
+        final bucketCountParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          10,
+          0,
+        );
+        final bucketsParam =
+            const fb.Uint8ListReader(
+                  lazy: false,
+                ).vTableGet(buffer, rootOffset, 12, Uint8List(0))
+                as Uint8List;
+        final updatedAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 14, 0),
+        );
+        final object = BookProgressBucket(
+          id: idParam,
+          bookId: bookIdParam,
+          chapterIndex: chapterIndexParam,
+          bucketCount: bucketCountParam,
+          buckets: bucketsParam,
+          updatedAt: updatedAtParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -319,5 +435,38 @@ class Book_ {
   /// See [Book.progress].
   static final progress = obx.QueryIntegerProperty<Book>(
     _entities[0].properties[10],
+  );
+}
+
+/// [BookProgressBucket] entity fields to define ObjectBox queries.
+class BookProgressBucket_ {
+  /// See [BookProgressBucket.id].
+  static final id = obx.QueryIntegerProperty<BookProgressBucket>(
+    _entities[1].properties[0],
+  );
+
+  /// See [BookProgressBucket.bookId].
+  static final bookId = obx.QueryIntegerProperty<BookProgressBucket>(
+    _entities[1].properties[1],
+  );
+
+  /// See [BookProgressBucket.chapterIndex].
+  static final chapterIndex = obx.QueryIntegerProperty<BookProgressBucket>(
+    _entities[1].properties[2],
+  );
+
+  /// See [BookProgressBucket.bucketCount].
+  static final bucketCount = obx.QueryIntegerProperty<BookProgressBucket>(
+    _entities[1].properties[3],
+  );
+
+  /// See [BookProgressBucket.buckets].
+  static final buckets = obx.QueryByteVectorProperty<BookProgressBucket>(
+    _entities[1].properties[4],
+  );
+
+  /// See [BookProgressBucket.updatedAt].
+  static final updatedAt = obx.QueryDateProperty<BookProgressBucket>(
+    _entities[1].properties[5],
   );
 }

@@ -66,10 +66,53 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "2:4944664329475420838",
+      "lastPropertyId": "6:4390403936958834032",
+      "name": "BookProgressBucket",
+      "properties": [
+        {
+          "id": "1:138427811942739891",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:329306948109652511",
+          "name": "bookId",
+          "indexId": "1:5957401034128826151",
+          "type": 6,
+          "flags": 8
+        },
+        {
+          "id": "3:1825286908082543672",
+          "name": "chapterIndex",
+          "indexId": "2:1749288359301555385",
+          "type": 6,
+          "flags": 8
+        },
+        {
+          "id": "4:5218193227090322120",
+          "name": "bucketCount",
+          "type": 6
+        },
+        {
+          "id": "5:5279271330096239173",
+          "name": "buckets",
+          "type": 23
+        },
+        {
+          "id": "6:4390403936958834032",
+          "name": "updatedAt",
+          "type": 10
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "1:4231649898290285961",
-  "lastIndexId": "0:0",
+  "lastEntityId": "2:4944664329475420838",
+  "lastIndexId": "2:1749288359301555385",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,
