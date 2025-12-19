@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:audiobookify_app5/src/rust/frb_generated.dart';
+import 'package:audiobookify_app5/objectbox.g.dart';
+import 'package:audiobookify_app5/services/book_service.dart';
 import 'core/app_theme.dart';
 import 'widgets/bottom_nav.dart';
 import 'screens/home_screen.dart';
@@ -9,9 +12,21 @@ import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
 
+/// Global ObjectBox store and services
+late final Store objectboxStore;
+late final BookService bookService;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await RustLib.init(); // Initialize flutter_rust_bridge
+
+  // Initialize flutter_rust_bridge
+  await RustLib.init();
+
+  // Initialize ObjectBox
+  final appDir = await getApplicationDocumentsDirectory();
+  objectboxStore = await openStore(directory: '${appDir.path}/objectbox');
+  bookService = BookService(objectboxStore);
+
   runApp(const AudiobookifyApp());
 }
 

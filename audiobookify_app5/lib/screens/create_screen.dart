@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:go_router/go_router.dart';
 import '../core/app_theme.dart';
 import '../src/rust/api/epub.dart';
+import '../main.dart'; // For bookService
+import '../models/book.dart';
 
 /// Create screen with upload area and options
 class CreateScreen extends StatefulWidget {
@@ -16,7 +19,9 @@ class CreateScreen extends StatefulWidget {
 class _CreateScreenState extends State<CreateScreen> {
   bool _isLoading = false;
   EpubBook? _loadedBook;
+  Book? _savedBook;
   String? _errorMessage;
+  String? _loadedFilePath;
 
   Future<void> _pickAndLoadEpub() async {
     setState(() {
@@ -37,6 +42,7 @@ class _CreateScreenState extends State<CreateScreen> {
           final book = await openEpub(path: path);
           setState(() {
             _loadedBook = book;
+            _loadedFilePath = path;
             _isLoading = false;
           });
 
@@ -386,7 +392,28 @@ class _CreateScreenState extends State<CreateScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      // TODO: Navigate to conversion/processing
+                      // Save book to database
+                      if (_loadedBook != null && _loadedFilePath != null) {
+                        final savedBook = bookService.saveBook(
+                          _loadedBook!,
+                          _loadedFilePath!,
+                        );
+                        setState(() {
+                          _savedBook = savedBook;
+                        });
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Added "${savedBook.title}" to library',
+                            ),
+                            backgroundColor: AppColors.emerald600,
+                          ),
+                        );
+
+                        // Navigate to home screen
+                        context.go('/');
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.orange600,
