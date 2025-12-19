@@ -98,3 +98,13 @@ final ttsProvider = StateNotifierProvider<TtsService, TtsPlaybackState>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
+
+/// Keep TTS engine settings in sync with persisted PlayerSettings.
+final ttsSettingsSyncProvider = Provider<void>((ref) {
+  final tts = ref.read(ttsProvider.notifier);
+  tts.applySettings(ref.read(playerSettingsProvider));
+
+  ref.listen<PlayerSettings>(playerSettingsProvider, (previous, next) {
+    tts.applySettings(next);
+  });
+});

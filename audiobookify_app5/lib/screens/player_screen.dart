@@ -45,10 +45,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _initTts() async {
-    // Apply initial settings
-    final settings = ref.read(playerSettingsProvider);
-    await ref.read(ttsProvider.notifier).applySettings(settings);
-
     // Set completion callback
     ref.read(ttsProvider.notifier).onComplete = () {
       if (!mounted) return;
@@ -229,11 +225,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final isPlaying = ttsState.status == TtsStatus.playing;
     final currentParagraphIndex = ttsState.paragraphIndex;
     final currentSentenceIndex = ttsState.sentenceIndex;
-
-    // Listen for settings changes and apply to TTS
-    ref.listen(playerSettingsProvider, (previous, next) {
-      ref.read(ttsProvider.notifier).applySettings(next);
-    });
 
     // Auto-scroll when paragraph changes
     if (currentParagraphIndex != _lastScrolledToParagraph && isPlaying) {
