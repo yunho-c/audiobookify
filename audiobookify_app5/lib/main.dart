@@ -7,6 +7,7 @@ import 'package:audiobookify_app5/src/rust/frb_generated.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
 import 'core/app_theme.dart';
 import 'core/providers.dart';
+import 'core/route_observer.dart';
 import 'widgets/bottom_nav.dart';
 import 'screens/home_screen.dart';
 import 'screens/book_detail_screen.dart';
@@ -72,6 +73,7 @@ class AppShell extends StatelessWidget {
 /// Router configuration with shell for bottom nav
 final _router = GoRouter(
   initialLocation: '/',
+  observers: [routeObserver],
   routes: [
     // Shell route for pages with bottom nav
     ShellRoute(

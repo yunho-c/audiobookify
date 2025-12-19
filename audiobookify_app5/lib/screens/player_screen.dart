@@ -7,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../core/app_theme.dart';
 import '../core/providers.dart';
+import '../core/route_observer.dart';
 import '../services/tts_service.dart';
 import '../models/book.dart';
 import '../src/rust/api/epub.dart';
@@ -22,7 +23,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   final ScrollController _scrollController = ScrollController();
   List<GlobalKey> _paragraphKeys = [];
 
@@ -43,6 +44,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     super.initState();
     _initTts();
     _loadContent();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPop() {
+    ref.read(ttsProvider.notifier).stop();
+    super.didPop();
+  }
+
+  @override
+  void didPushNext() {
+    ref.read(ttsProvider.notifier).stop();
+    super.didPushNext();
   }
 
   Future<void> _initTts() async {
@@ -219,6 +241,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _saveProgress();
+    routeObserver.unsubscribe(this);
     ref.read(ttsProvider.notifier).stop();
     ref.read(ttsProvider.notifier).onComplete = null;
     _scrollController.dispose();

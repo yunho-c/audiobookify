@@ -103,14 +103,18 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
   /// Pause playback
   Future<void> pause() async {
-    await _flutterTts.stop();
+    _isJumping = true;
     state = state.copyWith(status: TtsStatus.paused);
+    await _flutterTts.stop();
+    _isJumping = false;
   }
 
   /// Stop playback
   Future<void> stop() async {
-    await _flutterTts.stop();
+    _isJumping = true;
     state = state.copyWith(status: TtsStatus.stopped);
+    await _flutterTts.stop();
+    _isJumping = false;
   }
 
   /// Jump to specific paragraph (resets to first sentence)
