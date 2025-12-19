@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:audiobookify_app5/src/rust/frb_generated.dart';
 import 'core/app_theme.dart';
 import 'widgets/bottom_nav.dart';
 import 'screens/home_screen.dart';
@@ -8,7 +9,9 @@ import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await RustLib.init(); // Initialize flutter_rust_bridge
   runApp(const AudiobookifyApp());
 }
 

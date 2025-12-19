@@ -24,7 +24,6 @@ class AppColors {
   static const orange700 = Color(0xFFC2410C);
 
   // Book cover colors
-  static const emerald700 = Color(0xFF047857);
   static const indigo700 = Color(0xFF4338CA);
   static const slate700 = Color(0xFF334155);
   static const rose700 = Color(0xFFBE123C);
@@ -39,7 +38,10 @@ class AppColors {
   static const blue100 = Color(0xFFDBEAFE);
   static const blue600 = Color(0xFF2563EB);
   static const emerald100 = Color(0xFFD1FAE5);
+  static const emerald50 = Color(0xFFECFDF5);
+  static const emerald400 = Color(0xFF34D399);
   static const emerald600 = Color(0xFF059669);
+  static const emerald700 = Color(0xFF047857);
   static const red400 = Color(0xFFF87171);
   static const red600 = Color(0xFFDC2626);
 }
