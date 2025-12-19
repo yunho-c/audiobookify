@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
 import '../services/book_service.dart';
+import '../services/tts_service.dart';
 import '../models/player_settings.dart';
 
 /// ObjectBox Store provider - overridden in main.dart
@@ -86,3 +87,14 @@ final playerSettingsProvider =
     NotifierProvider<PlayerSettingsNotifier, PlayerSettings>(
       () => PlayerSettingsNotifier(),
     );
+
+// ========================================
+// TTS Playback State Management
+// ========================================
+
+/// TTS Provider - single source of truth for playback
+final ttsProvider = StateNotifierProvider<TtsService, TtsPlaybackState>((ref) {
+  final service = TtsService();
+  ref.onDispose(service.dispose);
+  return service;
+});

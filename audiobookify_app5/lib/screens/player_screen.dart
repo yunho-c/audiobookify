@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,9 +7,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../core/app_theme.dart';
 import '../core/providers.dart';
+import '../services/tts_service.dart';
 import '../models/book.dart';
 import '../src/rust/api/epub.dart';
-import '../services/tts_service.dart';
 import '../widgets/settings_wheel.dart';
 
 /// Player screen with text reader, TTS audio controls, and settings
@@ -22,7 +23,6 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  final TtsService _tts = TtsService();
   final ScrollController _scrollController = ScrollController();
 
   // Data
@@ -30,14 +30,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   EpubBook? _epubBook;
   List<String> _paragraphs = [];
 
-  // State
+  // UI-specific state (TTS state comes from provider)
   bool _isLoading = true;
   String? _error;
   bool _showSettings = false;
   int _currentChapterIndex = 0;
-  int _currentParagraphIndex = 0;
-  int _currentSentenceIndex = 0;
-  bool _isPlaying = false;
+  int _lastScrolledToParagraph = -1;
 
   @override
   void initState() {
@@ -47,38 +45,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _initTts() async {
-    await _tts.init();
-
     // Apply initial settings
     final settings = ref.read(playerSettingsProvider);
-    await _tts.applySettings(
-      speed: settings.speed,
-      pitch: settings.pitch,
-      voiceName: settings.voiceName,
-      voiceLocale: settings.voiceLocale,
-    );
+    await ref.read(ttsProvider.notifier).applySettings(settings);
 
-    _tts.onParagraphChange = (index) {
-      if (!mounted) return;
-      setState(() {
-        _currentParagraphIndex = index;
-        _currentSentenceIndex = 0;
-      });
-      _scrollToParagraph(index);
-    };
-
-    _tts.onSentenceChange = (index) {
-      if (!mounted) return;
-      setState(() => _currentSentenceIndex = index);
-    };
-
-    _tts.onComplete = () {
+    // Set completion callback
+    ref.read(ttsProvider.notifier).onComplete = () {
       if (!mounted) return;
       // Try to advance to next chapter
       if (_currentChapterIndex < (_epubBook?.chapters.length ?? 1) - 1) {
         _loadChapter(_currentChapterIndex + 1);
       } else {
-        setState(() => _isPlaying = false);
         _saveProgress();
       }
     };
@@ -139,51 +116,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final paragraphs = _extractParagraphs(chapterContent);
 
     if (!mounted) return;
+
+    // Update local UI state
     setState(() {
       _currentChapterIndex = index;
       _paragraphs = paragraphs;
-      _currentParagraphIndex = 0;
       _isLoading = false;
     });
 
-    _tts.setParagraphs(paragraphs);
+    // Load content into TTS provider
+    final tts = ref.read(ttsProvider.notifier);
+    final wasPlaying = ref.read(ttsProvider).status == TtsStatus.playing;
+    tts.loadContent(paragraphs);
 
-    // Auto-play when loading a chapter (if already playing)
-    if (_isPlaying) {
-      await _tts.play();
+    // Resume playback if we were playing
+    if (wasPlaying) {
+      await tts.play();
     }
   }
 
   List<String> _extractParagraphs(String htmlContent) {
-    // Parse HTML and extract text
     final document = html_parser.parse(htmlContent);
     final body = document.body;
     if (body == null) return [];
 
-    // Get text content and split into paragraphs
-    final text = body.text ?? '';
+    final paragraphs = <String>[];
+    final textNodes = body.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
 
-    // Split by double newlines or paragraph markers
-    final paragraphs = text
-        .split(RegExp(r'\n\s*\n'))
-        .map((p) => p.trim())
-        .where((p) => p.isNotEmpty && p.length > 10)
-        .toList();
+    for (final node in textNodes) {
+      final text = node.text.trim();
+      if (text.isNotEmpty) {
+        paragraphs.add(text);
+      }
+    }
 
+    // If no paragraph tags, split by double newlines
     if (paragraphs.isEmpty) {
-      // Fallback: split by sentences if no paragraphs
-      return text
-          .split(RegExp(r'(?<=[.!?])\s+'))
-          .where((s) => s.trim().isNotEmpty)
-          .take(20)
-          .toList();
+      final text = body.text.trim();
+      paragraphs.addAll(
+        text.split(RegExp(r'\n\s*\n')).where((p) => p.trim().isNotEmpty),
+      );
     }
 
     return paragraphs;
   }
 
   void _scrollToParagraph(int index) {
-    // Approximate scroll position based on paragraph index
     final scrollPosition = index * 120.0;
     _scrollController.animateTo(
       scrollPosition,
@@ -193,16 +171,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _togglePlayPause() async {
-    if (_isPlaying) {
-      await _tts.pause();
+    final tts = ref.read(ttsProvider.notifier);
+    final ttsState = ref.read(ttsProvider);
+
+    if (ttsState.status == TtsStatus.playing) {
+      await tts.pause();
     } else {
-      if (_tts.state == TtsState.paused) {
-        await _tts.resume();
-      } else {
-        await _tts.play();
-      }
+      await tts.play();
     }
-    setState(() => _isPlaying = !_isPlaying);
   }
 
   void _previousChapter() {
@@ -221,7 +197,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _saveProgress() {
     if (_book == null || _epubBook == null) return;
 
-    // Calculate progress as percentage
     final totalChapters = _epubBook!.chapters.length;
     final progress = (((_currentChapterIndex + 1) / totalChapters) * 100)
         .round();
@@ -232,7 +207,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _saveProgress();
-    _tts.dispose();
+    ref.read(ttsProvider.notifier).onComplete = null;
     _scrollController.dispose();
     super.dispose();
   }
@@ -249,15 +224,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch TTS state for reactive updates
+    final ttsState = ref.watch(ttsProvider);
+    final isPlaying = ttsState.status == TtsStatus.playing;
+    final currentParagraphIndex = ttsState.paragraphIndex;
+    final currentSentenceIndex = ttsState.sentenceIndex;
+
     // Listen for settings changes and apply to TTS
     ref.listen(playerSettingsProvider, (previous, next) {
-      _tts.applySettings(
-        speed: next.speed,
-        pitch: next.pitch,
-        voiceName: next.voiceName,
-        voiceLocale: next.voiceLocale,
-      );
+      ref.read(ttsProvider.notifier).applySettings(next);
     });
+
+    // Auto-scroll when paragraph changes
+    if (currentParagraphIndex != _lastScrolledToParagraph && isPlaying) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToParagraph(currentParagraphIndex);
+        _lastScrolledToParagraph = currentParagraphIndex;
+      });
+    }
 
     if (_isLoading) {
       return Scaffold(
@@ -290,8 +274,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                _error!,
-                style: GoogleFonts.inter(color: AppColors.stone600),
+                'Error loading book',
+                style: GoogleFonts.inter(
+                  color: AppColors.stone600,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  _error!,
+                  style: GoogleFonts.inter(
+                    color: AppColors.stone400,
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
           ),
@@ -299,9 +298,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
     }
 
-    final progress = _paragraphs.isNotEmpty
-        ? (_currentParagraphIndex + 1) / _paragraphs.length
-        : 0.0;
+    final progress = _paragraphs.isEmpty
+        ? 0.0
+        : (currentParagraphIndex + 1) / _paragraphs.length;
 
     return Scaffold(
       backgroundColor: AppColors.orange50,
@@ -311,63 +310,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Column(
             children: [
               // Header
-              SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          _saveProgress();
-                          context.pop();
-                        },
-                        child: const Icon(
-                          LucideIcons.arrowLeft,
-                          color: AppColors.stone600,
-                          size: 24,
-                        ),
+              Container(
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        _saveProgress();
+                        context.pop();
+                      },
+                      child: const Icon(
+                        LucideIcons.arrowLeft,
+                        color: AppColors.stone600,
+                        size: 24,
                       ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              _currentChapterTitle,
-                              style: GoogleFonts.playfairDisplay(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.stone800,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              'CHAPTER ${_currentChapterIndex + 1} OF ${_epubBook?.chapters.length ?? 0}',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                letterSpacing: 2,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.stone500,
-                              ),
-                            ),
-                          ],
+                    ),
+                    Expanded(
+                      child: Text(
+                        _currentChapterTitle,
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.stone800,
                         ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      GestureDetector(
-                        onTap: () => setState(() => _showSettings = true),
-                        child: const Icon(
-                          LucideIcons.settings2,
-                          color: AppColors.stone600,
-                          size: 24,
-                        ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _showSettings = true),
+                      child: const Icon(
+                        LucideIcons.settings2,
+                        color: AppColors.stone600,
+                        size: 24,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               // Text content
@@ -385,24 +368,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         itemCount: _paragraphs.length,
                         itemBuilder: (context, index) {
                           final isActiveParagraph =
-                              index == _currentParagraphIndex;
-                          final sentences = _tts.getSentencesForParagraph(
-                            index,
-                          );
+                              index == currentParagraphIndex;
+                          final sentences =
+                              ttsState.sentencesPerParagraph.length > index
+                              ? ttsState.sentencesPerParagraph[index]
+                              : <String>[];
 
                           return GestureDetector(
-                            onTap: () async {
-                              await _tts.jumpToParagraph(index);
-                              setState(() {
-                                _currentParagraphIndex = index;
-                                _currentSentenceIndex = 0;
-                              });
+                            onTap: () {
+                              ref
+                                  .read(ttsProvider.notifier)
+                                  .jumpToParagraph(index);
                             },
                             child: IntrinsicHeight(
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  // Vertical line indicator for active paragraph
+                                  // Vertical line indicator
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     width: isActiveParagraph ? 3 : 0,
@@ -417,7 +399,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
-                                  // Text content with sentence highlighting
+                                  // Text content
                                   Expanded(
                                     child: Padding(
                                       padding: const EdgeInsets.only(
@@ -439,18 +421,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                                 children: sentences.asMap().entries.map((
                                                   entry,
                                                 ) {
-                                                  final sentenceIndex =
-                                                      entry.key;
+                                                  final sentenceIdx = entry.key;
                                                   final sentence = entry.value;
                                                   final isCurrentSentence =
                                                       isActiveParagraph &&
-                                                      sentenceIndex ==
-                                                          _currentSentenceIndex;
+                                                      sentenceIdx ==
+                                                          currentSentenceIndex;
 
                                                   return TextSpan(
                                                     text:
                                                         sentence +
-                                                        (sentenceIndex <
+                                                        (sentenceIdx <
                                                                 sentences
                                                                         .length -
                                                                     1
@@ -470,6 +451,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                                                 .withAlpha(150)
                                                           : Colors.transparent,
                                                     ),
+                                                    recognizer:
+                                                        TapGestureRecognizer()
+                                                          ..onTap = () {
+                                                            ref
+                                                                .read(
+                                                                  ttsProvider
+                                                                      .notifier,
+                                                                )
+                                                                .jumpToSentence(
+                                                                  index,
+                                                                  sentenceIdx,
+                                                                );
+                                                          },
                                                   );
                                                 }).toList(),
                                               ),
@@ -485,15 +479,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ],
           ),
-          // Player controls at bottom
+          // Player controls
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: _PlayerControlsEnhanced(
-              isPlaying: _isPlaying,
+              isPlaying: isPlaying,
               progress: progress,
-              currentParagraph: _currentParagraphIndex + 1,
+              currentParagraph: currentParagraphIndex + 1,
               totalParagraphs: _paragraphs.length,
               onPlayPause: _togglePlayPause,
               onPrevious: _previousChapter,
@@ -595,7 +589,6 @@ class _PlayerControlsEnhanced extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Previous chapter
               IconButton(
                 onPressed: canGoPrevious ? onPrevious : null,
                 icon: Icon(
@@ -607,7 +600,6 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 24),
-              // Play/Pause
               GestureDetector(
                 onTap: onPlayPause,
                 child: Container(
@@ -632,7 +624,6 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 24),
-              // Next chapter
               IconButton(
                 onPressed: canGoNext ? onNext : null,
                 icon: Icon(

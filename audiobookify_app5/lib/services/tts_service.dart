@@ -1,58 +1,226 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../models/player_settings.dart';
 
-/// TTS playback state
-enum TtsState { playing, stopped, paused }
+/// TTS playback status
+enum TtsStatus { stopped, playing, paused }
 
-/// Service wrapper for FlutterTts with sentence-level tracking
-class TtsService {
-  final FlutterTts _flutterTts = FlutterTts();
-  TtsState _state = TtsState.stopped;
+/// Immutable state for TTS playback
+class TtsPlaybackState {
+  final TtsStatus status;
+  final int paragraphIndex;
+  final int sentenceIndex;
+  final List<String> paragraphs;
+  final List<List<String>> sentencesPerParagraph;
 
-  // Callbacks
-  Function(int)? onParagraphChange;
-  Function(int)? onSentenceChange;
-  Function()? onComplete;
-  Function(String)? onError;
+  const TtsPlaybackState({
+    this.status = TtsStatus.stopped,
+    this.paragraphIndex = 0,
+    this.sentenceIndex = 0,
+    this.paragraphs = const [],
+    this.sentencesPerParagraph = const [],
+  });
 
-  // Current playback state
-  List<String> _paragraphs = [];
-  List<List<String>> _sentencesPerParagraph = [];
-  int _currentParagraphIndex = 0;
-  int _currentSentenceIndex = 0;
+  TtsPlaybackState copyWith({
+    TtsStatus? status,
+    int? paragraphIndex,
+    int? sentenceIndex,
+    List<String>? paragraphs,
+    List<List<String>>? sentencesPerParagraph,
+  }) {
+    return TtsPlaybackState(
+      status: status ?? this.status,
+      paragraphIndex: paragraphIndex ?? this.paragraphIndex,
+      sentenceIndex: sentenceIndex ?? this.sentenceIndex,
+      paragraphs: paragraphs ?? this.paragraphs,
+      sentencesPerParagraph:
+          sentencesPerParagraph ?? this.sentencesPerParagraph,
+    );
+  }
 
-  TtsState get state => _state;
-  int get currentParagraphIndex => _currentParagraphIndex;
-  int get currentSentenceIndex => _currentSentenceIndex;
-
-  /// Get sentences for a specific paragraph
-  List<String> getSentencesForParagraph(int paragraphIndex) {
-    if (paragraphIndex >= 0 && paragraphIndex < _sentencesPerParagraph.length) {
-      return _sentencesPerParagraph[paragraphIndex];
+  List<String> get currentSentences {
+    if (paragraphIndex >= 0 && paragraphIndex < sentencesPerParagraph.length) {
+      return sentencesPerParagraph[paragraphIndex];
     }
     return [];
   }
+}
 
-  Future<void> init() async {
+/// Service wrapper for FlutterTts with sentence-level tracking
+class TtsService extends StateNotifier<TtsPlaybackState> {
+  TtsService() : super(const TtsPlaybackState()) {
+    _flutterTts = FlutterTts();
+    _initTts();
+  }
+
+  late final FlutterTts _flutterTts;
+  Function()? onComplete;
+  bool _isJumping = false; // Suppress completion callbacks during jumps
+
+  Future<void> _initTts() async {
     await _flutterTts.setLanguage('en-US');
     await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.setVolume(1.0);
     await _flutterTts.setPitch(1.0);
 
-    // Set up completion handler
+    _flutterTts.setStartHandler(() {
+      if (_isJumping) {
+        _isJumping = false;
+      }
+    });
+
     _flutterTts.setCompletionHandler(() {
       _onSentenceComplete();
     });
 
     _flutterTts.setErrorHandler((message) {
-      _state = TtsState.stopped;
-      onError?.call(message.toString());
+      _isJumping = false;
+      state = state.copyWith(status: TtsStatus.stopped);
     });
   }
 
-  /// Split text into sentences, handling common abbreviations
+  /// Load content for playback
+  void loadContent(List<String> paragraphs) {
+    final sentencesPerParagraph = paragraphs
+        .map((p) => _splitIntoSentences(p))
+        .toList();
+
+    state = TtsPlaybackState(
+      paragraphs: paragraphs,
+      sentencesPerParagraph: sentencesPerParagraph,
+      paragraphIndex: 0,
+      sentenceIndex: 0,
+      status: TtsStatus.stopped,
+    );
+  }
+
+  /// Start or resume playback
+  Future<void> play() async {
+    if (state.paragraphs.isEmpty) return;
+    state = state.copyWith(status: TtsStatus.playing);
+    await _speakCurrentSentence();
+  }
+
+  /// Pause playback
+  Future<void> pause() async {
+    await _flutterTts.stop();
+    state = state.copyWith(status: TtsStatus.paused);
+  }
+
+  /// Stop playback
+  Future<void> stop() async {
+    await _flutterTts.stop();
+    state = state.copyWith(status: TtsStatus.stopped);
+  }
+
+  /// Jump to specific paragraph (resets to first sentence)
+  Future<void> jumpToParagraph(int index) async {
+    if (index < 0 || index >= state.paragraphs.length) return;
+
+    final wasPlaying = state.status == TtsStatus.playing;
+    _isJumping = true;
+    await _flutterTts.stop();
+
+    state = state.copyWith(
+      paragraphIndex: index,
+      sentenceIndex: 0,
+      status: wasPlaying ? TtsStatus.playing : state.status,
+    );
+
+    if (wasPlaying) {
+      await _speakCurrentSentence();
+    } else {
+      _isJumping = false;
+    }
+  }
+
+  /// Jump to specific sentence within a paragraph
+  Future<void> jumpToSentence(int paragraphIndex, int sentenceIndex) async {
+    if (paragraphIndex < 0 || paragraphIndex >= state.paragraphs.length) return;
+
+    final wasPlaying = state.status == TtsStatus.playing;
+    _isJumping = true;
+
+    // Stop immediately and update state atomically
+    await _flutterTts.stop();
+
+    final sentences = state.sentencesPerParagraph[paragraphIndex];
+    final validSentenceIndex = sentenceIndex.clamp(0, sentences.length - 1);
+
+    state = state.copyWith(
+      paragraphIndex: paragraphIndex,
+      sentenceIndex: validSentenceIndex,
+      status: wasPlaying ? TtsStatus.playing : state.status,
+    );
+
+    if (wasPlaying) {
+      await _speakCurrentSentence();
+    } else {
+      _isJumping = false;
+    }
+  }
+
+  /// Apply settings from PlayerSettings
+  Future<void> applySettings(PlayerSettings settings) async {
+    final ttsRate = (settings.speed * 0.5).clamp(0.1, 1.0);
+    await _flutterTts.setSpeechRate(ttsRate);
+    await _flutterTts.setPitch(settings.pitch);
+    if (settings.voiceName != null && settings.voiceLocale != null) {
+      await _flutterTts.setVoice({
+        'name': settings.voiceName!,
+        'locale': settings.voiceLocale!,
+      });
+    }
+  }
+
+  Future<void> _speakCurrentSentence() async {
+    if (state.paragraphIndex >= state.paragraphs.length) {
+      state = state.copyWith(status: TtsStatus.stopped);
+      onComplete?.call();
+      return;
+    }
+
+    final sentences = state.sentencesPerParagraph[state.paragraphIndex];
+    if (state.sentenceIndex >= sentences.length) {
+      // Move to next paragraph
+      final nextParagraph = state.paragraphIndex + 1;
+      if (nextParagraph >= state.paragraphs.length) {
+        state = state.copyWith(status: TtsStatus.stopped);
+        onComplete?.call();
+        return;
+      }
+      state = state.copyWith(paragraphIndex: nextParagraph, sentenceIndex: 0);
+    }
+
+    final text =
+        state.sentencesPerParagraph[state.paragraphIndex][state.sentenceIndex];
+    await _flutterTts.speak(text);
+  }
+
+  void _onSentenceComplete() {
+    if (_isJumping) return;
+    if (state.status != TtsStatus.playing) return;
+
+    final sentences = state.sentencesPerParagraph[state.paragraphIndex];
+    final nextSentence = state.sentenceIndex + 1;
+
+    if (nextSentence >= sentences.length) {
+      // Move to next paragraph
+      final nextParagraph = state.paragraphIndex + 1;
+      if (nextParagraph >= state.paragraphs.length) {
+        state = state.copyWith(status: TtsStatus.stopped);
+        onComplete?.call();
+        return;
+      }
+      state = state.copyWith(paragraphIndex: nextParagraph, sentenceIndex: 0);
+    } else {
+      state = state.copyWith(sentenceIndex: nextSentence);
+    }
+
+    _speakCurrentSentence();
+  }
+
   List<String> _splitIntoSentences(String text) {
-    // Regex to split on sentence endings, but not on common abbreviations
-    // Handles: Mr., Mrs., Ms., Dr., Prof., Sr., Jr., etc.
     final sentencePattern = RegExp(
       r'(?<!\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|vs|etc|e\.g|i\.e))\s*[.!?]+\s+',
       caseSensitive: false,
@@ -70,7 +238,6 @@ class TtsService {
         }
         remaining = remaining.substring(match.end).trim();
       } else {
-        // No more matches, add remaining text as last sentence
         if (remaining.isNotEmpty) {
           sentences.add(remaining);
         }
@@ -78,7 +245,6 @@ class TtsService {
       }
     }
 
-    // If no sentences found, return the entire text as one sentence
     if (sentences.isEmpty && text.trim().isNotEmpty) {
       sentences.add(text.trim());
     }
@@ -86,145 +252,9 @@ class TtsService {
     return sentences;
   }
 
-  /// Set the paragraphs to read
-  void setParagraphs(List<String> paragraphs) {
-    _paragraphs = paragraphs;
-    _sentencesPerParagraph = paragraphs.map(_splitIntoSentences).toList();
-    _currentParagraphIndex = 0;
-    _currentSentenceIndex = 0;
-  }
-
-  /// Start reading from current paragraph/sentence
-  Future<void> play() async {
-    if (_paragraphs.isEmpty) return;
-
-    _state = TtsState.playing;
-    await _speakCurrentSentence();
-  }
-
-  /// Pause speech
-  Future<void> pause() async {
-    _state = TtsState.paused;
-    await _flutterTts.stop();
-  }
-
-  /// Stop and reset
-  Future<void> stop() async {
-    _state = TtsState.stopped;
-    _currentParagraphIndex = 0;
-    _currentSentenceIndex = 0;
-    await _flutterTts.stop();
-  }
-
-  /// Resume from paused state
-  Future<void> resume() async {
-    if (_state == TtsState.paused) {
-      _state = TtsState.playing;
-      await _speakCurrentSentence();
-    }
-  }
-
-  /// Jump to specific paragraph (resets to first sentence)
-  Future<void> jumpToParagraph(int index) async {
-    if (index >= 0 && index < _paragraphs.length) {
-      await _flutterTts.stop();
-      _currentParagraphIndex = index;
-      _currentSentenceIndex = 0;
-      onParagraphChange?.call(_currentParagraphIndex);
-      onSentenceChange?.call(_currentSentenceIndex);
-
-      if (_state == TtsState.playing) {
-        await _speakCurrentSentence();
-      }
-    }
-  }
-
-  /// Set speech rate
-  /// User speed: 0.5 (half) to 2.0 (double)
-  /// TTS engine rate: 0.25 to 0.75 where 0.5 is normal on macOS
-  Future<void> setRate(double userSpeed) async {
-    // Normalize: 1.0x user speed = 0.5 TTS rate (normal)
-    // 0.5x user speed = 0.25 TTS rate (slow)
-    // 2.0x user speed = 0.75 TTS rate (fast)
-    final ttsRate = (userSpeed * 0.5).clamp(0.1, 1.0);
-    await _flutterTts.setSpeechRate(ttsRate);
-  }
-
-  /// Get available voices
-  Future<List<Map<String, String>>> getVoices() async {
-    final voices = await _flutterTts.getVoices;
-    return (voices as List).map((v) => Map<String, String>.from(v)).toList();
-  }
-
-  /// Set voice
-  Future<void> setVoice(String name, String locale) async {
-    await _flutterTts.setVoice({'name': name, 'locale': locale});
-  }
-
-  /// Apply full settings object
-  Future<void> applySettings({
-    required double speed,
-    required double pitch,
-    String? voiceName,
-    String? voiceLocale,
-  }) async {
-    await setRate(speed);
-    await _flutterTts.setPitch(pitch);
-    if (voiceName != null && voiceLocale != null) {
-      await setVoice(voiceName, voiceLocale);
-    }
-  }
-
-  Future<void> _speakCurrentSentence() async {
-    if (_currentParagraphIndex >= _paragraphs.length) {
-      _state = TtsState.stopped;
-      onComplete?.call();
-      return;
-    }
-
-    final sentences = _sentencesPerParagraph[_currentParagraphIndex];
-    if (_currentSentenceIndex >= sentences.length) {
-      // Move to next paragraph
-      _currentParagraphIndex++;
-      _currentSentenceIndex = 0;
-      if (_currentParagraphIndex >= _paragraphs.length) {
-        _state = TtsState.stopped;
-        onComplete?.call();
-        return;
-      }
-      onParagraphChange?.call(_currentParagraphIndex);
-    }
-
-    final text =
-        _sentencesPerParagraph[_currentParagraphIndex][_currentSentenceIndex];
-    onSentenceChange?.call(_currentSentenceIndex);
-    await _flutterTts.speak(text);
-  }
-
-  void _onSentenceComplete() {
-    if (_state != TtsState.playing) return;
-
-    final sentences = _sentencesPerParagraph[_currentParagraphIndex];
-    _currentSentenceIndex++;
-
-    if (_currentSentenceIndex >= sentences.length) {
-      // Move to next paragraph
-      _currentParagraphIndex++;
-      _currentSentenceIndex = 0;
-
-      if (_currentParagraphIndex >= _paragraphs.length) {
-        _state = TtsState.stopped;
-        onComplete?.call();
-        return;
-      }
-
-      onParagraphChange?.call(_currentParagraphIndex);
-    }
-
-    _speakCurrentSentence();
-  }
-
-  Future<void> dispose() async {
-    await _flutterTts.stop();
+  @override
+  void dispose() {
+    _flutterTts.stop();
+    super.dispose();
   }
 }
