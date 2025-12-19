@@ -64,6 +64,7 @@ class SettingsWheel extends ConsumerWidget {
                         'Audio Settings',
                         style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       GestureDetector(
@@ -208,6 +209,7 @@ class _SettingSlider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -226,7 +228,7 @@ class _SettingSlider extends StatelessWidget {
                 style: textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1,
-                  color: fgColor.withAlpha(180),
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               const Spacer(),
@@ -234,7 +236,7 @@ class _SettingSlider extends StatelessWidget {
                 displayValue,
                 style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: fgColor,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
@@ -283,6 +285,7 @@ class _SettingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -301,7 +304,7 @@ class _SettingCard extends StatelessWidget {
               style: textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1,
-                color: fgColor.withAlpha(180),
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 2),
@@ -309,7 +312,7 @@ class _SettingCard extends StatelessWidget {
               value,
               style: textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: fgColor,
+                color: colorScheme.onSurface,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
