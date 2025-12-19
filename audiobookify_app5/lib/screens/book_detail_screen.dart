@@ -498,7 +498,7 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _ChapterList extends StatelessWidget {
+class _ChapterList extends ConsumerWidget {
   final int bookId;
   final List<TocEntry> toc;
   final List<ChapterInfo> chapters;
@@ -512,7 +512,9 @@ class _ChapterList extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bookService = ref.read(bookServiceProvider);
+    const bucketCount = 64;
     final filteredToc =
         toc.where((t) => t.title.trim().isNotEmpty).toList();
     final hasChapters = filteredToc.isNotEmpty || chapters.isNotEmpty;
@@ -585,6 +587,11 @@ class _ChapterList extends StatelessWidget {
                       filteredToc.length,
                       progress,
                     ),
+                    buckets: bookService.getBucketProgress(
+                      bookId: bookId,
+                      chapterIndex: entry.key + 1,
+                      bucketCount: bucketCount,
+                    ),
                   ),
                 )
           else
@@ -597,6 +604,11 @@ class _ChapterList extends StatelessWidget {
                   entry.key + 1,
                   chapters.length,
                   progress,
+                ),
+                buckets: bookService.getBucketProgress(
+                  bookId: bookId,
+                  chapterIndex: entry.key + 1,
+                  bucketCount: bucketCount,
                 ),
               ),
             ),
@@ -630,12 +642,14 @@ class _TocItem extends StatelessWidget {
   final String title;
   final int bookId;
   final _ChapterStatus status;
+  final Uint8List buckets;
 
   const _TocItem({
     required this.index,
     required this.title,
     required this.bookId,
     required this.status,
+    required this.buckets,
   });
 
   @override
@@ -646,31 +660,45 @@ class _TocItem extends StatelessWidget {
       onTap: () => context.push('/player/$bookId?chapter=$index'),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 28,
-              child: Text(
-                '$index.',
-                style: GoogleFonts.robotoMono(
-                  fontSize: 14,
-                  color: colorScheme.outline,
+            Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  child: Text(
+                    '$index.',
+                    style: GoogleFonts.robotoMono(
+                      fontSize: 14,
+                      color: colorScheme.outline,
+                    ),
+                  ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                _ChapterStatusPill(status: status),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 40),
+              child: _BucketProgressBar(
+                buckets: buckets,
+                activeColor: colorScheme.primary,
+                inactiveColor: colorScheme.surfaceVariant,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            _ChapterStatusPill(status: status),
           ],
         ),
       ),
@@ -724,6 +752,90 @@ class _ChapterStatusPill extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _BucketProgressBar extends StatelessWidget {
+  final Uint8List buckets;
+  final Color activeColor;
+  final Color inactiveColor;
+  final double height;
+  final double gap;
+
+  const _BucketProgressBar({
+    required this.buckets,
+    required this.activeColor,
+    required this.inactiveColor,
+    this.height = 6,
+    this.gap = 2,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (buckets.isEmpty) {
+      return Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: inactiveColor,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: height,
+      child: CustomPaint(
+        painter: _BucketProgressPainter(
+          buckets: buckets,
+          activeColor: activeColor,
+          inactiveColor: inactiveColor,
+          gap: gap,
+        ),
+      ),
+    );
+  }
+}
+
+class _BucketProgressPainter extends CustomPainter {
+  final Uint8List buckets;
+  final Color activeColor;
+  final Color inactiveColor;
+  final double gap;
+
+  _BucketProgressPainter({
+    required this.buckets,
+    required this.activeColor,
+    required this.inactiveColor,
+    required this.gap,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final count = buckets.length;
+    if (count <= 0) return;
+    final totalGap = gap * (count - 1);
+    final segmentWidth = (size.width - totalGap) / count;
+    if (segmentWidth <= 0) return;
+
+    final activePaint = Paint()..color = activeColor;
+    final inactivePaint = Paint()..color = inactiveColor;
+    final radius = Radius.circular(size.height / 2);
+
+    var x = 0.0;
+    for (var i = 0; i < count; i++) {
+      final rect = Rect.fromLTWH(x, 0, segmentWidth, size.height);
+      final rrect = RRect.fromRectAndRadius(rect, radius);
+      canvas.drawRRect(rrect, buckets[i] == 1 ? activePaint : inactivePaint);
+      x += segmentWidth + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BucketProgressPainter oldDelegate) {
+    return oldDelegate.buckets != buckets ||
+        oldDelegate.activeColor != activeColor ||
+        oldDelegate.inactiveColor != inactiveColor ||
+        oldDelegate.gap != gap;
   }
 }
 
