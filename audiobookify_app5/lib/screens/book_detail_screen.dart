@@ -1,34 +1,138 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
+import '../main.dart'; // For bookService
+import '../models/book.dart';
+import '../src/rust/api/epub.dart';
 
-/// Book detail screen with 3D cover, stats, and chapter list
-class BookDetailScreen extends StatelessWidget {
+/// Book detail screen with cover, stats, and chapter list
+class BookDetailScreen extends StatefulWidget {
   final String bookId;
 
   const BookDetailScreen({super.key, required this.bookId});
 
   @override
+  State<BookDetailScreen> createState() => _BookDetailScreenState();
+}
+
+class _BookDetailScreenState extends State<BookDetailScreen> {
+  Book? _book;
+  EpubBook? _epubBook;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBook();
+  }
+
+  Future<void> _loadBook() async {
+    try {
+      final bookId = int.tryParse(widget.bookId);
+      if (bookId == null) {
+        setState(() {
+          _error = 'Invalid book ID';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Load book from ObjectBox
+      final book = bookService.getBook(bookId);
+      if (book == null) {
+        setState(() {
+          _error = 'Book not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _book = book;
+      });
+
+      // Load EPUB to get TOC and chapters
+      try {
+        final epub = await openEpub(path: book.filePath);
+        setState(() {
+          _epubBook = epub;
+          _isLoading = false;
+        });
+      } catch (e) {
+        // EPUB file might be gone, but we still have metadata
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Color _getColor() {
+    if (_book == null) return AppColors.emerald700;
+    final colors = [
+      AppColors.emerald700,
+      AppColors.indigo700,
+      AppColors.slate700,
+      AppColors.rose700,
+      AppColors.amber800,
+      AppColors.sky700,
+    ];
+    return colors[_book!.id % colors.length];
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Mock book data
-    final book = BookDetail(
-      id: bookId,
-      title: 'Adventures of Robinson Crusoe',
-      author: 'Daniel Defoe',
-      color: AppColors.emerald700,
-      pages: 296,
-      minutes: 372,
-      chapters: [
-        Chapter(id: 1, title: 'Fisherman', completed: true),
-        Chapter(id: 2, title: 'Fireman', completed: true),
-        Chapter(id: 3, title: 'Chef', completed: false),
-        Chapter(id: 4, title: 'Alice', completed: false),
-        Chapter(id: 5, title: 'Sendless', completed: false),
-        Chapter(id: 6, title: 'Walrusay', completed: false),
-      ],
-    );
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.stone100,
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.orange600),
+        ),
+      );
+    }
+
+    if (_error != null || _book == null) {
+      return Scaffold(
+        backgroundColor: AppColors.stone100,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.stone800),
+            onPressed: () => context.go('/'),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                LucideIcons.alertCircle,
+                size: 48,
+                color: AppColors.stone400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _error ?? 'Book not found',
+                style: GoogleFonts.inter(color: AppColors.stone600),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final book = _book!;
+    final color = _getColor();
 
     return Scaffold(
       backgroundColor: AppColors.stone100,
@@ -41,9 +145,20 @@ class BookDetailScreen extends StatelessWidget {
               SliverToBoxAdapter(
                 child: Container(
                   height: 256,
-                  color: book.color,
+                  color: color,
                   child: Stack(
                     children: [
+                      // Cover image as background (blurred effect)
+                      if (book.coverImage != null)
+                        Positioned.fill(
+                          child: Opacity(
+                            opacity: 0.3,
+                            child: Image.memory(
+                              book.coverImage!,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
                       // Gradient overlay
                       Positioned.fill(
                         child: DecoratedBox(
@@ -92,13 +207,17 @@ class BookDetailScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         // 3D Book cover
-                        _BookCover3D(book: book),
+                        _BookCover3D(book: book, color: color),
                         const SizedBox(height: 24),
                         // Stats
                         _StatsRow(book: book),
                         const SizedBox(height: 24),
                         // Chapter list
-                        _ChapterList(book: book),
+                        _ChapterList(
+                          bookId: book.id,
+                          toc: _epubBook?.toc ?? [],
+                          chapters: _epubBook?.chapters ?? [],
+                        ),
                         const SizedBox(height: 100), // Space for FAB
                       ],
                     ),
@@ -107,7 +226,7 @@ class BookDetailScreen extends StatelessWidget {
               ),
             ],
           ),
-          // Floating resume button
+          // Floating play button
           Positioned(
             bottom: 24,
             right: 24,
@@ -139,7 +258,7 @@ class BookDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Resume',
+                      book.progress > 0 ? 'Resume' : 'Start',
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -158,9 +277,10 @@ class BookDetailScreen extends StatelessWidget {
 }
 
 class _BookCover3D extends StatelessWidget {
-  final BookDetail book;
+  final Book book;
+  final Color color;
 
-  const _BookCover3D({required this.book});
+  const _BookCover3D({required this.book, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +289,7 @@ class _BookCover3D extends StatelessWidget {
         width: 192,
         height: 288,
         decoration: BoxDecoration(
-          color: book.color,
+          color: color,
           borderRadius: BorderRadius.circular(8),
           boxShadow: [
             BoxShadow(
@@ -179,20 +299,28 @@ class _BookCover3D extends StatelessWidget {
             ),
           ],
         ),
+        clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            // Gradient overlay
+            // Cover image if available
+            if (book.coverImage != null)
+              Positioned.fill(
+                child: Image.memory(book.coverImage!, fit: BoxFit.cover),
+              ),
+            // Gradient overlay for text readability
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withAlpha(50),
-                      Colors.black.withAlpha(25),
-                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: book.coverImage != null
+                        ? [Colors.transparent, Colors.black.withAlpha(180)]
+                        : [
+                            Colors.white.withAlpha(50),
+                            Colors.black.withAlpha(25),
+                          ],
                   ),
                 ),
               ),
@@ -219,44 +347,39 @@ class _BookCover3D extends StatelessWidget {
               width: 1,
               child: Container(color: Colors.white.withAlpha(75)),
             ),
-            // Content
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    children: [
-                      Text(
-                        book.title,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          height: 1.2,
-                        ),
+            // Content - show at bottom when cover image exists
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      book.title ?? 'Unknown',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1.2,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        book.author,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white.withAlpha(200),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    '${book.id} // ${book.pages}pgs',
-                    style: GoogleFonts.robotoMono(
-                      fontSize: 10,
-                      letterSpacing: 2,
-                      color: Colors.white.withAlpha(150),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      book.author ?? 'Unknown Author',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withAlpha(200),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -267,7 +390,7 @@ class _BookCover3D extends StatelessWidget {
 }
 
 class _StatsRow extends StatelessWidget {
-  final BookDetail book;
+  final Book book;
 
   const _StatsRow({required this.book});
 
@@ -278,8 +401,8 @@ class _StatsRow extends StatelessWidget {
       children: [
         _StatItem(
           icon: LucideIcons.bookOpen,
-          value: '${book.pages}',
-          label: 'Pages',
+          value: '${book.chapterCount}',
+          label: 'Chapters',
         ),
         Container(
           width: 1,
@@ -288,9 +411,9 @@ class _StatsRow extends StatelessWidget {
           color: AppColors.stone300,
         ),
         _StatItem(
-          icon: LucideIcons.clock,
-          value: '${book.minutes}',
-          label: 'Est. Mins',
+          icon: LucideIcons.percent,
+          value: '${book.progress}',
+          label: 'Progress',
         ),
       ],
     );
@@ -337,12 +460,61 @@ class _StatItem extends StatelessWidget {
 }
 
 class _ChapterList extends StatelessWidget {
-  final BookDetail book;
+  final int bookId;
+  final List<TocEntry> toc;
+  final List<ChapterInfo> chapters;
 
-  const _ChapterList({required this.book});
+  const _ChapterList({
+    required this.bookId,
+    required this.toc,
+    required this.chapters,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Use TOC if available, otherwise fall back to chapters
+    final items = toc.isNotEmpty
+        ? toc
+        : chapters
+              .map(
+                (c) => _ChapterItem(
+                  id: c.index.toInt(),
+                  title: c.id ?? 'Chapter ${c.index}',
+                ),
+              )
+              .toList();
+
+    if (items.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(15),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const Icon(
+              LucideIcons.fileText,
+              size: 32,
+              color: AppColors.stone300,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No chapters available',
+              style: GoogleFonts.inter(color: AppColors.stone500),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -368,92 +540,80 @@ class _ChapterList extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          ...book.chapters.map(
-            (chapter) => _ChapterItem(chapter: chapter, bookId: book.id),
-          ),
+          if (toc.isNotEmpty)
+            ...toc.asMap().entries.map(
+              (entry) => _TocItem(
+                index: entry.key + 1,
+                title: entry.value.title,
+                bookId: bookId,
+              ),
+            )
+          else
+            ...chapters.asMap().entries.map(
+              (entry) => _TocItem(
+                index: entry.key + 1,
+                title: entry.value.id ?? 'Chapter ${entry.key + 1}',
+                bookId: bookId,
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _ChapterItem extends StatelessWidget {
-  final Chapter chapter;
-  final String bookId;
+class _ChapterItem {
+  final int id;
+  final String title;
+  _ChapterItem({required this.id, required this.title});
+}
 
-  const _ChapterItem({required this.chapter, required this.bookId});
+class _TocItem extends StatelessWidget {
+  final int index;
+  final String title;
+  final int bookId;
+
+  const _TocItem({
+    required this.index,
+    required this.title,
+    required this.bookId,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.push('/player/$bookId?chapter=${chapter.id}'),
+      onTap: () => context.push('/player/$bookId?chapter=$index'),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
             SizedBox(
-              width: 24,
+              width: 28,
               child: Text(
-                '${chapter.id}.',
+                '$index.',
                 style: GoogleFonts.robotoMono(
                   fontSize: 14,
                   color: AppColors.stone300,
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
-                chapter.title,
+                title,
                 style: GoogleFonts.inter(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.w500,
                   color: AppColors.stone700,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            Icon(
-              chapter.completed ? LucideIcons.checkCircle2 : LucideIcons.circle,
-              size: 20,
-              color: chapter.completed
-                  ? AppColors.emerald600
-                  : AppColors.stone300,
-            ),
+            const Icon(LucideIcons.play, size: 16, color: AppColors.stone300),
           ],
         ),
       ),
     );
   }
-}
-
-class BookDetail {
-  final String id;
-  final String title;
-  final String author;
-  final Color color;
-  final int pages;
-  final int minutes;
-  final List<Chapter> chapters;
-
-  const BookDetail({
-    required this.id,
-    required this.title,
-    required this.author,
-    required this.color,
-    required this.pages,
-    required this.minutes,
-    required this.chapters,
-  });
-}
-
-class Chapter {
-  final int id;
-  final String title;
-  final bool completed;
-
-  const Chapter({
-    required this.id,
-    required this.title,
-    required this.completed,
-  });
 }
