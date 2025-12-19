@@ -126,6 +126,29 @@ final playerSettingsProvider =
     );
 
 // ========================================
+// Debug Mode
+// ========================================
+
+class DebugModeNotifier extends Notifier<bool> {
+  static const _debugKey = 'debug_mode_enabled';
+
+  @override
+  bool build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    return prefs.getBool(_debugKey) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(_debugKey, enabled);
+  }
+}
+
+final debugModeProvider =
+    NotifierProvider<DebugModeNotifier, bool>(DebugModeNotifier.new);
+
+// ========================================
 // TTS Playback State Management
 // ========================================
 

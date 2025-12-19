@@ -647,6 +647,7 @@ class _TocItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final debugEnabled = ref.watch(debugModeProvider);
     final bucketState = ref.watch(
       bucketProgressProvider(
         BucketProgressArgs(
@@ -657,6 +658,10 @@ class _TocItem extends ConsumerWidget {
       ),
     );
     final buckets = bucketState.value ?? Uint8List(bucketCount);
+    final listenedCount = buckets.where((b) => b == 1).length;
+    final percent = buckets.isEmpty
+        ? 0
+        : ((listenedCount / buckets.length) * 100).round();
     return _FadeTap(
       onTap: () => context.push('/player/$bookId?chapter=$index'),
       child: Padding(
@@ -694,10 +699,26 @@ class _TocItem extends ConsumerWidget {
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.only(left: 40),
-              child: _BucketProgressBar(
-                buckets: buckets,
-                activeColor: colorScheme.primary,
-                inactiveColor: colorScheme.surfaceVariant,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _BucketProgressBar(
+                      buckets: buckets,
+                      activeColor: colorScheme.primary,
+                      inactiveColor: colorScheme.surfaceVariant,
+                    ),
+                  ),
+                  if (debugEnabled) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '$percent%',
+                      style: textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -762,13 +783,15 @@ class _BucketProgressBar extends StatelessWidget {
   final Color inactiveColor;
   final double height;
   final double gap;
+  final double activeOverlap;
 
   const _BucketProgressBar({
     required this.buckets,
     required this.activeColor,
     required this.inactiveColor,
-    this.height = 6,
-    this.gap = 2,
+    this.height = 1,
+    this.gap = -2,
+    this.activeOverlap = 4,
   });
 
   @override
@@ -791,6 +814,7 @@ class _BucketProgressBar extends StatelessWidget {
           activeColor: activeColor,
           inactiveColor: inactiveColor,
           gap: gap,
+          activeOverlap: activeOverlap,
         ),
       ),
     );
@@ -802,12 +826,14 @@ class _BucketProgressPainter extends CustomPainter {
   final Color activeColor;
   final Color inactiveColor;
   final double gap;
+  final double activeOverlap;
 
   _BucketProgressPainter({
     required this.buckets,
     required this.activeColor,
     required this.inactiveColor,
     required this.gap,
+    required this.activeOverlap,
   });
 
   @override
@@ -822,11 +848,32 @@ class _BucketProgressPainter extends CustomPainter {
     final inactivePaint = Paint()..color = inactiveColor;
     final radius = Radius.circular(size.height / 2);
 
+    // Draw inactive baseline without overlap.
     var x = 0.0;
     for (var i = 0; i < count; i++) {
       final rect = Rect.fromLTWH(x, 0, segmentWidth, size.height);
       final rrect = RRect.fromRectAndRadius(rect, radius);
-      canvas.drawRRect(rrect, buckets[i] == 1 ? activePaint : inactivePaint);
+      canvas.drawRRect(rrect, inactivePaint);
+      x += segmentWidth + gap;
+    }
+
+    if (activeOverlap <= 0) return;
+
+    // Draw active buckets with overlap and rounding on top.
+    x = 0.0;
+    for (var i = 0; i < count; i++) {
+      if (buckets[i] != 1) {
+        x += segmentWidth + gap;
+        continue;
+      }
+      final overlapRect = Rect.fromLTWH(
+        x - (activeOverlap / 2),
+        0,
+        segmentWidth + activeOverlap,
+        size.height,
+      );
+      final rrect = RRect.fromRectAndRadius(overlapRect, radius);
+      canvas.drawRRect(rrect, activePaint);
       x += segmentWidth + gap;
     }
   }
@@ -836,7 +883,8 @@ class _BucketProgressPainter extends CustomPainter {
     return oldDelegate.buckets != buckets ||
         oldDelegate.activeColor != activeColor ||
         oldDelegate.inactiveColor != inactiveColor ||
-        oldDelegate.gap != gap;
+        oldDelegate.gap != gap ||
+        oldDelegate.activeOverlap != activeOverlap;
   }
 }
 
