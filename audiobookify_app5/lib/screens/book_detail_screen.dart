@@ -150,6 +150,13 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final bookDescription = (book.description?.trim().isNotEmpty ?? false)
         ? book.description!.trim()
         : null;
+    final metadata = <String>[
+      if (book.language?.trim().isNotEmpty ?? false)
+        book.language!.trim().toUpperCase(),
+      if (book.publisher?.trim().isNotEmpty ?? false)
+        book.publisher!.trim(),
+      'Added ${book.addedAt.year}',
+    ];
     final progress = (book.progress.clamp(0, 100)) / 100;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -201,6 +208,16 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      if (metadata.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: metadata
+                              .map((item) => _MetaChip(label: item))
+                              .toList(),
+                        ),
+                      ],
                       if (bookDescription != null) ...[
                         const SizedBox(height: 12),
                         Text(
@@ -276,6 +293,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                         bookId: book.id,
                         toc: _epubBook?.toc ?? [],
                         chapters: _epubBook?.chapters ?? [],
+                        progress: book.progress,
                       ),
                       const SizedBox(height: 48),
                     ],
@@ -484,28 +502,22 @@ class _ChapterList extends StatelessWidget {
   final int bookId;
   final List<TocEntry> toc;
   final List<ChapterInfo> chapters;
+  final int progress;
 
   const _ChapterList({
     required this.bookId,
     required this.toc,
     required this.chapters,
+    required this.progress,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Use TOC if available, otherwise fall back to chapters
-    final items = toc.isNotEmpty
-        ? toc
-        : chapters
-              .map(
-                (c) => _ChapterItem(
-                  id: c.index.toInt(),
-                  title: c.id ?? 'Chapter ${c.index}',
-                ),
-              )
-              .toList();
+    final filteredToc =
+        toc.where((t) => t.title.trim().isNotEmpty).toList();
+    final hasChapters = filteredToc.isNotEmpty || chapters.isNotEmpty;
 
-    if (items.isEmpty) {
+    if (!hasChapters) {
       return Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -561,17 +573,17 @@ class _ChapterList extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 16),
-          if (toc.isNotEmpty)
-            ...toc
-                .where((t) => t.title.trim().isNotEmpty) // Filter empty titles
-                .toList()
-                .asMap()
-                .entries
-                .map(
+          if (filteredToc.isNotEmpty)
+            ...filteredToc.asMap().entries.map(
                   (entry) => _TocItem(
                     index: entry.key + 1,
                     title: entry.value.title,
                     bookId: bookId,
+                    status: _chapterStatus(
+                      entry.key + 1,
+                      filteredToc.length,
+                      progress,
+                    ),
                   ),
                 )
           else
@@ -580,6 +592,11 @@ class _ChapterList extends StatelessWidget {
                 index: entry.key + 1,
                 title: entry.value.id ?? 'Chapter ${entry.key + 1}',
                 bookId: bookId,
+                status: _chapterStatus(
+                  entry.key + 1,
+                  chapters.length,
+                  progress,
+                ),
               ),
             ),
         ],
@@ -588,21 +605,36 @@ class _ChapterList extends StatelessWidget {
   }
 }
 
-class _ChapterItem {
-  final int id;
-  final String title;
-  _ChapterItem({required this.id, required this.title});
+enum _ChapterStatus { newChapter, inProgress, completed }
+
+_ChapterStatus _chapterStatus(int index, int total, int progress) {
+  if (total <= 0) return _ChapterStatus.newChapter;
+  final normalized = (progress.clamp(0, 100)) / 100;
+  if (normalized >= 1) return _ChapterStatus.completed;
+  final exactProgress = normalized * total;
+  final completedCount = exactProgress.floor();
+  final hasPartial = exactProgress - completedCount > 0.001;
+
+  if (index <= completedCount) {
+    return _ChapterStatus.completed;
+  }
+  if (hasPartial && index == completedCount + 1) {
+    return _ChapterStatus.inProgress;
+  }
+  return _ChapterStatus.newChapter;
 }
 
 class _TocItem extends StatelessWidget {
   final int index;
   final String title;
   final int bookId;
+  final _ChapterStatus status;
 
   const _TocItem({
     required this.index,
     required this.title,
     required this.bookId,
+    required this.status,
   });
 
   @override
@@ -637,12 +669,83 @@ class _TocItem extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Icon(
-              LucideIcons.play,
-              size: 16,
-              color: colorScheme.outline,
-            ),
+            _ChapterStatusPill(status: status),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChapterStatusPill extends StatelessWidget {
+  final _ChapterStatus status;
+
+  const _ChapterStatusPill({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    String label;
+    Color fg;
+    Color bg;
+
+    switch (status) {
+      case _ChapterStatus.completed:
+        label = 'Done';
+        fg = colorScheme.primary;
+        bg = colorScheme.primary.withAlpha(24);
+        break;
+      case _ChapterStatus.inProgress:
+        label = 'Listening';
+        fg = colorScheme.secondary;
+        bg = colorScheme.secondary.withAlpha(24);
+        break;
+      case _ChapterStatus.newChapter:
+        label = 'New';
+        fg = colorScheme.onSurfaceVariant;
+        bg = colorScheme.surfaceVariant;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        label,
+        style: textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: fg,
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  final String label;
+
+  const _MetaChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        label,
+        style: textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: colorScheme.onSurfaceVariant,
         ),
       ),
     );
