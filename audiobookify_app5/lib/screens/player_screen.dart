@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../core/app_theme.dart';
-import '../main.dart'; // For bookService
+import '../core/providers.dart';
 import '../models/book.dart';
 import '../src/rust/api/epub.dart';
 import '../services/tts_service.dart';
-import '../widgets/player_controls.dart';
 import '../widgets/settings_wheel.dart';
 
 /// Player screen with text reader, TTS audio controls, and settings
-class PlayerScreen extends StatefulWidget {
+class PlayerScreen extends ConsumerStatefulWidget {
   final String bookId;
 
   const PlayerScreen({super.key, required this.bookId});
 
   @override
-  State<PlayerScreen> createState() => _PlayerScreenState();
+  ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends State<PlayerScreen> {
+class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final TtsService _tts = TtsService();
   final ScrollController _scrollController = ScrollController();
 
@@ -48,6 +48,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _initTts() async {
     await _tts.init();
+
+    // Apply initial settings
+    final settings = ref.read(playerSettingsProvider);
+    await _tts.applySettings(
+      speed: settings.speed,
+      pitch: settings.pitch,
+      voiceName: settings.voiceName,
+      voiceLocale: settings.voiceLocale,
+    );
 
     _tts.onParagraphChange = (index) {
       if (!mounted) return;
@@ -87,7 +96,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
 
       // Load book from ObjectBox
-      final book = bookService.getBook(bookId);
+      final book = ref.read(bookServiceProvider).getBook(bookId);
       if (book == null) {
         setState(() {
           _error = 'Book not found';
@@ -217,7 +226,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final progress = (((_currentChapterIndex + 1) / totalChapters) * 100)
         .round();
 
-    bookService.updateProgress(_book!.id, progress);
+    ref.read(bookServiceProvider).updateProgress(_book!.id, progress);
   }
 
   @override
@@ -240,6 +249,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Listen for settings changes and apply to TTS
+    ref.listen(playerSettingsProvider, (previous, next) {
+      _tts.applySettings(
+        speed: next.speed,
+        pitch: next.pitch,
+        voiceName: next.voiceName,
+        voiceLocale: next.voiceLocale,
+      );
+    });
+
     if (_isLoading) {
       return Scaffold(
         backgroundColor: AppColors.orange50,

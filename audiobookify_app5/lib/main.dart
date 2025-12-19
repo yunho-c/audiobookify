@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify_app5/src/rust/frb_generated.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
-import 'package:audiobookify_app5/services/book_service.dart';
 import 'core/app_theme.dart';
+import 'core/providers.dart';
 import 'widgets/bottom_nav.dart';
 import 'screens/home_screen.dart';
 import 'screens/book_detail_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
-
-/// Global ObjectBox store and services
-late final Store objectboxStore;
-late final BookService bookService;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,10 +22,20 @@ Future<void> main() async {
 
   // Initialize ObjectBox
   final appDir = await getApplicationDocumentsDirectory();
-  objectboxStore = await openStore(directory: '${appDir.path}/objectbox');
-  bookService = BookService(objectboxStore);
+  final store = await openStore(directory: '${appDir.path}/objectbox');
 
-  runApp(const AudiobookifyApp());
+  // Initialize SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        storeProvider.overrideWithValue(store),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const AudiobookifyApp(),
+    ),
+  );
 }
 
 class AudiobookifyApp extends StatelessWidget {

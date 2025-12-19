@@ -45,6 +45,9 @@ dependencies:
   objectbox_flutter_libs: ^5.1.0
   flutter_tts: ^4.2.3
   html: ^0.15.6
+  flutter_riverpod: ^2.5.0
+  shared_preferences: ^2.2.0
+  path_provider: ^2.1.0
 
 dev_dependencies:
   flutter_test:

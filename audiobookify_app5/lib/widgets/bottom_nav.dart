@@ -56,8 +56,13 @@ class BottomNav extends StatelessWidget {
                   isActive: currentIndex == 0,
                   onTap: () => context.go('/'),
                 ),
-                // Spacer for center button
-                const SizedBox(width: 80),
+                // Create (center) - primary accent button
+                _NavItem(
+                  icon: LucideIcons.plus,
+                  isActive: currentIndex == 1,
+                  isPrimary: true,
+                  onTap: () => context.go('/create'),
+                ),
                 // Settings
                 _NavItem(
                   icon: LucideIcons.settings,
@@ -65,31 +70,6 @@ class BottomNav extends StatelessWidget {
                   onTap: () => context.go('/settings'),
                 ),
               ],
-            ),
-          ),
-          // Raised create button
-          Positioned(
-            top: -16,
-            child: GestureDetector(
-              onTap: () => context.go('/create'),
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.orange600,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.orange600.withAlpha(75),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Icon(LucideIcons.plus, color: Colors.white, size: 28),
-                ),
-              ),
             ),
           ),
         ],
@@ -101,16 +81,41 @@ class BottomNav extends StatelessWidget {
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final bool isActive;
+  final bool isPrimary;
   final VoidCallback onTap;
 
   const _NavItem({
     required this.icon,
     required this.isActive,
     required this.onTap,
+    this.isPrimary = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Primary button (add) has orange background and glow
+    if (isPrimary) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.orange600,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.orange600.withAlpha(100),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 24, color: Colors.white),
+        ),
+      );
+    }
+
+    // Regular nav item
     return GestureDetector(
       onTap: onTap,
       child: Container(

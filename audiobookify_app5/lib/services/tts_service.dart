@@ -155,6 +155,20 @@ class TtsService {
     await _flutterTts.setVoice({'name': name, 'locale': locale});
   }
 
+  /// Apply full settings object
+  Future<void> applySettings({
+    required double speed,
+    required double pitch,
+    String? voiceName,
+    String? voiceLocale,
+  }) async {
+    await setRate(speed);
+    await _flutterTts.setPitch(pitch);
+    if (voiceName != null && voiceLocale != null) {
+      await setVoice(voiceName, voiceLocale);
+    }
+  }
+
   Future<void> _speakCurrentSentence() async {
     if (_currentParagraphIndex >= _paragraphs.length) {
       _state = TtsState.stopped;

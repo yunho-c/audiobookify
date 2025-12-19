@@ -1,24 +1,24 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
-import '../main.dart'; // For bookService
+import '../core/providers.dart';
 import '../models/book.dart';
 import '../src/rust/api/epub.dart';
 
 /// Book detail screen with cover, stats, and chapter list
-class BookDetailScreen extends StatefulWidget {
+class BookDetailScreen extends ConsumerStatefulWidget {
   final String bookId;
 
   const BookDetailScreen({super.key, required this.bookId});
 
   @override
-  State<BookDetailScreen> createState() => _BookDetailScreenState();
+  ConsumerState<BookDetailScreen> createState() => _BookDetailScreenState();
 }
 
-class _BookDetailScreenState extends State<BookDetailScreen> {
+class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   Book? _book;
   EpubBook? _epubBook;
   bool _isLoading = true;
@@ -42,7 +42,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       }
 
       // Load book from ObjectBox
-      final book = bookService.getBook(bookId);
+      final book = ref.read(bookServiceProvider).getBook(bookId);
       if (book == null) {
         setState(() {
           _error = 'Book not found';

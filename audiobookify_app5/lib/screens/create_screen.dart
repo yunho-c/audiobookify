@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import '../core/app_theme.dart';
+import '../core/providers.dart';
 import '../src/rust/api/epub.dart';
-import '../main.dart'; // For bookService
 import '../models/book.dart';
 
 /// Create screen with upload area and options
-class CreateScreen extends StatefulWidget {
+class CreateScreen extends ConsumerStatefulWidget {
   const CreateScreen({super.key});
 
   @override
-  State<CreateScreen> createState() => _CreateScreenState();
+  ConsumerState<CreateScreen> createState() => _CreateScreenState();
 }
 
-class _CreateScreenState extends State<CreateScreen> {
+class _CreateScreenState extends ConsumerState<CreateScreen> {
   bool _isLoading = false;
   EpubBook? _loadedBook;
   Book? _savedBook;
@@ -394,10 +395,9 @@ class _CreateScreenState extends State<CreateScreen> {
                     onPressed: () {
                       // Save book to database
                       if (_loadedBook != null && _loadedFilePath != null) {
-                        final savedBook = bookService.saveBook(
-                          _loadedBook!,
-                          _loadedFilePath!,
-                        );
+                        final savedBook = ref
+                            .read(bookServiceProvider)
+                            .saveBook(_loadedBook!, _loadedFilePath!);
                         setState(() {
                           _savedBook = savedBook;
                         });

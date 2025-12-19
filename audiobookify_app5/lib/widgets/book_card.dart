@@ -1,14 +1,17 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/app_theme.dart';
+import '../models/book.dart';
 
 /// Book card widget with 2:3 aspect ratio, gradient overlay, and spine effect
 class BookCard extends StatelessWidget {
-  final String id;
+  final int id;
   final String title;
   final String author;
-  final Color color;
+  final Color? color;
+  final Uint8List? coverImage;
   final int progress;
 
   const BookCard({
@@ -16,19 +19,43 @@ class BookCard extends StatelessWidget {
     required this.id,
     required this.title,
     required this.author,
-    required this.color,
+    this.color,
+    this.coverImage,
     this.progress = 0,
   });
 
+  /// Factory to create BookCard from a Book model
+  factory BookCard.fromBook(Book book) {
+    // Generate color based on book ID
+    const colors = [
+      AppColors.emerald700,
+      AppColors.indigo700,
+      AppColors.slate700,
+      AppColors.rose700,
+      AppColors.amber800,
+      AppColors.sky700,
+    ];
+    return BookCard(
+      id: book.id,
+      title: book.title ?? 'Unknown',
+      author: book.author ?? 'Unknown Author',
+      color: colors[book.id % colors.length],
+      coverImage: book.coverImage,
+      progress: book.progress,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bgColor = color ?? AppColors.emerald700;
+
     return GestureDetector(
       onTap: () => context.push('/book/$id'),
       child: AspectRatio(
         aspectRatio: 2 / 3,
         child: Container(
           decoration: BoxDecoration(
-            color: color,
+            color: bgColor,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -41,17 +68,24 @@ class BookCard extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
-              // Gradient overlay
+              // Cover image (if available)
+              if (coverImage != null)
+                Positioned.fill(
+                  child: Image.memory(coverImage!, fit: BoxFit.cover),
+                ),
+              // Gradient overlay for text readability
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white.withAlpha(50),
-                        Colors.black.withAlpha(25),
-                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: coverImage != null
+                          ? [Colors.transparent, Colors.black.withAlpha(180)]
+                          : [
+                              Colors.white.withAlpha(50),
+                              Colors.black.withAlpha(25),
+                            ],
                     ),
                   ),
                 ),
@@ -82,6 +116,9 @@ class BookCard extends StatelessWidget {
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: coverImage != null
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
                         children: [
                           Text(
                             title,
