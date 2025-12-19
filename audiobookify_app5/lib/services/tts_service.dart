@@ -3,22 +3,34 @@ import 'package:flutter_tts/flutter_tts.dart';
 /// TTS playback state
 enum TtsState { playing, stopped, paused }
 
-/// Service wrapper for FlutterTts
+/// Service wrapper for FlutterTts with sentence-level tracking
 class TtsService {
   final FlutterTts _flutterTts = FlutterTts();
   TtsState _state = TtsState.stopped;
 
   // Callbacks
   Function(int)? onParagraphChange;
+  Function(int)? onSentenceChange;
   Function()? onComplete;
   Function(String)? onError;
 
   // Current playback state
   List<String> _paragraphs = [];
+  List<List<String>> _sentencesPerParagraph = [];
   int _currentParagraphIndex = 0;
+  int _currentSentenceIndex = 0;
 
   TtsState get state => _state;
   int get currentParagraphIndex => _currentParagraphIndex;
+  int get currentSentenceIndex => _currentSentenceIndex;
+
+  /// Get sentences for a specific paragraph
+  List<String> getSentencesForParagraph(int paragraphIndex) {
+    if (paragraphIndex >= 0 && paragraphIndex < _sentencesPerParagraph.length) {
+      return _sentencesPerParagraph[paragraphIndex];
+    }
+    return [];
+  }
 
   Future<void> init() async {
     await _flutterTts.setLanguage('en-US');
@@ -28,7 +40,7 @@ class TtsService {
 
     // Set up completion handler
     _flutterTts.setCompletionHandler(() {
-      _onParagraphComplete();
+      _onSentenceComplete();
     });
 
     _flutterTts.setErrorHandler((message) {
@@ -37,18 +49,57 @@ class TtsService {
     });
   }
 
+  /// Split text into sentences, handling common abbreviations
+  List<String> _splitIntoSentences(String text) {
+    // Regex to split on sentence endings, but not on common abbreviations
+    // Handles: Mr., Mrs., Ms., Dr., Prof., Sr., Jr., etc.
+    final sentencePattern = RegExp(
+      r'(?<!\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|vs|etc|e\.g|i\.e))\s*[.!?]+\s+',
+      caseSensitive: false,
+    );
+
+    final sentences = <String>[];
+    var remaining = text.trim();
+
+    while (remaining.isNotEmpty) {
+      final match = sentencePattern.firstMatch(remaining);
+      if (match != null) {
+        final sentence = remaining.substring(0, match.end).trim();
+        if (sentence.isNotEmpty) {
+          sentences.add(sentence);
+        }
+        remaining = remaining.substring(match.end).trim();
+      } else {
+        // No more matches, add remaining text as last sentence
+        if (remaining.isNotEmpty) {
+          sentences.add(remaining);
+        }
+        break;
+      }
+    }
+
+    // If no sentences found, return the entire text as one sentence
+    if (sentences.isEmpty && text.trim().isNotEmpty) {
+      sentences.add(text.trim());
+    }
+
+    return sentences;
+  }
+
   /// Set the paragraphs to read
   void setParagraphs(List<String> paragraphs) {
     _paragraphs = paragraphs;
+    _sentencesPerParagraph = paragraphs.map(_splitIntoSentences).toList();
     _currentParagraphIndex = 0;
+    _currentSentenceIndex = 0;
   }
 
-  /// Start reading from current paragraph
+  /// Start reading from current paragraph/sentence
   Future<void> play() async {
     if (_paragraphs.isEmpty) return;
 
     _state = TtsState.playing;
-    await _speakCurrentParagraph();
+    await _speakCurrentSentence();
   }
 
   /// Pause speech
@@ -61,6 +112,7 @@ class TtsService {
   Future<void> stop() async {
     _state = TtsState.stopped;
     _currentParagraphIndex = 0;
+    _currentSentenceIndex = 0;
     await _flutterTts.stop();
   }
 
@@ -68,19 +120,21 @@ class TtsService {
   Future<void> resume() async {
     if (_state == TtsState.paused) {
       _state = TtsState.playing;
-      await _speakCurrentParagraph();
+      await _speakCurrentSentence();
     }
   }
 
-  /// Jump to specific paragraph
+  /// Jump to specific paragraph (resets to first sentence)
   Future<void> jumpToParagraph(int index) async {
     if (index >= 0 && index < _paragraphs.length) {
       await _flutterTts.stop();
       _currentParagraphIndex = index;
+      _currentSentenceIndex = 0;
       onParagraphChange?.call(_currentParagraphIndex);
+      onSentenceChange?.call(_currentSentenceIndex);
 
       if (_state == TtsState.playing) {
-        await _speakCurrentParagraph();
+        await _speakCurrentSentence();
       }
     }
   }
@@ -101,28 +155,53 @@ class TtsService {
     await _flutterTts.setVoice({'name': name, 'locale': locale});
   }
 
-  Future<void> _speakCurrentParagraph() async {
+  Future<void> _speakCurrentSentence() async {
     if (_currentParagraphIndex >= _paragraphs.length) {
       _state = TtsState.stopped;
       onComplete?.call();
       return;
     }
 
-    final text = _paragraphs[_currentParagraphIndex];
-    onParagraphChange?.call(_currentParagraphIndex);
+    final sentences = _sentencesPerParagraph[_currentParagraphIndex];
+    if (_currentSentenceIndex >= sentences.length) {
+      // Move to next paragraph
+      _currentParagraphIndex++;
+      _currentSentenceIndex = 0;
+      if (_currentParagraphIndex >= _paragraphs.length) {
+        _state = TtsState.stopped;
+        onComplete?.call();
+        return;
+      }
+      onParagraphChange?.call(_currentParagraphIndex);
+    }
+
+    final text =
+        _sentencesPerParagraph[_currentParagraphIndex][_currentSentenceIndex];
+    onSentenceChange?.call(_currentSentenceIndex);
     await _flutterTts.speak(text);
   }
 
-  void _onParagraphComplete() {
+  void _onSentenceComplete() {
     if (_state != TtsState.playing) return;
 
-    _currentParagraphIndex++;
-    if (_currentParagraphIndex >= _paragraphs.length) {
-      _state = TtsState.stopped;
-      onComplete?.call();
-    } else {
-      _speakCurrentParagraph();
+    final sentences = _sentencesPerParagraph[_currentParagraphIndex];
+    _currentSentenceIndex++;
+
+    if (_currentSentenceIndex >= sentences.length) {
+      // Move to next paragraph
+      _currentParagraphIndex++;
+      _currentSentenceIndex = 0;
+
+      if (_currentParagraphIndex >= _paragraphs.length) {
+        _state = TtsState.stopped;
+        onComplete?.call();
+        return;
+      }
+
+      onParagraphChange?.call(_currentParagraphIndex);
     }
+
+    _speakCurrentSentence();
   }
 
   Future<void> dispose() async {

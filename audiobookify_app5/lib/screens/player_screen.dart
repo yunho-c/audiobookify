@@ -36,6 +36,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _showSettings = false;
   int _currentChapterIndex = 0;
   int _currentParagraphIndex = 0;
+  int _currentSentenceIndex = 0;
   bool _isPlaying = false;
 
   @override
@@ -50,8 +51,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _tts.onParagraphChange = (index) {
       if (!mounted) return;
-      setState(() => _currentParagraphIndex = index);
+      setState(() {
+        _currentParagraphIndex = index;
+        _currentSentenceIndex = 0;
+      });
       _scrollToParagraph(index);
+    };
+
+    _tts.onSentenceChange = (index) {
+      if (!mounted) return;
+      setState(() => _currentSentenceIndex = index);
     };
 
     _tts.onComplete = () {
@@ -356,35 +365,99 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         padding: const EdgeInsets.fromLTRB(32, 16, 32, 200),
                         itemCount: _paragraphs.length,
                         itemBuilder: (context, index) {
-                          final isHighlighted = index == _currentParagraphIndex;
+                          final isActiveParagraph =
+                              index == _currentParagraphIndex;
+                          final sentences = _tts.getSentencesForParagraph(
+                            index,
+                          );
+
                           return GestureDetector(
                             onTap: () async {
                               await _tts.jumpToParagraph(index);
-                              setState(() => _currentParagraphIndex = index);
+                              setState(() {
+                                _currentParagraphIndex = index;
+                                _currentSentenceIndex = 0;
+                              });
                             },
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 20),
-                              padding: isHighlighted
-                                  ? const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    )
-                                  : EdgeInsets.zero,
-                              decoration: BoxDecoration(
-                                color: isHighlighted
-                                    ? AppColors.orange200.withAlpha(125)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                _paragraphs[index],
-                                style: GoogleFonts.lora(
-                                  fontSize: 18,
-                                  height: 1.8,
-                                  color: isHighlighted
-                                      ? AppColors.stone800
-                                      : AppColors.stone600,
-                                ),
+                            child: IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // Vertical line indicator for active paragraph
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    width: isActiveParagraph ? 3 : 0,
+                                    margin: EdgeInsets.only(
+                                      right: isActiveParagraph ? 12 : 0,
+                                      bottom: 20,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isActiveParagraph
+                                          ? AppColors.orange600
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                  // Text content with sentence highlighting
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 20,
+                                      ),
+                                      child: sentences.isEmpty
+                                          ? Text(
+                                              _paragraphs[index],
+                                              style: GoogleFonts.lora(
+                                                fontSize: 18,
+                                                height: 1.8,
+                                                color: isActiveParagraph
+                                                    ? AppColors.stone700
+                                                    : AppColors.stone500,
+                                              ),
+                                            )
+                                          : RichText(
+                                              text: TextSpan(
+                                                children: sentences.asMap().entries.map((
+                                                  entry,
+                                                ) {
+                                                  final sentenceIndex =
+                                                      entry.key;
+                                                  final sentence = entry.value;
+                                                  final isCurrentSentence =
+                                                      isActiveParagraph &&
+                                                      sentenceIndex ==
+                                                          _currentSentenceIndex;
+
+                                                  return TextSpan(
+                                                    text:
+                                                        sentence +
+                                                        (sentenceIndex <
+                                                                sentences
+                                                                        .length -
+                                                                    1
+                                                            ? ' '
+                                                            : ''),
+                                                    style: GoogleFonts.lora(
+                                                      fontSize: 18,
+                                                      height: 1.8,
+                                                      color: isCurrentSentence
+                                                          ? AppColors.stone800
+                                                          : isActiveParagraph
+                                                          ? AppColors.stone600
+                                                          : AppColors.stone500,
+                                                      backgroundColor:
+                                                          isCurrentSentence
+                                                          ? AppColors.orange200
+                                                                .withAlpha(150)
+                                                          : Colors.transparent,
+                                                    ),
+                                                  );
+                                                }).toList(),
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           );
