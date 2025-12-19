@@ -276,7 +276,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           elevation: 0,
           leading: IconButton(
             icon: const Icon(LucideIcons.arrowLeft, color: AppColors.stone800),
-            onPressed: () => context.go('/'),
+            onPressed: () => context.pop(),
           ),
         ),
         body: Center(
@@ -324,7 +324,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       GestureDetector(
                         onTap: () {
                           _saveProgress();
-                          context.go('/book/${widget.bookId}');
+                          context.pop();
                         },
                         child: const Icon(
                           LucideIcons.arrowLeft,

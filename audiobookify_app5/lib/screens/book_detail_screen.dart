@@ -108,7 +108,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
           elevation: 0,
           leading: IconButton(
             icon: const Icon(LucideIcons.arrowLeft, color: AppColors.stone800),
-            onPressed: () => context.go('/'),
+            onPressed: () => context.pop(),
           ),
         ),
         body: Center(
@@ -208,7 +208,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
             top: 48,
             left: 24,
             child: GestureDetector(
-              onTap: () => context.go('/'),
+              onTap: () => context.pop(),
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
