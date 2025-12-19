@@ -138,93 +138,88 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       backgroundColor: AppColors.stone100,
       body: Stack(
         children: [
-          // Scrollable content
-          CustomScrollView(
-            slivers: [
-              // Colored header with gradient
-              SliverToBoxAdapter(
-                child: Container(
-                  height: 256,
-                  color: color,
-                  child: Stack(
-                    children: [
-                      // Cover image as background (blurred effect)
-                      if (book.coverImage != null)
-                        Positioned.fill(
-                          child: Opacity(
-                            opacity: 0.3,
-                            child: Image.memory(
-                              book.coverImage!,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                      // Gradient overlay
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withAlpha(75),
-                                AppColors.stone100,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Back button
-                      Positioned(
-                        top: 48,
-                        left: 24,
-                        child: GestureDetector(
-                          onTap: () => context.go('/'),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(50),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Icon(
-                              LucideIcons.arrowLeft,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+          // Background header with translucent cover
+          Container(
+            height: 256,
+            color: color,
+            child: Stack(
+              children: [
+                // Cover image as background (translucent)
+                if (book.coverImage != null)
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0.3,
+                      child: Image.memory(book.coverImage!, fit: BoxFit.cover),
+                    ),
                   ),
-                ),
-              ),
-              // Content
-              SliverToBoxAdapter(
-                child: Transform.translate(
-                  offset: const Offset(0, -128),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      children: [
-                        // 3D Book cover
-                        _BookCover3D(book: book, color: color),
-                        const SizedBox(height: 24),
-                        // Stats
-                        _StatsRow(book: book),
-                        const SizedBox(height: 24),
-                        // Chapter list
-                        _ChapterList(
-                          bookId: book.id,
-                          toc: _epubBook?.toc ?? [],
-                          chapters: _epubBook?.chapters ?? [],
-                        ),
-                        const SizedBox(height: 100), // Space for FAB
-                      ],
+                // Gradient overlay
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withAlpha(75),
+                          AppColors.stone100,
+                        ],
+                      ),
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
+          // Scrollable content - scrolls OVER the header background
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                // Transparent spacer for header area
+                const SizedBox(height: 128),
+                // Book cover (scrolls with content)
+                Center(
+                  child: _BookCover3D(book: book, color: color),
+                ),
+                const SizedBox(height: 24),
+                // Stats
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      _StatsRow(book: book),
+                      const SizedBox(height: 24),
+                      // Chapter list
+                      _ChapterList(
+                        bookId: book.id,
+                        toc: _epubBook?.toc ?? [],
+                        chapters: _epubBook?.chapters ?? [],
+                      ),
+                      const SizedBox(height: 100), // Space for FAB
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Back button - on top of everything
+          Positioned(
+            top: 48,
+            left: 24,
+            child: GestureDetector(
+              onTap: () => context.go('/'),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(50),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  LucideIcons.arrowLeft,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
-            ],
+            ),
           ),
           // Floating play button
           Positioned(
@@ -315,8 +310,15 @@ class _BookCover3D extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
+                    stops: book.coverImage != null
+                        ? const [0.0, 0.4, 1.0]
+                        : null,
                     colors: book.coverImage != null
-                        ? [Colors.transparent, Colors.black.withAlpha(180)]
+                        ? [
+                            Colors.black.withAlpha(50),
+                            Colors.transparent,
+                            Colors.black.withAlpha(220),
+                          ]
                         : [
                             Colors.white.withAlpha(50),
                             Colors.black.withAlpha(25),
