@@ -206,7 +206,7 @@ class AddBookCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.push('/create'),
+      onTap: () => context.go('/create'),
       child: AspectRatio(
         aspectRatio: 2 / 3,
         child: Container(
