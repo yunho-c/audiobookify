@@ -293,6 +293,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     return 'Chapter ${_currentChapterIndex + 1}';
   }
 
+  Widget _wrapShadow({
+    required bool showShadow,
+    required Color shadowColor,
+    required Widget child,
+  }) {
+    if (!showShadow) return child;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+            blurStyle: BlurStyle.outer,
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
   TextStyle _buildReaderTextStyle({
     required TextStyle? baseStyle,
     required PlayerThemeSettings theme,
@@ -353,6 +377,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     return isActive ? colorScheme.onSurface : colorScheme.onSurfaceVariant;
   }
 
+  TextStyle _applySentenceHighlight({
+    required TextStyle base,
+    required bool isCurrent,
+    required PlayerThemeSentenceHighlightStyle highlightStyle,
+    required Color highlightColor,
+  }) {
+    if (!isCurrent) {
+      return base;
+    }
+    switch (highlightStyle) {
+      case PlayerThemeSentenceHighlightStyle.background:
+        return base.copyWith(backgroundColor: highlightColor);
+      case PlayerThemeSentenceHighlightStyle.underline:
+        return base.copyWith(
+          decoration: TextDecoration.underline,
+          decorationColor: highlightColor,
+          decorationThickness: 1.6,
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Watch TTS state for reactive updates
@@ -389,8 +434,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
         : readerTheme.pagePaddingVertical;
     final activeParagraphOpacity =
         readerTheme.activeParagraphOpacity.clamp(0.0, 1.0);
-    final sentenceHighlightOpacity =
-        (activeParagraphOpacity + 0.12).clamp(0.0, 0.6);
+                          final sentenceHighlightOpacity =
+                              (activeParagraphOpacity + 0.12).clamp(0.0, 0.6);
+                          final sentenceHighlightStyle =
+                              readerTheme.sentenceHighlightStyle;
 
     // Auto-scroll when paragraph changes
     if (currentParagraphIndex != _lastScrolledToParagraph && isPlaying) {
@@ -555,19 +602,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                               ttsState.sentencesPerParagraph.length > index
                               ? ttsState.sentencesPerParagraph[index]
                               : <String>[];
+                          final style = readerTheme.activeParagraphStyle;
                           final showHighlight = isActiveParagraph &&
-                              readerTheme.activeParagraphStyle ==
-                                  PlayerThemeActiveParagraphStyle.highlight;
+                              (style ==
+                                      PlayerThemeActiveParagraphStyle
+                                          .highlight ||
+                                  style ==
+                                      PlayerThemeActiveParagraphStyle
+                                          .highlightBar);
                           final showLeftBar = isActiveParagraph &&
-                              readerTheme.activeParagraphStyle ==
-                                  PlayerThemeActiveParagraphStyle.leftBar;
-                          final showUnderline = isActiveParagraph &&
-                              readerTheme.activeParagraphStyle ==
+                              (style ==
+                                      PlayerThemeActiveParagraphStyle.leftBar ||
+                                  style ==
+                                      PlayerThemeActiveParagraphStyle
+                                          .highlightBar);
+                          final showShadow = isActiveParagraph &&
+                              style ==
                                   PlayerThemeActiveParagraphStyle.underline;
-                          final underlineOpacity =
-                              activeParagraphOpacity < 0.2
-                                  ? 0.2
-                                  : activeParagraphOpacity;
+                          final shadowOpacity =
+                              (activeParagraphOpacity * 0.9).clamp(0.08, 0.3);
 
                           return _FadeTap(
                             pressedOpacity: 0.78,
@@ -576,143 +629,144 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                                   .read(ttsProvider.notifier)
                                   .jumpToParagraph(index);
                             },
-                            child: AnimatedContainer(
-                              key: paragraphKey,
-                              duration: const Duration(milliseconds: 200),
-                              margin: EdgeInsets.symmetric(
-                                vertical: safeParagraphSpacing,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: showHighlight
-                                    ? colorScheme.primary
-                                        .withOpacity(activeParagraphOpacity)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(18),
-                                border: showUnderline
-                                    ? Border(
-                                        bottom: BorderSide(
-                                          color: colorScheme.primary
-                                              .withOpacity(underlineOpacity),
-                                          width: 2,
+                            child: _wrapShadow(
+                              showShadow: showShadow,
+                              shadowColor:
+                                  glassShadow.withOpacity(shadowOpacity),
+                              child: AnimatedContainer(
+                                key: paragraphKey,
+                                duration: const Duration(milliseconds: 200),
+                                margin: EdgeInsets.symmetric(
+                                  vertical: safeParagraphSpacing,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: showHighlight
+                                      ? colorScheme.primary
+                                          .withOpacity(activeParagraphOpacity)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: IntrinsicHeight(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      // Vertical line indicator
+                                      AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        width: showLeftBar ? 3 : 0,
+                                        margin: EdgeInsets.only(
+                                          right: showLeftBar ? 12 : 0,
+                                          top: 6,
+                                          bottom: 6,
                                         ),
-                                      )
-                                    : null,
-                              ),
-                              child: IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    // Vertical line indicator
-                                    AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 200),
-                                      width: showLeftBar ? 3 : 0,
-                                      margin: EdgeInsets.only(
-                                        right: showLeftBar ? 12 : 0,
-                                        top: 6,
-                                        bottom: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: showLeftBar
-                                            ? colorScheme.primary
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ),
-                                    // Text content
-                                    Expanded(
-                                      child: Padding(
-                                        padding: EdgeInsets.only(
-                                          left: safeParagraphIndent,
+                                        decoration: BoxDecoration(
+                                          color: showLeftBar
+                                              ? colorScheme.primary
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(2),
                                         ),
-                                        child: sentences.isEmpty
-                                            ? Text(
-                                                _paragraphs[index],
-                                                style: _buildReaderTextStyle(
-                                                  baseStyle:
-                                                      textTheme.bodyLarge,
-                                                  theme: readerTheme,
-                                                  color: _resolveReaderTextColor(
-                                                    readerTheme,
-                                                    colorScheme,
-                                                    isActive:
-                                                        isActiveParagraph,
-                                                  ),
-                                                ),
-                                              )
-                                            : RichText(
-                                                text: TextSpan(
-                                                  children: sentences
-                                                      .asMap()
-                                                      .entries
-                                                      .map((entry) {
-                                                    final sentenceIdx =
-                                                        entry.key;
-                                                    final sentence =
-                                                        entry.value;
-                                                    final isCurrentSentence =
-                                                        isActiveParagraph &&
-                                                        sentenceIdx ==
-                                                            currentSentenceIndex;
-                                                    final sentenceColor =
+                                      ),
+                                      // Text content
+                                      Expanded(
+                                        child: Padding(
+                                          padding: EdgeInsets.only(
+                                            left: safeParagraphIndent,
+                                          ),
+                                          child: sentences.isEmpty
+                                              ? Text(
+                                                  _paragraphs[index],
+                                                  style: _buildReaderTextStyle(
+                                                    baseStyle:
+                                                        textTheme.bodyLarge,
+                                                    theme: readerTheme,
+                                                    color:
                                                         _resolveReaderTextColor(
                                                       readerTheme,
                                                       colorScheme,
                                                       isActive:
-                                                          isCurrentSentence,
-                                                    );
+                                                          isActiveParagraph,
+                                                    ),
+                                                  ),
+                                                )
+                                              : RichText(
+                                                  text: TextSpan(
+                                                    children: sentences
+                                                        .asMap()
+                                                        .entries
+                                                        .map((entry) {
+                                                      final sentenceIdx =
+                                                          entry.key;
+                                                      final sentence =
+                                                          entry.value;
+                                                      final isCurrentSentence =
+                                                          isActiveParagraph &&
+                                                          sentenceIdx ==
+                                                              currentSentenceIndex;
+                                                      final sentenceColor =
+                                                          _resolveReaderTextColor(
+                                                        readerTheme,
+                                                        colorScheme,
+                                                        isActive:
+                                                            isCurrentSentence,
+                                                      );
 
-                                                    return TextSpan(
-                                                      text:
-                                                          sentence +
-                                                          (sentenceIdx <
-                                                                  sentences
-                                                                          .length -
-                                                                      1
-                                                              ? ' '
-                                                              : ''),
-                                                      style:
+                                                      final sentenceStyle =
                                                           _buildReaderTextStyle(
-                                                        baseStyle:
-                                                            textTheme.bodyLarge,
+                                                        baseStyle: textTheme
+                                                            .bodyLarge,
                                                         theme: readerTheme,
                                                         color: sentenceColor,
-                                                      ).copyWith(
-                                                        backgroundColor:
-                                                            isCurrentSentence
-                                                                ? colorScheme
-                                                                    .primary
-                                                                    .withOpacity(
-                                                                  sentenceHighlightOpacity,
-                                                                )
-                                                                : Colors
-                                                                    .transparent,
-                                                      ),
-                                                      recognizer:
-                                                          TapGestureRecognizer()
-                                                            ..onTap = () {
-                                                              ref
-                                                                  .read(
-                                                                    ttsProvider
-                                                                        .notifier,
-                                                                  )
-                                                                  .jumpToSentence(
-                                                                    index,
-                                                                    sentenceIdx,
-                                                                  );
-                                                            },
-                                                    );
-                                                  }).toList(),
+                                                      );
+
+                                                      return TextSpan(
+                                                        text:
+                                                            sentence +
+                                                            (sentenceIdx <
+                                                                    sentences
+                                                                            .length -
+                                                                        1
+                                                                ? ' '
+                                                                : ''),
+                                                        style:
+                                                            _applySentenceHighlight(
+                                                          base: sentenceStyle,
+                                                          isCurrent:
+                                                              isCurrentSentence,
+                                                          highlightStyle:
+                                                              sentenceHighlightStyle,
+                                                          highlightColor:
+                                                              colorScheme.primary
+                                                                  .withOpacity(
+                                                            sentenceHighlightOpacity,
+                                                          ),
+                                                        ),
+                                                        recognizer:
+                                                            TapGestureRecognizer()
+                                                              ..onTap = () {
+                                                                ref
+                                                                    .read(
+                                                                      ttsProvider
+                                                                          .notifier,
+                                                                    )
+                                                                    .jumpToSentence(
+                                                                      index,
+                                                                      sentenceIdx,
+                                                                    );
+                                                              },
+                                                      );
+                                                    }).toList(),
+                                                  ),
                                                 ),
-                                              ),
                                       ),
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

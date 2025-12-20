@@ -4,7 +4,14 @@ enum PlayerThemeBackgroundMode { coverAmbient, customImage, solid, gradient }
 
 enum PlayerThemeTextColorMode { auto, fixed }
 
-enum PlayerThemeActiveParagraphStyle { highlight, underline, leftBar }
+enum PlayerThemeActiveParagraphStyle {
+  highlight,
+  underline,
+  leftBar,
+  highlightBar,
+}
+
+enum PlayerThemeSentenceHighlightStyle { background, underline }
 
 /// Model for reader theme customization on the player screen.
 @immutable
@@ -25,9 +32,10 @@ class PlayerThemeSettings {
   final Color? textColor;
   final PlayerThemeActiveParagraphStyle activeParagraphStyle;
   final double activeParagraphOpacity;
+  final PlayerThemeSentenceHighlightStyle sentenceHighlightStyle;
 
   const PlayerThemeSettings({
-    this.fontFamily,
+    this.fontFamily = 'Lora',
     this.fontSize = 18.0,
     this.fontWeight = 400,
     this.lineHeight = 1.8,
@@ -41,8 +49,9 @@ class PlayerThemeSettings {
     this.backgroundOpacity = 0.5,
     this.textColorMode = PlayerThemeTextColorMode.auto,
     this.textColor,
-    this.activeParagraphStyle = PlayerThemeActiveParagraphStyle.highlight,
+    this.activeParagraphStyle = PlayerThemeActiveParagraphStyle.highlightBar,
     this.activeParagraphOpacity = 0.12,
+    this.sentenceHighlightStyle = PlayerThemeSentenceHighlightStyle.background,
   });
 
   PlayerThemeSettings copyWith({
@@ -62,6 +71,7 @@ class PlayerThemeSettings {
     Color? textColor,
     PlayerThemeActiveParagraphStyle? activeParagraphStyle,
     double? activeParagraphOpacity,
+    PlayerThemeSentenceHighlightStyle? sentenceHighlightStyle,
   }) {
     return PlayerThemeSettings(
       fontFamily: fontFamily ?? this.fontFamily,
@@ -81,6 +91,8 @@ class PlayerThemeSettings {
       activeParagraphStyle: activeParagraphStyle ?? this.activeParagraphStyle,
       activeParagraphOpacity:
           activeParagraphOpacity ?? this.activeParagraphOpacity,
+      sentenceHighlightStyle:
+          sentenceHighlightStyle ?? this.sentenceHighlightStyle,
     );
   }
 
@@ -104,7 +116,8 @@ class PlayerThemeSettings {
           textColorMode == other.textColorMode &&
           textColor == other.textColor &&
           activeParagraphStyle == other.activeParagraphStyle &&
-          activeParagraphOpacity == other.activeParagraphOpacity;
+          activeParagraphOpacity == other.activeParagraphOpacity &&
+          sentenceHighlightStyle == other.sentenceHighlightStyle;
 
   @override
   int get hashCode => Object.hash(
@@ -124,5 +137,6 @@ class PlayerThemeSettings {
         textColor,
         activeParagraphStyle,
         activeParagraphOpacity,
+        sentenceHighlightStyle,
       );
 }

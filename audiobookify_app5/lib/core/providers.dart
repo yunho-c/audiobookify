@@ -146,6 +146,8 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
   static const _activeParagraphStyleKey = 'player_theme_active_paragraph_style';
   static const _activeParagraphOpacityKey =
       'player_theme_active_paragraph_opacity';
+  static const _sentenceHighlightStyleKey =
+      'player_theme_sentence_highlight_style';
 
   @override
   PlayerThemeSettings build() {
@@ -202,6 +204,11 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
       activeParagraphOpacity:
           prefs.getDouble(_activeParagraphOpacityKey) ??
               defaultTheme.activeParagraphOpacity,
+      sentenceHighlightStyle: _readEnum<PlayerThemeSentenceHighlightStyle>(
+        prefs.getString(_sentenceHighlightStyleKey),
+        PlayerThemeSentenceHighlightStyle.values,
+        defaultTheme.sentenceHighlightStyle,
+      ),
     );
   }
 
@@ -269,6 +276,10 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
     await prefs.setDouble(
       _activeParagraphOpacityKey,
       settings.activeParagraphOpacity,
+    );
+    await prefs.setString(
+      _sentenceHighlightStyleKey,
+      settings.sentenceHighlightStyle.name,
     );
   }
 

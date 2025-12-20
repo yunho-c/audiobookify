@@ -89,7 +89,7 @@ class SettingsWheel extends ConsumerWidget {
                       indicatorColor: colorScheme.primary,
                       tabs: const [
                         Tab(text: 'Speech'),
-                        Tab(text: 'Aeshtetics'),
+                        Tab(text: 'Visual'),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -288,16 +288,8 @@ class _ReaderSettingsTab extends ConsumerWidget {
                 onTap: () => updateTheme(_paperPreset(readerTheme)),
               ),
               _PresetChip(
-                label: 'Cinematic',
-                onTap: () => updateTheme(_cinematicPreset(readerTheme)),
-              ),
-              _PresetChip(
-                label: 'Compact',
-                onTap: () => updateTheme(_compactPreset(readerTheme)),
-              ),
-              _PresetChip(
-                label: 'Studio',
-                onTap: () => updateTheme(_studioPreset(readerTheme)),
+                label: 'Modern',
+                onTap: () => updateTheme(_modernPreset(readerTheme)),
               ),
             ],
           ),
@@ -340,18 +332,19 @@ class _ReaderSettingsTab extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 12),
-          _ChoiceChipGroup<int>(
-            value: readerTheme.fontWeight,
+          _SettingSlider(
+            icon: LucideIcons.bold,
+            label: 'Font Weight',
+            value: readerTheme.fontWeight.clamp(300, 700).toDouble(),
+            min: 300,
+            max: 700,
+            divisions: 4,
+            displayValue: _fontWeightLabel(readerTheme.fontWeight),
+            bgColor: accentSoftPalette[2],
+            fgColor: accentPalette[2],
             onChanged: (value) {
-              updateTheme(readerTheme.copyWith(fontWeight: value));
+              updateTheme(readerTheme.copyWith(fontWeight: value.round()));
             },
-            options: const [
-              _ChoiceOption(label: 'Light', value: 300),
-              _ChoiceOption(label: 'Regular', value: 400),
-              _ChoiceOption(label: 'Medium', value: 500),
-              _ChoiceOption(label: 'Semibold', value: 600),
-              _ChoiceOption(label: 'Bold', value: 700),
-            ],
           ),
           const SizedBox(height: 16),
           _SettingsSectionTitle(title: 'Layout'),
@@ -412,7 +405,7 @@ class _ReaderSettingsTab extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 16),
-          _SettingsSectionTitle(title: 'Highlight'),
+          _SettingsSectionTitle(title: 'Paragraph Highlight'),
           const SizedBox(height: 10),
           _ChoiceChipGroup<PlayerThemeActiveParagraphStyle>(
             value: readerTheme.activeParagraphStyle,
@@ -423,6 +416,10 @@ class _ReaderSettingsTab extends ConsumerWidget {
               _ChoiceOption(
                 label: 'Highlight',
                 value: PlayerThemeActiveParagraphStyle.highlight,
+              ),
+              _ChoiceOption(
+                label: 'Highlight + Bar',
+                value: PlayerThemeActiveParagraphStyle.highlightBar,
               ),
               _ChoiceOption(
                 label: 'Underline',
@@ -448,6 +445,27 @@ class _ReaderSettingsTab extends ConsumerWidget {
             onChanged: (value) {
               updateTheme(readerTheme.copyWith(activeParagraphOpacity: value));
             },
+          ),
+          const SizedBox(height: 16),
+          _SettingsSectionTitle(title: 'Sentence Highlight'),
+          const SizedBox(height: 10),
+          _ChoiceChipGroup<PlayerThemeSentenceHighlightStyle>(
+            value: readerTheme.sentenceHighlightStyle,
+            onChanged: (value) {
+              updateTheme(
+                readerTheme.copyWith(sentenceHighlightStyle: value),
+              );
+            },
+            options: const [
+              _ChoiceOption(
+                label: 'Background',
+                value: PlayerThemeSentenceHighlightStyle.background,
+              ),
+              _ChoiceOption(
+                label: 'Underline',
+                value: PlayerThemeSentenceHighlightStyle.underline,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           _SettingsSectionTitle(title: 'Background'),
@@ -656,19 +674,23 @@ class _ReaderSettingsTab extends ConsumerWidget {
 
   PlayerThemeSettings _ambientPreset(PlayerThemeSettings base) {
     return base.copyWith(
-      fontFamily: base.fontFamily ?? 'Lora',
+      fontFamily: 'Lora',
       fontSize: 18,
       fontWeight: 400,
       lineHeight: 1.8,
       paragraphSpacing: 4,
+      paragraphIndent: 0,
       pagePaddingHorizontal: 28,
       pagePaddingVertical: 12,
       backgroundMode: PlayerThemeBackgroundMode.coverAmbient,
+      backgroundImagePath: null,
       backgroundBlur: 20,
       backgroundOpacity: 0.5,
-      activeParagraphStyle: PlayerThemeActiveParagraphStyle.highlight,
+      activeParagraphStyle: PlayerThemeActiveParagraphStyle.highlightBar,
       activeParagraphOpacity: 0.12,
       textColorMode: PlayerThemeTextColorMode.auto,
+      textColor: null,
+      sentenceHighlightStyle: PlayerThemeSentenceHighlightStyle.background,
     );
   }
 
@@ -687,12 +709,13 @@ class _ReaderSettingsTab extends ConsumerWidget {
       activeParagraphStyle: PlayerThemeActiveParagraphStyle.leftBar,
       activeParagraphOpacity: 0.2,
       textColorMode: PlayerThemeTextColorMode.auto,
+      sentenceHighlightStyle: PlayerThemeSentenceHighlightStyle.background,
     );
   }
 
   PlayerThemeSettings _paperPreset(PlayerThemeSettings base) {
     return base.copyWith(
-      fontFamily: base.fontFamily ?? 'Literata',
+      fontFamily: 'Lora',
       fontSize: 18,
       fontWeight: 400,
       lineHeight: 1.75,
@@ -706,61 +729,46 @@ class _ReaderSettingsTab extends ConsumerWidget {
       activeParagraphOpacity: 0.18,
       textColorMode: PlayerThemeTextColorMode.fixed,
       textColor: const Color(0xFF2C2A24),
+      sentenceHighlightStyle: PlayerThemeSentenceHighlightStyle.underline,
     );
   }
 
-  PlayerThemeSettings _cinematicPreset(PlayerThemeSettings base) {
+  PlayerThemeSettings _modernPreset(PlayerThemeSettings base) {
     return base.copyWith(
-      fontFamily: base.fontFamily ?? 'Source Serif 4',
-      fontSize: 20,
-      fontWeight: 400,
-      lineHeight: 1.9,
-      paragraphSpacing: 6,
-      pagePaddingHorizontal: 34,
-      pagePaddingVertical: 14,
-      backgroundMode: PlayerThemeBackgroundMode.coverAmbient,
-      backgroundBlur: 26,
-      backgroundOpacity: 0.6,
-      activeParagraphStyle: PlayerThemeActiveParagraphStyle.highlight,
-      activeParagraphOpacity: 0.16,
-      textColorMode: PlayerThemeTextColorMode.auto,
-    );
-  }
-
-  PlayerThemeSettings _compactPreset(PlayerThemeSettings base) {
-    return base.copyWith(
-      fontFamily: base.fontFamily ?? 'Source Sans 3',
-      fontSize: 16,
-      fontWeight: 500,
-      lineHeight: 1.5,
-      paragraphSpacing: 2,
-      pagePaddingHorizontal: 18,
-      pagePaddingVertical: 8,
-      backgroundMode: PlayerThemeBackgroundMode.gradient,
-      backgroundBlur: 8,
-      backgroundOpacity: 0.25,
-      activeParagraphStyle: PlayerThemeActiveParagraphStyle.leftBar,
-      activeParagraphOpacity: 0.2,
-      textColorMode: PlayerThemeTextColorMode.auto,
-    );
-  }
-
-  PlayerThemeSettings _studioPreset(PlayerThemeSettings base) {
-    return base.copyWith(
-      fontFamily: base.fontFamily ?? 'Inter',
+      fontFamily: 'Inter',
       fontSize: 18,
-      fontWeight: 600,
-      lineHeight: 1.6,
-      paragraphSpacing: 4,
-      pagePaddingHorizontal: 26,
-      pagePaddingVertical: 10,
+      fontWeight: 500,
+      lineHeight: 1.75,
+      paragraphSpacing: 6,
+      pagePaddingHorizontal: 30,
+      pagePaddingVertical: 14,
       backgroundMode: PlayerThemeBackgroundMode.solid,
       backgroundBlur: 0,
       backgroundOpacity: 0,
       activeParagraphStyle: PlayerThemeActiveParagraphStyle.underline,
-      activeParagraphOpacity: 0.22,
-      textColorMode: PlayerThemeTextColorMode.auto,
+      activeParagraphOpacity: 0.18,
+      textColorMode: PlayerThemeTextColorMode.fixed,
+      textColor: const Color(0xFF2C2A24),
+      sentenceHighlightStyle: PlayerThemeSentenceHighlightStyle.underline,
     );
+  }
+
+
+  String _fontWeightLabel(int weight) {
+    final normalized = ((weight / 100).round() * 100).clamp(300, 700);
+    switch (normalized) {
+      case 300:
+        return 'Light 300';
+      case 400:
+        return 'Regular 400';
+      case 500:
+        return 'Medium 500';
+      case 600:
+        return 'Semibold 600';
+      case 700:
+        return 'Bold 700';
+    }
+    return '$normalized';
   }
 }
 
@@ -771,6 +779,7 @@ class _SettingSlider extends StatelessWidget {
   final double value;
   final double min;
   final double max;
+  final int? divisions;
   final String displayValue;
   final Color bgColor;
   final Color fgColor;
@@ -782,6 +791,7 @@ class _SettingSlider extends StatelessWidget {
     required this.value,
     required this.min,
     required this.max,
+    this.divisions,
     required this.displayValue,
     required this.bgColor,
     required this.fgColor,
@@ -837,6 +847,7 @@ class _SettingSlider extends StatelessWidget {
               value: value,
               min: min,
               max: max,
+              divisions: divisions,
               onChanged: onChanged,
             ),
           ),
