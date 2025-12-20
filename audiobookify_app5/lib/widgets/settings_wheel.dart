@@ -8,13 +8,37 @@ import '../core/providers.dart';
 import '../models/player_theme_settings.dart';
 
 /// Audio settings modal with interactive sliders for speed and pitch
-class SettingsWheel extends ConsumerWidget {
+class SettingsWheel extends ConsumerStatefulWidget {
   final VoidCallback onClose;
 
   const SettingsWheel({super.key, required this.onClose});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsWheel> createState() => _SettingsWheelState();
+}
+
+class _SettingsWheelState extends ConsumerState<SettingsWheel> {
+  String? _activeSliderId;
+  bool _isSliderDragging = false;
+
+  void _handleSliderDragStart(String sliderId) {
+    if (_activeSliderId == sliderId && _isSliderDragging) return;
+    setState(() {
+      _activeSliderId = sliderId;
+      _isSliderDragging = true;
+    });
+  }
+
+  void _handleSliderDragEnd(String sliderId) {
+    if (!_isSliderDragging) return;
+    setState(() {
+      _isSliderDragging = false;
+      _activeSliderId = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final extras = Theme.of(context).extension<AppThemeExtras>();
@@ -36,7 +60,7 @@ class SettingsWheel extends ConsumerWidget {
         (MediaQuery.of(context).size.height * 0.82).clamp(0.0, 620.0);
 
     return GestureDetector(
-      onTap: onClose,
+      onTap: widget.onClose,
       child: Container(
         color: colorScheme.scrim.withAlpha(120),
         child: Center(
@@ -44,53 +68,75 @@ class SettingsWheel extends ConsumerWidget {
             onTap: () {}, // Prevent tap-through
             child: DefaultTabController(
               length: 2,
-              child: Container(
+              child: SizedBox(
                 width: 340,
                 height: modalHeight.toDouble(),
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(context).shadowColor.withAlpha(50),
-                      blurRadius: 40,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
+                child: Stack(
                   children: [
+                    Positioned.fill(
+                      child: FadeOnSliderDrag(
+                        isDragging: _isSliderDragging,
+                        activeSliderId: _activeSliderId,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: colorScheme.surface,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    Theme.of(context).shadowColor.withAlpha(50),
+                                blurRadius: 40,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                        child: Column(
+                          children: [
                     // Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Settings',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
+                    FadeOnSliderDrag(
+                      isDragging: _isSliderDragging,
+                      activeSliderId: _activeSliderId,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Settings',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
                           ),
-                        ),
-                        GestureDetector(
-                          onTap: onClose,
-                          child: Icon(
-                            LucideIcons.x,
-                            size: 20,
-                            color: colorScheme.onSurfaceVariant,
+                          GestureDetector(
+                            onTap: widget.onClose,
+                            child: Icon(
+                              LucideIcons.x,
+                              size: 20,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    TabBar(
-                      labelColor: colorScheme.onSurface,
-                      unselectedLabelColor: colorScheme.onSurfaceVariant,
-                      indicatorColor: colorScheme.primary,
-                      tabs: const [
-                        Tab(text: 'Speech'),
-                        Tab(text: 'Visual'),
-                      ],
+                    FadeOnSliderDrag(
+                      isDragging: _isSliderDragging,
+                      activeSliderId: _activeSliderId,
+                      child: TabBar(
+                        labelColor: colorScheme.onSurface,
+                        unselectedLabelColor: colorScheme.onSurfaceVariant,
+                        indicatorColor: colorScheme.primary,
+                        tabs: const [
+                          Tab(text: 'Speech'),
+                          Tab(text: 'Visual'),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Expanded(
@@ -110,6 +156,11 @@ class SettingsWheel extends ConsumerWidget {
                                         horizontal: tabGutter / 2,
                                       ),
                                       child: _AudioSettingsTab(
+                                        isDragging: _isSliderDragging,
+                                        activeSliderId: _activeSliderId,
+                                        onSliderDragStart:
+                                            _handleSliderDragStart,
+                                        onSliderDragEnd: _handleSliderDragEnd,
                                         accentPalette: accentPalette,
                                         accentSoftPalette: accentSoftPalette,
                                       ),
@@ -119,6 +170,11 @@ class SettingsWheel extends ConsumerWidget {
                                         horizontal: tabGutter / 2,
                                       ),
                                       child: _ReaderSettingsTab(
+                                        isDragging: _isSliderDragging,
+                                        activeSliderId: _activeSliderId,
+                                        onSliderDragStart:
+                                            _handleSliderDragStart,
+                                        onSliderDragEnd: _handleSliderDragEnd,
                                         accentPalette: accentPalette,
                                         accentSoftPalette: accentSoftPalette,
                                       ),
@@ -129,6 +185,10 @@ class SettingsWheel extends ConsumerWidget {
                             ),
                           );
                         },
+                      ),
+                    ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -143,10 +203,18 @@ class SettingsWheel extends ConsumerWidget {
 }
 
 class _AudioSettingsTab extends ConsumerWidget {
+  final bool isDragging;
+  final String? activeSliderId;
+  final ValueChanged<String> onSliderDragStart;
+  final ValueChanged<String> onSliderDragEnd;
   final List<Color> accentPalette;
   final List<Color> accentSoftPalette;
 
   const _AudioSettingsTab({
+    required this.isDragging,
+    required this.activeSliderId,
+    required this.onSliderDragStart,
+    required this.onSliderDragEnd,
     required this.accentPalette,
     required this.accentSoftPalette,
   });
@@ -156,100 +224,124 @@ class _AudioSettingsTab extends ConsumerWidget {
     final settings = ref.watch(playerSettingsProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    Widget fade(Widget child, {String? sliderId}) {
+      return FadeOnSliderDrag(
+        isDragging: isDragging,
+        activeSliderId: activeSliderId,
+        sliderId: sliderId,
+        child: child,
+      );
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SettingsSectionTitle(title: 'Playback'),
+          fade(_SettingsSectionTitle(title: 'Playback')),
           const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.gauge,
-            label: 'Speed',
-            value: settings.speed,
-            min: 0.5,
-            max: 2.0,
-            displayValue: '${settings.speed.toStringAsFixed(1)}x',
-            bgColor: accentSoftPalette[0],
-            fgColor: accentPalette[0],
-            onChanged: (value) {
-              ref.read(playerSettingsProvider.notifier).setSpeed(value);
-            },
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.gauge,
+              label: 'Speed',
+              value: settings.speed,
+              min: 0.5,
+              max: 2.0,
+              displayValue: '${settings.speed.toStringAsFixed(1)}x',
+              bgColor: accentSoftPalette[0],
+              fgColor: accentPalette[0],
+              onChanged: (value) {
+                ref.read(playerSettingsProvider.notifier).setSpeed(value);
+              },
+              onChangeStart: (_) => onSliderDragStart('audio_speed'),
+              onChangeEnd: (_) => onSliderDragEnd('audio_speed'),
+            ),
+            sliderId: 'audio_speed',
           ),
           const SizedBox(height: 16),
-          _SettingSlider(
-            icon: LucideIcons.music,
-            label: 'Pitch',
-            value: settings.pitch,
-            min: 0.5,
-            max: 2.0,
-            displayValue: settings.pitch.toStringAsFixed(1),
-            bgColor: accentSoftPalette[1],
-            fgColor: accentPalette[1],
-            onChanged: (value) {
-              ref.read(playerSettingsProvider.notifier).setPitch(value);
-            },
-          ),
-          const SizedBox(height: 20),
-          _SettingsSectionTitle(title: 'Voice'),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _SettingCard(
-                  icon: LucideIcons.mic2,
-                  label: 'Style',
-                  value: settings.voiceName?.split('.').last ?? 'Default',
-                  bgColor: accentSoftPalette[2],
-                  fgColor: accentPalette[2],
-                  onTap: () => _showVoiceSelector(context, ref),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _SettingCard(
-                  icon: LucideIcons.languages,
-                  label: 'Accent',
-                  value: 'British',
-                  bgColor: accentSoftPalette[3],
-                  fgColor: accentPalette[3],
-                  onTap: () {}, // No-op
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Center(
-            child: TextButton(
-              onPressed: () {
-                ref.read(playerSettingsProvider.notifier).reset();
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.music,
+              label: 'Pitch',
+              value: settings.pitch,
+              min: 0.5,
+              max: 2.0,
+              displayValue: settings.pitch.toStringAsFixed(1),
+              bgColor: accentSoftPalette[1],
+              fgColor: accentPalette[1],
+              onChanged: (value) {
+                ref.read(playerSettingsProvider.notifier).setPitch(value);
               },
-              child: Text(
-                'Reset Audio Defaults',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+              onChangeStart: (_) => onSliderDragStart('audio_pitch'),
+              onChangeEnd: (_) => onSliderDragEnd('audio_pitch'),
+            ),
+            sliderId: 'audio_pitch',
+          ),
+          const SizedBox(height: 20),
+          fade(_SettingsSectionTitle(title: 'Voice')),
+          const SizedBox(height: 12),
+          fade(
+            Row(
+              children: [
+                Expanded(
+                  child: _SettingCard(
+                    icon: LucideIcons.mic2,
+                    label: 'Style',
+                    value: settings.voiceName?.split('.').last ?? 'Default',
+                    bgColor: accentSoftPalette[2],
+                    fgColor: accentPalette[2],
+                    onTap: () => _showVoiceSelector(context, ref),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _SettingCard(
+                    icon: LucideIcons.languages,
+                    label: 'Accent',
+                    value: 'British',
+                    bgColor: accentSoftPalette[3],
+                    fgColor: accentPalette[3],
+                    onTap: () {}, // No-op
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          fade(
+            Center(
+              child: TextButton(
+                onPressed: () {
+                  ref.read(playerSettingsProvider.notifier).reset();
+                },
+                child: Text(
+                  'Reset Audio Defaults',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 16),
-          Center(
-            child: SizedBox(
-              width: 64,
-              height: 64,
-              child: CustomPaint(
-                painter: _WheelPainter(
-                  colors: accentPalette,
-                  borderColor: colorScheme.outlineVariant,
-                ),
-                child: Center(
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: colorScheme.onSurface,
-                      borderRadius: BorderRadius.circular(8),
+          fade(
+            Center(
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: CustomPaint(
+                  painter: _WheelPainter(
+                    colors: accentPalette,
+                    borderColor: colorScheme.outlineVariant,
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ),
@@ -263,10 +355,18 @@ class _AudioSettingsTab extends ConsumerWidget {
 }
 
 class _ReaderSettingsTab extends ConsumerWidget {
+  final bool isDragging;
+  final String? activeSliderId;
+  final ValueChanged<String> onSliderDragStart;
+  final ValueChanged<String> onSliderDragEnd;
   final List<Color> accentPalette;
   final List<Color> accentSoftPalette;
 
   const _ReaderSettingsTab({
+    required this.isDragging,
+    required this.activeSliderId,
+    required this.onSliderDragStart,
+    required this.onSliderDragEnd,
     required this.accentPalette,
     required this.accentSoftPalette,
   });
@@ -276,6 +376,14 @@ class _ReaderSettingsTab extends ConsumerWidget {
     final readerTheme = ref.watch(playerThemeProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    Widget fade(Widget child, {String? sliderId}) {
+      return FadeOnSliderDrag(
+        isDragging: isDragging,
+        activeSliderId: activeSliderId,
+        sliderId: sliderId,
+        child: child,
+      );
+    }
 
     void updateTheme(PlayerThemeSettings settings) {
       ref.read(playerThemeProvider.notifier).setTheme(settings);
@@ -293,349 +401,423 @@ class _ReaderSettingsTab extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SettingsSectionTitle(title: 'Presets'),
+          fade(_SettingsSectionTitle(title: 'Presets')),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _PresetChip(
-                label: 'Ambient',
-                onTap: () => updateTheme(_ambientPreset(readerTheme)),
-              ),
-              _PresetChip(
-                label: 'Focus',
-                onTap: () => updateTheme(_focusPreset(readerTheme)),
-              ),
-              _PresetChip(
-                label: 'Paper',
-                onTap: () => updateTheme(_paperPreset(readerTheme)),
-              ),
-              _PresetChip(
-                label: 'Modern',
-                onTap: () => updateTheme(_modernPreset(readerTheme)),
-              ),
-            ],
+          fade(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _PresetChip(
+                  label: 'Ambient',
+                  onTap: () => updateTheme(_ambientPreset(readerTheme)),
+                ),
+                _PresetChip(
+                  label: 'Focus',
+                  onTap: () => updateTheme(_focusPreset(readerTheme)),
+                ),
+                _PresetChip(
+                  label: 'Paper',
+                  onTap: () => updateTheme(_paperPreset(readerTheme)),
+                ),
+                _PresetChip(
+                  label: 'Modern',
+                  onTap: () => updateTheme(_modernPreset(readerTheme)),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
-          _SettingsSectionTitle(title: 'Typography'),
+          fade(_SettingsSectionTitle(title: 'Typography')),
           const SizedBox(height: 12),
-          _FontFamilyPicker(
-            value: readerTheme.fontFamily,
-            fontWeight: readerTheme.fontWeight,
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(fontFamily: value));
-            },
+          fade(
+            _FontFamilyPicker(
+              value: readerTheme.fontFamily,
+              fontWeight: readerTheme.fontWeight,
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(fontFamily: value));
+              },
+            ),
           ),
           const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.type,
-            label: 'Font Size',
-            value: readerTheme.fontSize,
-            min: 14,
-            max: 26,
-            displayValue: readerTheme.fontSize.toStringAsFixed(0),
-            bgColor: accentSoftPalette[0],
-            fgColor: accentPalette[0],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(fontSize: value));
-            },
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.type,
+              label: 'Font Size',
+              value: readerTheme.fontSize,
+              min: 14,
+              max: 26,
+              displayValue: readerTheme.fontSize.toStringAsFixed(0),
+              bgColor: accentSoftPalette[0],
+              fgColor: accentPalette[0],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(fontSize: value));
+              },
+              onChangeStart: (_) => onSliderDragStart('reader_font_size'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_font_size'),
+            ),
+            sliderId: 'reader_font_size',
           ),
           const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.alignJustify,
-            label: 'Line Height',
-            value: readerTheme.lineHeight,
-            min: 1.3,
-            max: 2.2,
-            displayValue: readerTheme.lineHeight.toStringAsFixed(2),
-            bgColor: accentSoftPalette[1],
-            fgColor: accentPalette[1],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(lineHeight: value));
-            },
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.alignJustify,
+              label: 'Line Height',
+              value: readerTheme.lineHeight,
+              min: 1.3,
+              max: 2.2,
+              displayValue: readerTheme.lineHeight.toStringAsFixed(2),
+              bgColor: accentSoftPalette[1],
+              fgColor: accentPalette[1],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(lineHeight: value));
+              },
+              onChangeStart: (_) => onSliderDragStart('reader_line_height'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_line_height'),
+            ),
+            sliderId: 'reader_line_height',
           ),
           const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.bold,
-            label: 'Font Weight',
-            value: readerTheme.fontWeight.clamp(300, 700).toDouble(),
-            min: 300,
-            max: 700,
-            divisions: 4,
-            displayValue: _fontWeightLabel(readerTheme.fontWeight),
-            bgColor: accentSoftPalette[2],
-            fgColor: accentPalette[2],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(fontWeight: value.round()));
-            },
-          ),
-          const SizedBox(height: 16),
-          _SettingsSectionTitle(title: 'Layout'),
-          const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.rows,
-            label: 'Paragraph Spacing',
-            value: readerTheme.paragraphSpacing,
-            min: 0,
-            max: 16,
-            displayValue: readerTheme.paragraphSpacing.toStringAsFixed(0),
-            bgColor: accentSoftPalette[2],
-            fgColor: accentPalette[2],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(paragraphSpacing: value));
-            },
-          ),
-          const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.indent,
-            label: 'Paragraph Indent',
-            value: readerTheme.paragraphIndent,
-            min: 0,
-            max: 28,
-            displayValue: readerTheme.paragraphIndent.toStringAsFixed(0),
-            bgColor: accentSoftPalette[3],
-            fgColor: accentPalette[3],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(paragraphIndent: value));
-            },
-          ),
-          const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.arrowLeftRight,
-            label: 'Page Padding (H)',
-            value: readerTheme.pagePaddingHorizontal,
-            min: 12,
-            max: 48,
-            displayValue: readerTheme.pagePaddingHorizontal.toStringAsFixed(0),
-            bgColor: accentSoftPalette[0],
-            fgColor: accentPalette[0],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(pagePaddingHorizontal: value));
-            },
-          ),
-          const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.arrowUpDown,
-            label: 'Page Padding (V)',
-            value: readerTheme.pagePaddingVertical,
-            min: 8,
-            max: 32,
-            displayValue: readerTheme.pagePaddingVertical.toStringAsFixed(0),
-            bgColor: accentSoftPalette[1],
-            fgColor: accentPalette[1],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(pagePaddingVertical: value));
-            },
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.bold,
+              label: 'Font Weight',
+              value: readerTheme.fontWeight.clamp(300, 700).toDouble(),
+              min: 300,
+              max: 700,
+              divisions: 4,
+              displayValue: _fontWeightLabel(readerTheme.fontWeight),
+              bgColor: accentSoftPalette[2],
+              fgColor: accentPalette[2],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(fontWeight: value.round()));
+              },
+              onChangeStart: (_) => onSliderDragStart('reader_font_weight'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_font_weight'),
+            ),
+            sliderId: 'reader_font_weight',
           ),
           const SizedBox(height: 16),
-          _SettingsSectionTitle(title: 'Paragraph Highlight'),
+          fade(_SettingsSectionTitle(title: 'Layout')),
+          const SizedBox(height: 12),
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.rows,
+              label: 'Paragraph Spacing',
+              value: readerTheme.paragraphSpacing,
+              min: 0,
+              max: 16,
+              displayValue: readerTheme.paragraphSpacing.toStringAsFixed(0),
+              bgColor: accentSoftPalette[2],
+              fgColor: accentPalette[2],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(paragraphSpacing: value));
+              },
+              onChangeStart: (_) =>
+                  onSliderDragStart('reader_paragraph_spacing'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_paragraph_spacing'),
+            ),
+            sliderId: 'reader_paragraph_spacing',
+          ),
+          const SizedBox(height: 12),
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.indent,
+              label: 'Paragraph Indent',
+              value: readerTheme.paragraphIndent,
+              min: 0,
+              max: 28,
+              displayValue: readerTheme.paragraphIndent.toStringAsFixed(0),
+              bgColor: accentSoftPalette[3],
+              fgColor: accentPalette[3],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(paragraphIndent: value));
+              },
+              onChangeStart: (_) =>
+                  onSliderDragStart('reader_paragraph_indent'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_paragraph_indent'),
+            ),
+            sliderId: 'reader_paragraph_indent',
+          ),
+          const SizedBox(height: 12),
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.arrowLeftRight,
+              label: 'Page Padding (H)',
+              value: readerTheme.pagePaddingHorizontal,
+              min: 12,
+              max: 48,
+              displayValue: readerTheme.pagePaddingHorizontal.toStringAsFixed(0),
+              bgColor: accentSoftPalette[0],
+              fgColor: accentPalette[0],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(pagePaddingHorizontal: value));
+              },
+              onChangeStart: (_) => onSliderDragStart('reader_padding_horizontal'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_padding_horizontal'),
+            ),
+            sliderId: 'reader_padding_horizontal',
+          ),
+          const SizedBox(height: 12),
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.arrowUpDown,
+              label: 'Page Padding (V)',
+              value: readerTheme.pagePaddingVertical,
+              min: 8,
+              max: 32,
+              displayValue: readerTheme.pagePaddingVertical.toStringAsFixed(0),
+              bgColor: accentSoftPalette[1],
+              fgColor: accentPalette[1],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(pagePaddingVertical: value));
+              },
+              onChangeStart: (_) => onSliderDragStart('reader_padding_vertical'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_padding_vertical'),
+            ),
+            sliderId: 'reader_padding_vertical',
+          ),
+          const SizedBox(height: 16),
+          fade(_SettingsSectionTitle(title: 'Paragraph Highlight')),
           const SizedBox(height: 10),
-          _ChoiceChipGroup<PlayerThemeActiveParagraphStyle>(
-            value: readerTheme.activeParagraphStyle,
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(activeParagraphStyle: value));
-            },
-            options: const [
-              _ChoiceOption(
-                label: 'Highlight',
-                value: PlayerThemeActiveParagraphStyle.highlight,
-              ),
-              _ChoiceOption(
-                label: 'Highlight + Bar',
-                value: PlayerThemeActiveParagraphStyle.highlightBar,
-              ),
-              _ChoiceOption(
-                label: 'Underline',
-                value: PlayerThemeActiveParagraphStyle.underline,
-              ),
-              _ChoiceOption(
-                label: 'Left Bar',
-                value: PlayerThemeActiveParagraphStyle.leftBar,
-              ),
-            ],
+          fade(
+            _ChoiceChipGroup<PlayerThemeActiveParagraphStyle>(
+              value: readerTheme.activeParagraphStyle,
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(activeParagraphStyle: value));
+              },
+              options: const [
+                _ChoiceOption(
+                  label: 'Highlight',
+                  value: PlayerThemeActiveParagraphStyle.highlight,
+                ),
+                _ChoiceOption(
+                  label: 'Highlight + Bar',
+                  value: PlayerThemeActiveParagraphStyle.highlightBar,
+                ),
+                _ChoiceOption(
+                  label: 'Underline',
+                  value: PlayerThemeActiveParagraphStyle.underline,
+                ),
+                _ChoiceOption(
+                  label: 'Left Bar',
+                  value: PlayerThemeActiveParagraphStyle.leftBar,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.highlighter,
-            label: 'Highlight Opacity',
-            value: readerTheme.activeParagraphOpacity,
-            min: 0.05,
-            max: 0.4,
-            displayValue:
-                readerTheme.activeParagraphOpacity.toStringAsFixed(2),
-            bgColor: accentSoftPalette[2],
-            fgColor: accentPalette[2],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(activeParagraphOpacity: value));
-            },
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.highlighter,
+              label: 'Highlight Opacity',
+              value: readerTheme.activeParagraphOpacity,
+              min: 0.05,
+              max: 0.4,
+              displayValue:
+                  readerTheme.activeParagraphOpacity.toStringAsFixed(2),
+              bgColor: accentSoftPalette[2],
+              fgColor: accentPalette[2],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(activeParagraphOpacity: value));
+              },
+              onChangeStart: (_) =>
+                  onSliderDragStart('reader_highlight_opacity'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_highlight_opacity'),
+            ),
+            sliderId: 'reader_highlight_opacity',
           ),
           const SizedBox(height: 16),
-          _SettingsSectionTitle(title: 'Sentence Highlight'),
+          fade(_SettingsSectionTitle(title: 'Sentence Highlight')),
           const SizedBox(height: 10),
-          _ChoiceChipGroup<PlayerThemeSentenceHighlightStyle>(
-            value: readerTheme.sentenceHighlightStyle,
-            onChanged: (value) {
-              updateTheme(
-                readerTheme.copyWith(sentenceHighlightStyle: value),
-              );
-            },
-            options: const [
-              _ChoiceOption(
-                label: 'Background',
-                value: PlayerThemeSentenceHighlightStyle.background,
-              ),
-              _ChoiceOption(
-                label: 'Underline',
-                value: PlayerThemeSentenceHighlightStyle.underline,
-              ),
-            ],
+          fade(
+            _ChoiceChipGroup<PlayerThemeSentenceHighlightStyle>(
+              value: readerTheme.sentenceHighlightStyle,
+              onChanged: (value) {
+                updateTheme(
+                  readerTheme.copyWith(sentenceHighlightStyle: value),
+                );
+              },
+              options: const [
+                _ChoiceOption(
+                  label: 'Background',
+                  value: PlayerThemeSentenceHighlightStyle.background,
+                ),
+                _ChoiceOption(
+                  label: 'Underline',
+                  value: PlayerThemeSentenceHighlightStyle.underline,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
-          _SettingsSectionTitle(title: 'Background'),
+          fade(_SettingsSectionTitle(title: 'Background')),
           const SizedBox(height: 10),
-          _ChoiceChipGroup<PlayerThemeBackgroundMode>(
-            value: readerTheme.backgroundMode,
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(backgroundMode: value));
-            },
-            options: const [
-              _ChoiceOption(
-                label: 'Cover',
-                value: PlayerThemeBackgroundMode.coverAmbient,
-              ),
-              _ChoiceOption(
-                label: 'Gradient',
-                value: PlayerThemeBackgroundMode.gradient,
-              ),
-              _ChoiceOption(
-                label: 'Solid',
-                value: PlayerThemeBackgroundMode.solid,
-              ),
-              _ChoiceOption(
-                label: 'Custom',
-                value: PlayerThemeBackgroundMode.customImage,
-              ),
-            ],
+          fade(
+            _ChoiceChipGroup<PlayerThemeBackgroundMode>(
+              value: readerTheme.backgroundMode,
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(backgroundMode: value));
+              },
+              options: const [
+                _ChoiceOption(
+                  label: 'Cover',
+                  value: PlayerThemeBackgroundMode.coverAmbient,
+                ),
+                _ChoiceOption(
+                  label: 'Gradient',
+                  value: PlayerThemeBackgroundMode.gradient,
+                ),
+                _ChoiceOption(
+                  label: 'Solid',
+                  value: PlayerThemeBackgroundMode.solid,
+                ),
+                _ChoiceOption(
+                  label: 'Custom',
+                  value: PlayerThemeBackgroundMode.customImage,
+                ),
+              ],
+            ),
           ),
           if (readerTheme.backgroundMode ==
               PlayerThemeBackgroundMode.customImage) ...[
             const SizedBox(height: 12),
-            TextFormField(
-              key: ValueKey(readerTheme.backgroundImagePath ?? ''),
-              decoration: InputDecoration(
-                labelText: 'Asset image path',
-                hintText: 'assets/backgrounds/paper.png',
-                labelStyle: textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+            fade(
+              TextFormField(
+                key: ValueKey(readerTheme.backgroundImagePath ?? ''),
+                decoration: InputDecoration(
+                  labelText: 'Asset image path',
+                  hintText: 'assets/backgrounds/paper.png',
+                  labelStyle: textTheme.labelMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  filled: true,
+                  fillColor: colorScheme.surfaceVariant.withAlpha(140),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
-                filled: true,
-                fillColor: colorScheme.surfaceVariant.withAlpha(140),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
+                initialValue: readerTheme.backgroundImagePath ?? '',
+                onChanged: (value) {
+                  updateTheme(readerTheme.copyWith(backgroundImagePath: value));
+                },
               ),
-              initialValue: readerTheme.backgroundImagePath ?? '',
-              onChanged: (value) {
-                updateTheme(readerTheme.copyWith(backgroundImagePath: value));
-              },
             ),
           ],
           const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.slidersHorizontal,
-            label: 'Background Blur',
-            value: readerTheme.backgroundBlur,
-            min: 0,
-            max: 40,
-            displayValue: readerTheme.backgroundBlur.toStringAsFixed(0),
-            bgColor: accentSoftPalette[3],
-            fgColor: accentPalette[3],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(backgroundBlur: value));
-            },
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.slidersHorizontal,
+              label: 'Background Blur',
+              value: readerTheme.backgroundBlur,
+              min: 0,
+              max: 40,
+              displayValue: readerTheme.backgroundBlur.toStringAsFixed(0),
+              bgColor: accentSoftPalette[3],
+              fgColor: accentPalette[3],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(backgroundBlur: value));
+              },
+              onChangeStart: (_) => onSliderDragStart('reader_background_blur'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_background_blur'),
+            ),
+            sliderId: 'reader_background_blur',
           ),
           const SizedBox(height: 12),
-          _SettingSlider(
-            icon: LucideIcons.droplet,
-            label: 'Background Opacity',
-            value: readerTheme.backgroundOpacity,
-            min: 0,
-            max: 1,
-            displayValue: readerTheme.backgroundOpacity.toStringAsFixed(2),
-            bgColor: accentSoftPalette[0],
-            fgColor: accentPalette[0],
-            onChanged: (value) {
-              updateTheme(readerTheme.copyWith(backgroundOpacity: value));
-            },
+          fade(
+            _SettingSlider(
+              icon: LucideIcons.droplet,
+              label: 'Background Opacity',
+              value: readerTheme.backgroundOpacity,
+              min: 0,
+              max: 1,
+              displayValue: readerTheme.backgroundOpacity.toStringAsFixed(2),
+              bgColor: accentSoftPalette[0],
+              fgColor: accentPalette[0],
+              onChanged: (value) {
+                updateTheme(readerTheme.copyWith(backgroundOpacity: value));
+              },
+              onChangeStart: (_) =>
+                  onSliderDragStart('reader_background_opacity'),
+              onChangeEnd: (_) => onSliderDragEnd('reader_background_opacity'),
+            ),
+            sliderId: 'reader_background_opacity',
           ),
           const SizedBox(height: 16),
-          _SettingsSectionTitle(title: 'Text Color'),
+          fade(_SettingsSectionTitle(title: 'Text Color')),
           const SizedBox(height: 10),
-          _ChoiceChipGroup<PlayerThemeTextColorMode>(
-            value: readerTheme.textColorMode,
-            onChanged: (value) {
-              updateTheme(
-                readerTheme.copyWith(
-                  textColorMode: value,
-                  textColor: value == PlayerThemeTextColorMode.fixed
-                      ? (readerTheme.textColor ?? colorScheme.onSurface)
-                      : readerTheme.textColor,
+          fade(
+            _ChoiceChipGroup<PlayerThemeTextColorMode>(
+              value: readerTheme.textColorMode,
+              onChanged: (value) {
+                updateTheme(
+                  readerTheme.copyWith(
+                    textColorMode: value,
+                    textColor: value == PlayerThemeTextColorMode.fixed
+                        ? (readerTheme.textColor ?? colorScheme.onSurface)
+                        : readerTheme.textColor,
+                  ),
+                );
+              },
+              options: const [
+                _ChoiceOption(
+                  label: 'Auto',
+                  value: PlayerThemeTextColorMode.auto,
                 ),
-              );
-            },
-            options: const [
-              _ChoiceOption(
-                label: 'Auto',
-                value: PlayerThemeTextColorMode.auto,
-              ),
-              _ChoiceOption(
-                label: 'Fixed',
-                value: PlayerThemeTextColorMode.fixed,
-              ),
-            ],
+                _ChoiceOption(
+                  label: 'Fixed',
+                  value: PlayerThemeTextColorMode.fixed,
+                ),
+              ],
+            ),
           ),
           if (readerTheme.textColorMode == PlayerThemeTextColorMode.fixed) ...[
             const SizedBox(height: 12),
-            _ColorSwatchRow(
-              colors: [
-                colorScheme.onSurface,
-                colorScheme.onSurfaceVariant,
-                colorScheme.primary,
-                Colors.white,
-                Colors.black,
-              ],
-              selected: readerTheme.textColor,
-              onChanged: (value) {
-                updateTheme(readerTheme.copyWith(textColor: value));
-              },
+            fade(
+              _ColorSwatchRow(
+                colors: [
+                  colorScheme.onSurface,
+                  colorScheme.onSurfaceVariant,
+                  colorScheme.primary,
+                  Colors.white,
+                  Colors.black,
+                ],
+                selected: readerTheme.textColor,
+                onChanged: (value) {
+                  updateTheme(readerTheme.copyWith(textColor: value));
+                },
+              ),
             ),
           ],
           const SizedBox(height: 16),
-          _SettingsSectionTitle(title: 'Preview'),
+          fade(_SettingsSectionTitle(title: 'Preview')),
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceVariant.withAlpha(120),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              previewText,
-              style: previewStyle,
+          fade(
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceVariant.withAlpha(120),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                previewText,
+                style: previewStyle,
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          Center(
-            child: TextButton(
-              onPressed: () {
-                ref.read(playerThemeProvider.notifier).reset();
-              },
-              child: Text(
-                'Reset Reader Defaults',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+          fade(
+            Center(
+              child: TextButton(
+                onPressed: () {
+                  ref.read(playerThemeProvider.notifier).reset();
+                },
+                child: Text(
+                  'Reset Reader Defaults',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ),
@@ -808,6 +990,8 @@ class _SettingSlider extends StatelessWidget {
   final Color bgColor;
   final Color fgColor;
   final ValueChanged<double> onChanged;
+  final ValueChanged<double>? onChangeStart;
+  final ValueChanged<double>? onChangeEnd;
 
   const _SettingSlider({
     required this.icon,
@@ -820,6 +1004,8 @@ class _SettingSlider extends StatelessWidget {
     required this.bgColor,
     required this.fgColor,
     required this.onChanged,
+    this.onChangeStart,
+    this.onChangeEnd,
   });
 
   @override
@@ -901,6 +1087,8 @@ class _SettingSlider extends StatelessWidget {
                     max: max,
                     divisions: divisions,
                     onChanged: onChanged,
+                    onChangeStart: onChangeStart,
+                    onChangeEnd: onChangeEnd,
                   ),
                 ),
               ),
@@ -977,6 +1165,38 @@ class _SettingsSectionTitle extends StatelessWidget {
         letterSpacing: 1,
         fontWeight: FontWeight.w700,
         color: colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+class FadeOnSliderDrag extends StatelessWidget {
+  final bool isDragging;
+  final String? activeSliderId;
+  final String? sliderId;
+  final Widget child;
+  final Duration duration;
+
+  const FadeOnSliderDrag({
+    super.key,
+    required this.isDragging,
+    required this.activeSliderId,
+    required this.child,
+    this.sliderId,
+    this.duration = const Duration(milliseconds: 120),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = sliderId != null && sliderId == activeSliderId;
+    final shouldFade = isDragging && !isActive;
+    return IgnorePointer(
+      ignoring: shouldFade,
+      child: AnimatedOpacity(
+        opacity: shouldFade ? 0.0 : 1.0,
+        duration: duration,
+        curve: Curves.easeOut,
+        child: child,
       ),
     );
   }
