@@ -94,17 +94,41 @@ class SettingsWheel extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
                     Expanded(
-                      child: TabBarView(
-                        children: [
-                          _AudioSettingsTab(
-                            accentPalette: accentPalette,
-                            accentSoftPalette: accentSoftPalette,
-                          ),
-                          _ReaderSettingsTab(
-                            accentPalette: accentPalette,
-                            accentSoftPalette: accentSoftPalette,
-                          ),
-                        ],
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          const tabGutter = 24.0;
+                          return ClipRect(
+                            child: OverflowBox(
+                              alignment: Alignment.center,
+                              maxWidth: constraints.maxWidth + tabGutter,
+                              child: SizedBox(
+                                width: constraints.maxWidth + tabGutter,
+                                child: TabBarView(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: tabGutter / 2,
+                                      ),
+                                      child: _AudioSettingsTab(
+                                        accentPalette: accentPalette,
+                                        accentSoftPalette: accentSoftPalette,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: tabGutter / 2,
+                                      ),
+                                      child: _ReaderSettingsTab(
+                                        accentPalette: accentPalette,
+                                        accentSoftPalette: accentSoftPalette,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -802,11 +826,27 @@ class _SettingSlider extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
+    final step = _resolveStep();
+    final canDecrease = value > min + 0.0001;
+    final canIncrease = value < max - 0.0001;
+
+    void updateByStep(int direction) {
+      final target = (value + step * direction).clamp(min, max);
+      final snapped = min + (((target - min) / step).round()) * step;
+      onChanged(snapped.clamp(min, max).toDouble());
+    }
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withAlpha(12),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -814,10 +854,11 @@ class _SettingSlider extends StatelessWidget {
           Row(
             children: [
               Icon(icon, size: 20, color: fgColor),
-              const SizedBox(width: 8),
+              const SizedBox(width: 14),
               Text(
                 label.toUpperCase(),
                 style: textTheme.labelSmall?.copyWith(
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1,
                   color: colorScheme.onSurfaceVariant,
@@ -833,25 +874,89 @@ class _SettingSlider extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          SliderTheme(
-            data: SliderThemeData(
-              activeTrackColor: fgColor,
-              inactiveTrackColor: fgColor.withAlpha(50),
-              thumbColor: fgColor,
-              overlayColor: fgColor.withAlpha(30),
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-            ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              divisions: divisions,
-              onChanged: onChanged,
-            ),
+          // const SizedBox(height: 4),
+          Row(
+            children: [
+              _SliderStepButton(
+                icon: LucideIcons.minus,
+                enabled: canDecrease,
+                onTap: () => updateByStep(-1),
+                color: fgColor,
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: fgColor,
+                    inactiveTrackColor: fgColor.withAlpha(50),
+                    thumbColor: fgColor,
+                    overlayColor: fgColor.withAlpha(30),
+                    trackHeight: 2.5,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 7),
+                  ),
+                  child: Slider(
+                    value: value,
+                    min: min,
+                    max: max,
+                    divisions: divisions,
+                    onChanged: onChanged,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              _SliderStepButton(
+                icon: LucideIcons.plus,
+                enabled: canIncrease,
+                onTap: () => updateByStep(1),
+                color: fgColor,
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  double _resolveStep() {
+    final range = (max - min).abs();
+    if (divisions != null && divisions! > 0) {
+      return range / divisions!;
+    }
+    if (range <= 1) return 0.05;
+    if (range <= 2) return 0.1;
+    if (range <= 5) return 0.2;
+    if (range <= 10) return 0.5;
+    if (range <= 25) return 1;
+    if (range <= 50) return 2;
+    return 5;
+  }
+}
+
+class _SliderStepButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  final Color color;
+
+  const _SliderStepButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: enabled ? 1 : 0.4,
+      child: IconButton(
+        onPressed: enabled ? onTap : null,
+        icon: Icon(icon, size: 16, color: color),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+        splashRadius: 18,
+        tooltip: icon == LucideIcons.minus ? 'Decrease' : 'Increase',
       ),
     );
   }
