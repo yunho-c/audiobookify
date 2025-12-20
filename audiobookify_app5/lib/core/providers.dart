@@ -1,10 +1,12 @@
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
 import '../services/book_service.dart';
 import '../services/tts_service.dart';
 import '../models/player_settings.dart';
+import '../models/player_theme_settings.dart';
 import 'app_theme.dart';
 
 /// ObjectBox Store provider - overridden in main.dart
@@ -123,6 +125,155 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
 final playerSettingsProvider =
     NotifierProvider<PlayerSettingsNotifier, PlayerSettings>(
       () => PlayerSettingsNotifier(),
+    );
+
+/// Player theme settings notifier with persistence.
+class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
+  static const _fontFamilyKey = 'player_theme_font_family';
+  static const _fontSizeKey = 'player_theme_font_size';
+  static const _lineHeightKey = 'player_theme_line_height';
+  static const _paragraphSpacingKey = 'player_theme_paragraph_spacing';
+  static const _paragraphIndentKey = 'player_theme_paragraph_indent';
+  static const _pagePaddingHorizontalKey = 'player_theme_page_padding_horizontal';
+  static const _pagePaddingVerticalKey = 'player_theme_page_padding_vertical';
+  static const _backgroundModeKey = 'player_theme_background_mode';
+  static const _backgroundImagePathKey = 'player_theme_background_image_path';
+  static const _backgroundBlurKey = 'player_theme_background_blur';
+  static const _backgroundOpacityKey = 'player_theme_background_opacity';
+  static const _textColorModeKey = 'player_theme_text_color_mode';
+  static const _textColorKey = 'player_theme_text_color';
+  static const _activeParagraphStyleKey = 'player_theme_active_paragraph_style';
+  static const _activeParagraphOpacityKey =
+      'player_theme_active_paragraph_opacity';
+
+  @override
+  PlayerThemeSettings build() {
+    return _loadFromPrefs();
+  }
+
+  PlayerThemeSettings _loadFromPrefs() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final defaultTheme = const PlayerThemeSettings();
+    final fontFamily = prefs.getString(_fontFamilyKey);
+    final textColorValue = prefs.getInt(_textColorKey);
+
+    return PlayerThemeSettings(
+      fontFamily:
+          (fontFamily == null || fontFamily.trim().isEmpty) ? null : fontFamily,
+      fontSize: prefs.getDouble(_fontSizeKey) ?? defaultTheme.fontSize,
+      lineHeight: prefs.getDouble(_lineHeightKey) ?? defaultTheme.lineHeight,
+      paragraphSpacing:
+          prefs.getDouble(_paragraphSpacingKey) ??
+              defaultTheme.paragraphSpacing,
+      paragraphIndent:
+          prefs.getDouble(_paragraphIndentKey) ?? defaultTheme.paragraphIndent,
+      pagePaddingHorizontal:
+          prefs.getDouble(_pagePaddingHorizontalKey) ??
+              defaultTheme.pagePaddingHorizontal,
+      pagePaddingVertical:
+          prefs.getDouble(_pagePaddingVerticalKey) ??
+              defaultTheme.pagePaddingVertical,
+      backgroundMode: _readEnum<PlayerThemeBackgroundMode>(
+        prefs.getString(_backgroundModeKey),
+        PlayerThemeBackgroundMode.values,
+        defaultTheme.backgroundMode,
+      ),
+      backgroundImagePath: prefs.getString(_backgroundImagePathKey),
+      backgroundBlur:
+          prefs.getDouble(_backgroundBlurKey) ?? defaultTheme.backgroundBlur,
+      backgroundOpacity:
+          prefs.getDouble(_backgroundOpacityKey) ??
+              defaultTheme.backgroundOpacity,
+      textColorMode: _readEnum<PlayerThemeTextColorMode>(
+        prefs.getString(_textColorModeKey),
+        PlayerThemeTextColorMode.values,
+        defaultTheme.textColorMode,
+      ),
+      textColor: textColorValue == null ? null : Color(textColorValue),
+      activeParagraphStyle: _readEnum<PlayerThemeActiveParagraphStyle>(
+        prefs.getString(_activeParagraphStyleKey),
+        PlayerThemeActiveParagraphStyle.values,
+        defaultTheme.activeParagraphStyle,
+      ),
+      activeParagraphOpacity:
+          prefs.getDouble(_activeParagraphOpacityKey) ??
+              defaultTheme.activeParagraphOpacity,
+    );
+  }
+
+  static T _readEnum<T>(String? value, List<T> values, T fallback) {
+    if (value == null) return fallback;
+    for (final entry in values) {
+      if (entry is Enum && entry.name == value) {
+        return entry;
+      }
+    }
+    return fallback;
+  }
+
+  Future<void> _saveToPrefs(PlayerThemeSettings settings) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (settings.fontFamily == null ||
+        settings.fontFamily!.trim().isEmpty) {
+      await prefs.remove(_fontFamilyKey);
+    } else {
+      await prefs.setString(_fontFamilyKey, settings.fontFamily!.trim());
+    }
+    await prefs.setDouble(_fontSizeKey, settings.fontSize);
+    await prefs.setDouble(_lineHeightKey, settings.lineHeight);
+    await prefs.setDouble(_paragraphSpacingKey, settings.paragraphSpacing);
+    await prefs.setDouble(_paragraphIndentKey, settings.paragraphIndent);
+    await prefs.setDouble(
+      _pagePaddingHorizontalKey,
+      settings.pagePaddingHorizontal,
+    );
+    await prefs.setDouble(
+      _pagePaddingVerticalKey,
+      settings.pagePaddingVertical,
+    );
+    await prefs.setString(_backgroundModeKey, settings.backgroundMode.name);
+    if (settings.backgroundImagePath == null ||
+        settings.backgroundImagePath!.trim().isEmpty) {
+      await prefs.remove(_backgroundImagePathKey);
+    } else {
+      await prefs.setString(
+        _backgroundImagePathKey,
+        settings.backgroundImagePath!.trim(),
+      );
+    }
+    await prefs.setDouble(_backgroundBlurKey, settings.backgroundBlur);
+    await prefs.setDouble(_backgroundOpacityKey, settings.backgroundOpacity);
+    await prefs.setString(_textColorModeKey, settings.textColorMode.name);
+    if (settings.textColor == null) {
+      await prefs.remove(_textColorKey);
+    } else {
+      await prefs.setInt(_textColorKey, settings.textColor!.value);
+    }
+    await prefs.setString(
+      _activeParagraphStyleKey,
+      settings.activeParagraphStyle.name,
+    );
+    await prefs.setDouble(
+      _activeParagraphOpacityKey,
+      settings.activeParagraphOpacity,
+    );
+  }
+
+  void setTheme(PlayerThemeSettings settings) {
+    state = settings;
+    _saveToPrefs(state);
+  }
+
+  void reset() {
+    state = const PlayerThemeSettings();
+    _saveToPrefs(state);
+  }
+}
+
+/// Player theme settings provider.
+final playerThemeProvider =
+    NotifierProvider<PlayerThemeSettingsNotifier, PlayerThemeSettings>(
+      PlayerThemeSettingsNotifier.new,
     );
 
 // ========================================
