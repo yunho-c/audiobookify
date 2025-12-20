@@ -9,6 +9,8 @@ import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../models/book.dart';
 import '../src/rust/api/epub.dart';
+import '../widgets/shared/glass_icon_button.dart';
+import '../widgets/shared/pressable.dart';
 
 /// Book detail screen with cover, stats, and chapter list
 class BookDetailScreen extends ConsumerStatefulWidget {
@@ -177,7 +179,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                     child: Row(
                       children: [
-                        _GlassIconButton(
+                        GlassIconButton(
                           icon: LucideIcons.arrowLeft,
                           onTap: () => context.pop(),
                         ),
@@ -256,8 +258,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      _FadeTap(
+                      Pressable(
                         onTap: () => context.push('/player/${book.id}'),
+                        pressedScale: 1,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
@@ -670,8 +673,9 @@ class _TocItem extends ConsumerWidget {
     final percent = buckets.isEmpty
         ? 0
         : ((listenedCount / buckets.length) * 100).round();
-    return _FadeTap(
+    return Pressable(
       onTap: () => context.push('/player/$bookId?chapter=$index'),
+      pressedScale: 1,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Column(
@@ -968,103 +972,6 @@ class _DetailBackdrop extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _GlassIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _GlassIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final extras = Theme.of(context).extension<AppThemeExtras>();
-    final glassBackground =
-        extras?.glassBackground ?? colorScheme.surface.withAlpha(200);
-    final glassBorder =
-        extras?.glassBorder ?? colorScheme.onSurface.withAlpha(40);
-    final glassShadow =
-        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(30);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: glassShadow,
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: _FadeTap(
-            onTap: onTap,
-            pressedOpacity: 0.7,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: glassBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: glassBorder, width: 1),
-              ),
-              child: Icon(
-                icon,
-                color: colorScheme.onSurface,
-                size: 20,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FadeTap extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final double pressedOpacity;
-  final Duration duration;
-
-  const _FadeTap({
-    required this.child,
-    this.onTap,
-    this.pressedOpacity = 0.75,
-    this.duration = const Duration(milliseconds: 140),
-  });
-
-  @override
-  State<_FadeTap> createState() => _FadeTapState();
-}
-
-class _FadeTapState extends State<_FadeTap> {
-  bool _isPressed = false;
-
-  void _setPressed(bool value) {
-    if (_isPressed == value) return;
-    setState(() => _isPressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
-      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap,
-      child: AnimatedOpacity(
-        duration: widget.duration,
-        opacity: _isPressed ? widget.pressedOpacity : 1,
-        child: widget.child,
-      ),
     );
   }
 }

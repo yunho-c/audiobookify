@@ -17,6 +17,8 @@ import '../models/book.dart';
 import '../models/player_theme_settings.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/settings_wheel.dart';
+import '../widgets/shared/glass_icon_button.dart';
+import '../widgets/shared/pressable.dart';
 
 /// Player screen with text reader, TTS audio controls, and settings
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -679,7 +681,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   child: Row(
                     children: [
-                      _GlassIconButton(
+                      GlassIconButton(
                         icon: LucideIcons.arrowLeft,
                         onTap: () {
                           _saveProgress();
@@ -711,7 +713,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         ),
                       ),
                       const SizedBox(width: 12),
-                      _GlassIconButton(
+                      GlassIconButton(
                         icon: LucideIcons.settings2,
                         onTap: _openSettings,
                       ),
@@ -769,8 +771,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           final shadowOpacity =
                               (activeParagraphOpacity * 0.9).clamp(0.08, 0.3);
 
-                          return _FadeTap(
+                          return Pressable(
                             pressedOpacity: 0.78,
+                            pressedScale: 1,
                             onTap: () {
                               ref
                                   .read(ttsProvider.notifier)
@@ -1156,62 +1159,6 @@ class _AmbientBackground extends StatelessWidget {
   }
 }
 
-class _GlassIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _GlassIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final extras = Theme.of(context).extension<AppThemeExtras>();
-    final glassBackground =
-        extras?.glassBackground ?? colorScheme.surface.withAlpha(200);
-    final glassBorder =
-        extras?.glassBorder ?? colorScheme.onSurface.withAlpha(40);
-    final glassShadow =
-        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(30);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: glassShadow,
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: _FadeTap(
-            onTap: onTap,
-            pressedOpacity: 0.7,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: glassBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: glassBorder, width: 1),
-              ),
-              child: Icon(
-                icon,
-                color: colorScheme.onSurface,
-                size: 20,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _RoundedControlButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
@@ -1246,9 +1193,10 @@ class _RoundedControlButton extends StatelessWidget {
 
     return Opacity(
       opacity: onTap == null ? 0.45 : 1,
-      child: _FadeTap(
+      child: Pressable(
         onTap: onTap,
         pressedOpacity: 0.7,
+        pressedScale: 1,
         child: Container(
           width: size,
           height: size,
@@ -1262,47 +1210,6 @@ class _RoundedControlButton extends StatelessWidget {
           ),
           child: Center(child: content),
         ),
-      ),
-    );
-  }
-}
-
-class _FadeTap extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final double pressedOpacity;
-  final Duration duration;
-
-  const _FadeTap({
-    required this.child,
-    this.onTap,
-    this.pressedOpacity = 0.75,
-    this.duration = const Duration(milliseconds: 140),
-  });
-
-  @override
-  State<_FadeTap> createState() => _FadeTapState();
-}
-
-class _FadeTapState extends State<_FadeTap> {
-  bool _isPressed = false;
-
-  void _setPressed(bool value) {
-    if (_isPressed == value) return;
-    setState(() => _isPressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
-      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap,
-      child: AnimatedOpacity(
-        duration: widget.duration,
-        opacity: _isPressed ? widget.pressedOpacity : 1,
-        child: widget.child,
       ),
     );
   }

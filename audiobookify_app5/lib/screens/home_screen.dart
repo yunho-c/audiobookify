@@ -1,13 +1,13 @@
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../widgets/book_card.dart';
+import '../widgets/shared/pressable.dart';
 import '../models/book.dart';
 
 /// Home screen with book grid from ObjectBox database
@@ -290,9 +290,10 @@ class _ContinueListeningCard extends StatelessWidget {
         ? 'Chapter $resumeChapter of ${book.chapterCount}'
         : 'Resume listening';
 
-    return _FadeTap(
+    return Pressable(
       onTap: () =>
           context.push('/player/${book.id}?chapter=$resumeChapter'),
+      haptic: PressableHaptic.selection,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -483,58 +484,6 @@ class _GlowOrb extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-        ),
-      ),
-    );
-  }
-}
-
-class _FadeTap extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final double pressedOpacity;
-  final double pressedScale;
-  final Duration duration;
-
-  const _FadeTap({
-    required this.child,
-    this.onTap,
-    this.pressedOpacity = 0.75,
-    this.pressedScale = 0.98,
-    this.duration = const Duration(milliseconds: 140),
-  });
-
-  @override
-  State<_FadeTap> createState() => _FadeTapState();
-}
-
-class _FadeTapState extends State<_FadeTap> {
-  bool _isPressed = false;
-
-  void _setPressed(bool value) {
-    if (_isPressed == value) return;
-    setState(() => _isPressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
-      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              HapticFeedback.selectionClick();
-              widget.onTap!();
-            },
-      child: AnimatedOpacity(
-        duration: widget.duration,
-        opacity: _isPressed ? widget.pressedOpacity : 1,
-        child: AnimatedScale(
-          duration: widget.duration,
-          scale: _isPressed ? widget.pressedScale : 1,
-          child: widget.child,
         ),
       ),
     );
