@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
+import '../models/player_settings.dart';
 import '../models/player_theme_settings.dart';
 
 /// Audio settings modal with interactive sliders for speed and pitch
@@ -23,7 +25,7 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
 
   void _handleSliderDragStart(String sliderId) {
     if (_activeSliderId == sliderId && _isSliderDragging) return;
-    setState(() {
+    _setStateSafely(() {
       _activeSliderId = sliderId;
       _isSliderDragging = true;
     });
@@ -31,10 +33,24 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
 
   void _handleSliderDragEnd(String sliderId) {
     if (!_isSliderDragging) return;
-    setState(() {
+    _setStateSafely(() {
       _isSliderDragging = false;
       _activeSliderId = null;
     });
+  }
+
+  void _setStateSafely(VoidCallback update) {
+    if (!mounted) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(update);
+      });
+      return;
+    }
+    setState(update);
   }
 
   @override
@@ -202,7 +218,7 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
   }
 }
 
-class _AudioSettingsTab extends ConsumerWidget {
+class _AudioSettingsTab extends ConsumerStatefulWidget {
   final bool isDragging;
   final String? activeSliderId;
   final ValueChanged<String> onSliderDragStart;
@@ -220,14 +236,70 @@ class _AudioSettingsTab extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AudioSettingsTab> createState() => _AudioSettingsTabState();
+}
+
+class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
+  late double _speedValue;
+  late double _pitchValue;
+  bool _editingSpeed = false;
+  bool _editingPitch = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = ref.read(playerSettingsProvider);
+    _speedValue = settings.speed;
+    _pitchValue = settings.pitch;
+  }
+
+  void _syncFromSettings(PlayerSettings settings) {
+    if (!_editingSpeed && settings.speed != _speedValue) {
+      _setStateSafely(() => _speedValue = settings.speed);
+    }
+    if (!_editingPitch && settings.pitch != _pitchValue) {
+      _setStateSafely(() => _pitchValue = settings.pitch);
+    }
+  }
+
+  void _setStateSafely(VoidCallback update) {
+    if (!mounted) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(update);
+      });
+      return;
+    }
+    setState(update);
+  }
+
+  void _scheduleProviderUpdate(VoidCallback update) {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => update());
+      return;
+    }
+    update();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(playerSettingsProvider);
+    ref.listen<PlayerSettings>(playerSettingsProvider, (previous, next) {
+      _syncFromSettings(next);
+    });
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final accentPalette = widget.accentPalette;
+    final accentSoftPalette = widget.accentSoftPalette;
     Widget fade(Widget child, {String? sliderId}) {
       return FadeOnSliderDrag(
-        isDragging: isDragging,
-        activeSliderId: activeSliderId,
+        isDragging: widget.isDragging,
+        activeSliderId: widget.activeSliderId,
         sliderId: sliderId,
         child: child,
       );
@@ -244,17 +316,26 @@ class _AudioSettingsTab extends ConsumerWidget {
             _SettingSlider(
               icon: LucideIcons.gauge,
               label: 'Speed',
-              value: settings.speed,
+              value: _speedValue,
               min: 0.5,
               max: 2.0,
-              displayValue: '${settings.speed.toStringAsFixed(1)}x',
+              displayValue: '${_speedValue.toStringAsFixed(1)}x',
               bgColor: accentSoftPalette[0],
               fgColor: accentPalette[0],
               onChanged: (value) {
-                ref.read(playerSettingsProvider.notifier).setSpeed(value);
+                if (!mounted) return;
+                setState(() => _speedValue = value);
               },
-              onChangeStart: (_) => onSliderDragStart('audio_speed'),
-              onChangeEnd: (_) => onSliderDragEnd('audio_speed'),
+              onChangeStart: (_) {
+                _editingSpeed = true;
+              },
+              onChangeEnd: (_) {
+                _editingSpeed = false;
+                final notifier = ref.read(playerSettingsProvider.notifier);
+                _scheduleProviderUpdate(
+                  () => notifier.setSpeed(_speedValue),
+                );
+              },
             ),
             sliderId: 'audio_speed',
           ),
@@ -263,17 +344,26 @@ class _AudioSettingsTab extends ConsumerWidget {
             _SettingSlider(
               icon: LucideIcons.music,
               label: 'Pitch',
-              value: settings.pitch,
+              value: _pitchValue,
               min: 0.5,
               max: 2.0,
-              displayValue: settings.pitch.toStringAsFixed(1),
+              displayValue: _pitchValue.toStringAsFixed(1),
               bgColor: accentSoftPalette[1],
               fgColor: accentPalette[1],
               onChanged: (value) {
-                ref.read(playerSettingsProvider.notifier).setPitch(value);
+                if (!mounted) return;
+                setState(() => _pitchValue = value);
               },
-              onChangeStart: (_) => onSliderDragStart('audio_pitch'),
-              onChangeEnd: (_) => onSliderDragEnd('audio_pitch'),
+              onChangeStart: (_) {
+                _editingPitch = true;
+              },
+              onChangeEnd: (_) {
+                _editingPitch = false;
+                final notifier = ref.read(playerSettingsProvider.notifier);
+                _scheduleProviderUpdate(
+                  () => notifier.setPitch(_pitchValue),
+                );
+              },
             ),
             sliderId: 'audio_pitch',
           ),
@@ -1175,7 +1265,10 @@ class FadeOnSliderDrag extends StatelessWidget {
   final String? activeSliderId;
   final String? sliderId;
   final Widget child;
-  final Duration duration;
+  final Duration fadeOutDuration;
+  final Duration fadeInDuration;
+  final Curve curve;
+  final bool disableWhenActiveAudio;
 
   const FadeOnSliderDrag({
     super.key,
@@ -1183,19 +1276,28 @@ class FadeOnSliderDrag extends StatelessWidget {
     required this.activeSliderId,
     required this.child,
     this.sliderId,
-    this.duration = const Duration(milliseconds: 120),
+    this.fadeOutDuration = const Duration(milliseconds: 220),
+    this.fadeInDuration = const Duration(milliseconds: 120),
+    this.curve = Curves.easeInOutCubic,
+    this.disableWhenActiveAudio = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final isActive = sliderId != null && sliderId == activeSliderId;
+    if (disableWhenActiveAudio &&
+        activeSliderId != null &&
+        activeSliderId!.startsWith('audio_')) {
+      return child;
+    }
     final shouldFade = isDragging && !isActive;
+    final duration = shouldFade ? fadeOutDuration : fadeInDuration;
     return IgnorePointer(
       ignoring: shouldFade,
       child: AnimatedOpacity(
         opacity: shouldFade ? 0.0 : 1.0,
         duration: duration,
-        curve: Curves.easeOut,
+        curve: curve,
         child: child,
       ),
     );
