@@ -131,6 +131,7 @@ final playerSettingsProvider =
 class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
   static const _fontFamilyKey = 'player_theme_font_family';
   static const _fontSizeKey = 'player_theme_font_size';
+  static const _fontWeightKey = 'player_theme_font_weight';
   static const _lineHeightKey = 'player_theme_line_height';
   static const _paragraphSpacingKey = 'player_theme_paragraph_spacing';
   static const _paragraphIndentKey = 'player_theme_paragraph_indent';
@@ -161,6 +162,9 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
       fontFamily:
           (fontFamily == null || fontFamily.trim().isEmpty) ? null : fontFamily,
       fontSize: prefs.getDouble(_fontSizeKey) ?? defaultTheme.fontSize,
+      fontWeight: _sanitizeFontWeight(
+        prefs.getInt(_fontWeightKey) ?? defaultTheme.fontWeight,
+      ),
       lineHeight: prefs.getDouble(_lineHeightKey) ?? defaultTheme.lineHeight,
       paragraphSpacing:
           prefs.getDouble(_paragraphSpacingKey) ??
@@ -211,6 +215,11 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
     return fallback;
   }
 
+  static int _sanitizeFontWeight(int weight) {
+    final rounded = ((weight / 100).round() * 100).clamp(100, 900);
+    return rounded;
+  }
+
   Future<void> _saveToPrefs(PlayerThemeSettings settings) async {
     final prefs = ref.read(sharedPreferencesProvider);
     if (settings.fontFamily == null ||
@@ -220,6 +229,10 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
       await prefs.setString(_fontFamilyKey, settings.fontFamily!.trim());
     }
     await prefs.setDouble(_fontSizeKey, settings.fontSize);
+    await prefs.setInt(
+      _fontWeightKey,
+      _sanitizeFontWeight(settings.fontWeight),
+    );
     await prefs.setDouble(_lineHeightKey, settings.lineHeight);
     await prefs.setDouble(_paragraphSpacingKey, settings.paragraphSpacing);
     await prefs.setDouble(_paragraphIndentKey, settings.paragraphIndent);

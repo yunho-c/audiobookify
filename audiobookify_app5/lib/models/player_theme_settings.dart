@@ -11,6 +11,7 @@ enum PlayerThemeActiveParagraphStyle { highlight, underline, leftBar }
 class PlayerThemeSettings {
   final String? fontFamily;
   final double fontSize;
+  final int fontWeight;
   final double lineHeight;
   final double paragraphSpacing;
   final double paragraphIndent;
@@ -28,6 +29,7 @@ class PlayerThemeSettings {
   const PlayerThemeSettings({
     this.fontFamily,
     this.fontSize = 18.0,
+    this.fontWeight = 400,
     this.lineHeight = 1.8,
     this.paragraphSpacing = 4.0,
     this.paragraphIndent = 0.0,
@@ -46,6 +48,7 @@ class PlayerThemeSettings {
   PlayerThemeSettings copyWith({
     String? fontFamily,
     double? fontSize,
+    int? fontWeight,
     double? lineHeight,
     double? paragraphSpacing,
     double? paragraphIndent,
@@ -63,6 +66,7 @@ class PlayerThemeSettings {
     return PlayerThemeSettings(
       fontFamily: fontFamily ?? this.fontFamily,
       fontSize: fontSize ?? this.fontSize,
+      fontWeight: fontWeight ?? this.fontWeight,
       lineHeight: lineHeight ?? this.lineHeight,
       paragraphSpacing: paragraphSpacing ?? this.paragraphSpacing,
       paragraphIndent: paragraphIndent ?? this.paragraphIndent,
@@ -87,6 +91,7 @@ class PlayerThemeSettings {
           runtimeType == other.runtimeType &&
           fontFamily == other.fontFamily &&
           fontSize == other.fontSize &&
+          fontWeight == other.fontWeight &&
           lineHeight == other.lineHeight &&
           paragraphSpacing == other.paragraphSpacing &&
           paragraphIndent == other.paragraphIndent &&
@@ -105,6 +110,7 @@ class PlayerThemeSettings {
   int get hashCode => Object.hash(
         fontFamily,
         fontSize,
+        fontWeight,
         lineHeight,
         paragraphSpacing,
         paragraphIndent,
