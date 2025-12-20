@@ -77,8 +77,11 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
 
     return GestureDetector(
       onTap: widget.onClose,
-      child: Container(
-        color: colorScheme.scrim.withAlpha(120),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        color:
+            colorScheme.scrim.withAlpha(_isSliderDragging ? 0 : 120),
         child: Center(
           child: GestureDetector(
             onTap: () {}, // Prevent tap-through
@@ -99,10 +102,14 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(
-                                color:
-                                    Theme.of(context).shadowColor.withAlpha(50),
-                                blurRadius: 40,
-                                offset: const Offset(0, 10),
+                                color: Theme.of(context).shadowColor.withAlpha(
+                                      _isSliderDragging ? 204 : 50,
+                                    ),
+                                blurRadius: _isSliderDragging ? 20 : 40,
+                                offset: Offset(
+                                  0,
+                                  _isSliderDragging ? 18 : 10,
+                                ),
                               ),
                             ],
                           ),
@@ -112,7 +119,7 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                        padding: const EdgeInsets.fromLTRB(14, 20, 14, 16),
                         child: Column(
                           children: [
                     // Header
@@ -159,6 +166,7 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
                       child: LayoutBuilder(
                         builder: (context, constraints) {
                           const tabGutter = 24.0;
+                          const shadowInset = 6.0;
                           return ClipRect(
                             child: OverflowBox(
                               alignment: Alignment.center,
@@ -169,7 +177,7 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
                                   children: [
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: tabGutter / 2,
+                                        horizontal: tabGutter / 2 + shadowInset,
                                       ),
                                       child: _AudioSettingsTab(
                                         isDragging: _isSliderDragging,
@@ -183,7 +191,7 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
                                     ),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: tabGutter / 2,
+                                        horizontal: tabGutter / 2 + shadowInset,
                                       ),
                                       child: _ReaderSettingsTab(
                                         isDragging: _isSliderDragging,
@@ -307,6 +315,7 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.none,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -488,6 +497,7 @@ class _ReaderSettingsTab extends ConsumerWidget {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.none,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1069,7 +1079,7 @@ class _ReaderSettingsTab extends ConsumerWidget {
 }
 
 /// Interactive slider for a single setting
-class _SettingSlider extends StatelessWidget {
+class _SettingSlider extends StatefulWidget {
   final IconData icon;
   final String label;
   final double value;
@@ -1099,26 +1109,39 @@ class _SettingSlider extends StatelessWidget {
   });
 
   @override
+  State<_SettingSlider> createState() => _SettingSliderState();
+}
+
+class _SettingSliderState extends State<_SettingSlider> {
+  bool _isDragging = false;
+
+  @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final step = _resolveStep();
-    final canDecrease = value > min + 0.0001;
-    final canIncrease = value < max - 0.0001;
+    final canDecrease = widget.value > widget.min + 0.0001;
+    final canIncrease = widget.value < widget.max - 0.0001;
 
     void updateByStep(int direction) {
-      final target = (value + step * direction).clamp(min, max);
-      final snapped = min + (((target - min) / step).round()) * step;
-      onChanged(snapped.clamp(min, max).toDouble());
+      final target =
+          (widget.value + step * direction).clamp(widget.min, widget.max);
+      final snapped =
+          widget.min + (((target - widget.min) / step).round()) * step;
+      widget.onChanged(snapped.clamp(widget.min, widget.max).toDouble());
     }
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: widget.bgColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).shadowColor.withAlpha(12),
+            color: Theme.of(context)
+                .shadowColor
+                .withAlpha(_isDragging ? 160 : 12),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1129,10 +1152,10 @@ class _SettingSlider extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: fgColor),
+              Icon(widget.icon, size: 20, color: widget.fgColor),
               const SizedBox(width: 14),
               Text(
-                label.toUpperCase(),
+                widget.label.toUpperCase(),
                 style: textTheme.labelSmall?.copyWith(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
@@ -1142,7 +1165,7 @@ class _SettingSlider extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                displayValue,
+                widget.displayValue,
                 style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: colorScheme.onSurface,
@@ -1157,28 +1180,34 @@ class _SettingSlider extends StatelessWidget {
                 icon: LucideIcons.minus,
                 enabled: canDecrease,
                 onTap: () => updateByStep(-1),
-                color: fgColor,
+                color: widget.fgColor,
               ),
               const SizedBox(width: 2),
               Expanded(
                 child: SliderTheme(
                   data: SliderThemeData(
-                    activeTrackColor: fgColor,
-                    inactiveTrackColor: fgColor.withAlpha(50),
-                    thumbColor: fgColor,
-                    overlayColor: fgColor.withAlpha(30),
+                    activeTrackColor: widget.fgColor,
+                    inactiveTrackColor: widget.fgColor.withAlpha(50),
+                    thumbColor: widget.fgColor,
+                    overlayColor: widget.fgColor.withAlpha(30),
                     trackHeight: 2.5,
                     thumbShape:
                         const RoundSliderThumbShape(enabledThumbRadius: 7),
                   ),
                   child: Slider(
-                    value: value,
-                    min: min,
-                    max: max,
-                    divisions: divisions,
-                    onChanged: onChanged,
-                    onChangeStart: onChangeStart,
-                    onChangeEnd: onChangeEnd,
+                    value: widget.value,
+                    min: widget.min,
+                    max: widget.max,
+                    divisions: widget.divisions,
+                    onChanged: widget.onChanged,
+                    onChangeStart: (value) {
+                      setState(() => _isDragging = true);
+                      widget.onChangeStart?.call(value);
+                    },
+                    onChangeEnd: (value) {
+                      setState(() => _isDragging = false);
+                      widget.onChangeEnd?.call(value);
+                    },
                   ),
                 ),
               ),
@@ -1187,7 +1216,7 @@ class _SettingSlider extends StatelessWidget {
                 icon: LucideIcons.plus,
                 enabled: canIncrease,
                 onTap: () => updateByStep(1),
-                color: fgColor,
+                color: widget.fgColor,
               ),
             ],
           ),
@@ -1197,9 +1226,9 @@ class _SettingSlider extends StatelessWidget {
   }
 
   double _resolveStep() {
-    final range = (max - min).abs();
-    if (divisions != null && divisions! > 0) {
-      return range / divisions!;
+    final range = (widget.max - widget.min).abs();
+    if (widget.divisions != null && widget.divisions! > 0) {
+      return range / widget.divisions!;
     }
     if (range <= 1) return 0.05;
     if (range <= 2) return 0.1;
