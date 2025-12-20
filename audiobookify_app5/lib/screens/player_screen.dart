@@ -28,9 +28,12 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
+class _PlayerScreenState extends ConsumerState<PlayerScreen>
+    with RouteAware, SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   List<GlobalKey> _paragraphKeys = [];
+  late final AnimationController _sentenceHighlightController;
+  late final Animation<double> _sentenceHighlightCurve;
 
   // Data
   Book? _book;
@@ -46,12 +49,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   int _currentChapterIndex = 0;
   int _lastScrolledToParagraph = -1;
   int _lastBucketParagraph = -1;
+  int _activeSentenceIndex = -1;
+  int _activeSentenceParagraphIndex = -1;
+  int _previousSentenceIndex = -1;
+  int _previousSentenceParagraphIndex = -1;
 
   @override
   void initState() {
     super.initState();
     _bookService = ref.read(bookServiceProvider);
     _ttsService = ref.read(ttsProvider.notifier);
+    _sentenceHighlightController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _sentenceHighlightCurve = CurvedAnimation(
+      parent: _sentenceHighlightController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _sentenceHighlightController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+    _sentenceHighlightController.addStatusListener((status) {
+      if (!mounted) return;
+      if (status == AnimationStatus.completed) {
+        setState(() {
+          _previousSentenceIndex = -1;
+          _previousSentenceParagraphIndex = -1;
+        });
+      }
+    });
     _initTts();
     _loadContent();
   }
@@ -280,6 +310,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     _ttsService.onComplete = null;
     Future.microtask(_ttsService.stop);
     _scrollController.dispose();
+    _sentenceHighlightController.dispose();
     super.dispose();
   }
 
@@ -291,6 +322,106 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
       return _epubBook!.toc[_currentChapterIndex].title;
     }
     return 'Chapter ${_currentChapterIndex + 1}';
+  }
+
+  void _startSentenceHighlightTransition(
+    int paragraphIndex,
+    int sentenceIndex,
+  ) {
+    if (!mounted) return;
+    if (sentenceIndex < 0) {
+      setState(() {
+        _activeSentenceIndex = -1;
+        _activeSentenceParagraphIndex = -1;
+        _previousSentenceIndex = -1;
+        _previousSentenceParagraphIndex = -1;
+      });
+      _sentenceHighlightController.value = 1;
+      return;
+    }
+    if (paragraphIndex == _activeSentenceParagraphIndex &&
+        sentenceIndex == _activeSentenceIndex) {
+      return;
+    }
+
+    setState(() {
+      _previousSentenceIndex = _activeSentenceIndex;
+      _previousSentenceParagraphIndex = _activeSentenceParagraphIndex;
+      _activeSentenceIndex = sentenceIndex;
+      _activeSentenceParagraphIndex = paragraphIndex;
+    });
+
+    _sentenceHighlightController.stop();
+    _sentenceHighlightController.value = 0;
+    _sentenceHighlightController.forward();
+  }
+
+  List<TextSpan> _buildSentenceSpans({
+    required List<String> sentences,
+    required int paragraphIndex,
+    required bool isActiveParagraph,
+    required int currentSentenceIndex,
+    required int previousSentenceIndex,
+    required int previousParagraphIndex,
+    required double transitionValue,
+    required PlayerThemeSettings readerTheme,
+    required ColorScheme colorScheme,
+    required TextTheme textTheme,
+    required PlayerThemeSentenceHighlightStyle highlightStyle,
+    required double highlightOpacity,
+  }) {
+    final spans = <TextSpan>[];
+
+    for (var sentenceIdx = 0;
+        sentenceIdx < sentences.length;
+        sentenceIdx++) {
+      final sentence = sentences[sentenceIdx];
+      final isCurrentSentence =
+          isActiveParagraph && sentenceIdx == currentSentenceIndex;
+      final isPreviousSentence =
+          paragraphIndex == previousParagraphIndex &&
+              sentenceIdx == previousSentenceIndex;
+      final highlightIntensity = isCurrentSentence
+          ? transitionValue
+          : isPreviousSentence
+          ? 1 - transitionValue
+          : 0.0;
+      final sentenceColor = _resolveReaderTextColor(
+        readerTheme,
+        colorScheme,
+        isActive: isCurrentSentence || isPreviousSentence,
+      );
+      final sentenceStyle = _buildReaderTextStyle(
+        baseStyle: textTheme.bodyLarge,
+        theme: readerTheme,
+        color: sentenceColor,
+      );
+
+      spans.add(
+        TextSpan(
+          text: sentence,
+          style: _applySentenceHighlight(
+            base: sentenceStyle,
+            isCurrent: highlightIntensity > 0,
+            highlightStyle: highlightStyle,
+            highlightColor: colorScheme.primary.withOpacity(highlightOpacity),
+            intensity: highlightIntensity,
+          ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () {
+              ref
+                  .read(ttsProvider.notifier)
+                  .jumpToSentence(paragraphIndex, sentenceIdx);
+            },
+        ),
+      );
+
+      if (sentenceIdx < sentences.length - 1) {
+        spans.add(TextSpan(text: ' ', style: sentenceStyle));
+      }
+    }
+
+    return spans;
   }
 
   Widget _wrapShadow({
@@ -382,17 +513,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
     required bool isCurrent,
     required PlayerThemeSentenceHighlightStyle highlightStyle,
     required Color highlightColor,
+    required double intensity,
   }) {
-    if (!isCurrent) {
+    if (!isCurrent || intensity <= 0) {
       return base;
     }
+    final resolvedColor =
+        highlightColor.withOpacity(highlightColor.opacity * intensity);
     switch (highlightStyle) {
       case PlayerThemeSentenceHighlightStyle.background:
-        return base.copyWith(backgroundColor: highlightColor);
+        return base.copyWith(backgroundColor: resolvedColor);
       case PlayerThemeSentenceHighlightStyle.underline:
         return base.copyWith(
           decoration: TextDecoration.underline,
-          decorationColor: highlightColor,
+          decorationColor: resolvedColor,
           decorationThickness: 1.6,
         );
     }
@@ -402,6 +536,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   Widget build(BuildContext context) {
     // Watch TTS state for reactive updates
     final ttsState = ref.watch(ttsProvider);
+    ref.listen<TtsPlaybackState>(ttsProvider, (previous, next) {
+      if (!mounted || _paragraphs.isEmpty) return;
+      final prevParagraph = previous?.paragraphIndex;
+      final prevSentence = previous?.sentenceIndex;
+      if (prevParagraph == next.paragraphIndex &&
+          prevSentence == next.sentenceIndex) {
+        return;
+      }
+      _startSentenceHighlightTransition(
+        next.paragraphIndex,
+        next.sentenceIndex,
+      );
+    });
     final readerTheme = ref.watch(playerThemeProvider);
     final isPlaying = ttsState.status == TtsStatus.playing;
     final currentParagraphIndex = ttsState.paragraphIndex;
@@ -696,71 +843,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
                                                 )
                                               : RichText(
                                                   text: TextSpan(
-                                                    children: sentences
-                                                        .asMap()
-                                                        .entries
-                                                        .map((entry) {
-                                                      final sentenceIdx =
-                                                          entry.key;
-                                                      final sentence =
-                                                          entry.value;
-                                                      final isCurrentSentence =
-                                                          isActiveParagraph &&
-                                                          sentenceIdx ==
-                                                              currentSentenceIndex;
-                                                      final sentenceColor =
-                                                          _resolveReaderTextColor(
-                                                        readerTheme,
-                                                        colorScheme,
-                                                        isActive:
-                                                            isCurrentSentence,
-                                                      );
-
-                                                      final sentenceStyle =
-                                                          _buildReaderTextStyle(
-                                                        baseStyle: textTheme
-                                                            .bodyLarge,
-                                                        theme: readerTheme,
-                                                        color: sentenceColor,
-                                                      );
-
-                                                      return TextSpan(
-                                                        text:
-                                                            sentence +
-                                                            (sentenceIdx <
-                                                                    sentences
-                                                                            .length -
-                                                                        1
-                                                                ? ' '
-                                                                : ''),
-                                                        style:
-                                                            _applySentenceHighlight(
-                                                          base: sentenceStyle,
-                                                          isCurrent:
-                                                              isCurrentSentence,
-                                                          highlightStyle:
-                                                              sentenceHighlightStyle,
-                                                          highlightColor:
-                                                              colorScheme.primary
-                                                                  .withOpacity(
-                                                            sentenceHighlightOpacity,
-                                                          ),
-                                                        ),
-                                                        recognizer:
-                                                            TapGestureRecognizer()
-                                                              ..onTap = () {
-                                                                ref
-                                                                    .read(
-                                                                      ttsProvider
-                                                                          .notifier,
-                                                                    )
-                                                                    .jumpToSentence(
-                                                                      index,
-                                                                      sentenceIdx,
-                                                                    );
-                                                              },
-                                                      );
-                                                    }).toList(),
+                                                    children:
+                                                        _buildSentenceSpans(
+                                                      sentences: sentences,
+                                                      paragraphIndex: index,
+                                                      isActiveParagraph:
+                                                          isActiveParagraph,
+                                                      currentSentenceIndex:
+                                                          currentSentenceIndex,
+                                                      previousSentenceIndex:
+                                                          _previousSentenceIndex,
+                                                      previousParagraphIndex:
+                                                          _previousSentenceParagraphIndex,
+                                                      transitionValue:
+                                                          _sentenceHighlightCurve
+                                                              .value,
+                                                      readerTheme: readerTheme,
+                                                      colorScheme: colorScheme,
+                                                      textTheme: textTheme,
+                                                      highlightStyle:
+                                                          sentenceHighlightStyle,
+                                                      highlightOpacity:
+                                                          sentenceHighlightOpacity,
+                                                    ),
                                                   ),
                                                 ),
                                       ),
