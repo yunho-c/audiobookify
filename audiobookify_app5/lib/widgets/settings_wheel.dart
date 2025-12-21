@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../models/backdrop_image.dart';
@@ -496,6 +498,7 @@ class _ReaderSettingsTab extends ConsumerStatefulWidget {
 
 class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
   Timer? _backdropPeekTimer;
+  static const int _maxBackdropFileSizeBytes = 15 * 1024 * 1024;
 
   @override
   void dispose() {
@@ -527,6 +530,75 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
 
   void _setBrightness(double value) {
     ref.read(backdropSettingsProvider.notifier).setBrightness(value);
+  }
+
+  Future<void> _handleUploadTap() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final picked = result.files.single;
+      if (picked.size > _maxBackdropFileSizeBytes) {
+        if (!mounted) return;
+        _showBackdropMessage(
+          context,
+          'Image is too large. Please pick one under 15 MB.',
+        );
+        return;
+      }
+
+      final sourcePath = picked.path;
+      if (sourcePath == null || sourcePath.trim().isEmpty) {
+        if (!mounted) return;
+        _showBackdropMessage(context, 'Unable to read the image.');
+        return;
+      }
+
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) {
+        if (!mounted) return;
+        _showBackdropMessage(context, 'Image file not found.');
+        return;
+      }
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final backdropDir = Directory('${appDir.path}/backdrops');
+      if (!await backdropDir.exists()) {
+        await backdropDir.create(recursive: true);
+      }
+
+      final id = DateTime.now().microsecondsSinceEpoch.toString();
+      final extension = _resolveFileExtension(sourcePath);
+      final destPath = '${backdropDir.path}/$id$extension';
+      await sourceFile.copy(destPath);
+
+      final image = BackdropImage(
+        id: id,
+        sourceType: BackdropSourceType.upload,
+        uri: destPath,
+      );
+
+      if (!mounted) return;
+      ref.read(backdropLibraryProvider.notifier).addImage(image);
+      _setBackdropSelection(image.id);
+      _triggerBackdropPeek();
+    } catch (_) {
+      if (!mounted) return;
+      _showBackdropMessage(context, 'Upload failed. Try again.');
+    }
+  }
+
+  String _resolveFileExtension(String path) {
+    final separator = Platform.pathSeparator;
+    final lastSeparator = path.lastIndexOf(separator);
+    final lastDot = path.lastIndexOf('.');
+    if (lastDot > lastSeparator) {
+      return path.substring(lastDot);
+    }
+    return '.jpg';
   }
 
   void _showBackdropMessage(BuildContext context, String message) {
@@ -910,9 +982,11 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
             fade(
               SizedBox(
                 height: 128,
-                child: ListView.separated(
+                child: Builder(builder: (context) {
+                  const showUnsplashButton = false; // Don't delete.
+                  return ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: backdrops.length + 2,
+                  itemCount: backdrops.length + 1 + (showUnsplashButton ? 1 : 0),
                   separatorBuilder: (_, __) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
                     if (index < backdrops.length) {
@@ -932,7 +1006,10 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
                         onLongPressEnd: _endBackdropHold,
                       );
                     }
-                    if (index == backdrops.length) {
+                    final unsplashIndex = backdrops.length;
+                    final uploadIndex =
+                        backdrops.length + (showUnsplashButton ? 1 : 0);
+                    if (showUnsplashButton && index == unsplashIndex) {
                       return _BackdropAddTile(
                         label: 'Unsplash',
                         icon: LucideIcons.search,
@@ -944,18 +1021,17 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
                         },
                       );
                     }
-                    return _BackdropAddTile(
-                      label: 'Upload',
-                      icon: LucideIcons.upload,
-                      onTap: () {
-                        _showBackdropMessage(
-                          context,
-                          'Upload support coming soon.',
-                        );
-                      },
-                    );
+                    if (index == uploadIndex) {
+                      return _BackdropAddTile(
+                        label: 'Upload',
+                        icon: LucideIcons.upload,
+                        onTap: _handleUploadTap,
+                      );
+                    }
+                    return const SizedBox.shrink();
                   },
-                ),
+                );
+                }),
               ),
               sliderId: 'backdrop_gallery',
             ),
