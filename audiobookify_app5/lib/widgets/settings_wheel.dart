@@ -19,13 +19,52 @@ class SettingsWheel extends ConsumerStatefulWidget {
   ConsumerState<SettingsWheel> createState() => _SettingsWheelState();
 }
 
+FontWeight _resolveFontWeight(int weight) {
+  final normalized = ((weight / 100).round() * 100).clamp(100, 900);
+  switch (normalized) {
+    case 100:
+      return FontWeight.w100;
+    case 200:
+      return FontWeight.w200;
+    case 300:
+      return FontWeight.w300;
+    case 400:
+      return FontWeight.w400;
+    case 500:
+      return FontWeight.w500;
+    case 600:
+      return FontWeight.w600;
+    case 700:
+      return FontWeight.w700;
+    case 800:
+      return FontWeight.w800;
+    case 900:
+      return FontWeight.w900;
+  }
+  return FontWeight.w400;
+}
+
+void _setStateSafely(State state, VoidCallback update) {
+  if (!state.mounted) return;
+  final phase = SchedulerBinding.instance.schedulerPhase;
+  if (phase == SchedulerPhase.persistentCallbacks ||
+      phase == SchedulerPhase.midFrameMicrotasks) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!state.mounted) return;
+      state.setState(update);
+    });
+    return;
+  }
+  state.setState(update);
+}
+
 class _SettingsWheelState extends ConsumerState<SettingsWheel> {
   String? _activeSliderId;
   bool _isSliderDragging = false;
 
   void _handleSliderDragStart(String sliderId) {
     if (_activeSliderId == sliderId && _isSliderDragging) return;
-    _setStateSafely(() {
+    _setStateSafely(this, () {
       _activeSliderId = sliderId;
       _isSliderDragging = true;
     });
@@ -33,24 +72,10 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
 
   void _handleSliderDragEnd(String sliderId) {
     if (!_isSliderDragging) return;
-    _setStateSafely(() {
+    _setStateSafely(this, () {
       _isSliderDragging = false;
       _activeSliderId = null;
     });
-  }
-
-  void _setStateSafely(VoidCallback update) {
-    if (!mounted) return;
-    final phase = SchedulerBinding.instance.schedulerPhase;
-    if (phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(update);
-      });
-      return;
-    }
-    setState(update);
   }
 
   @override
@@ -263,25 +288,11 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
 
   void _syncFromSettings(PlayerSettings settings) {
     if (!_editingSpeed && settings.speed != _speedValue) {
-      _setStateSafely(() => _speedValue = settings.speed);
+      _setStateSafely(this, () => _speedValue = settings.speed);
     }
     if (!_editingPitch && settings.pitch != _pitchValue) {
-      _setStateSafely(() => _pitchValue = settings.pitch);
+      _setStateSafely(this, () => _pitchValue = settings.pitch);
     }
-  }
-
-  void _setStateSafely(VoidCallback update) {
-    if (!mounted) return;
-    final phase = SchedulerBinding.instance.schedulerPhase;
-    if (phase == SchedulerPhase.persistentCallbacks ||
-        phase == SchedulerPhase.midFrameMicrotasks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(update);
-      });
-      return;
-    }
-    setState(update);
   }
 
   void _scheduleProviderUpdate(VoidCallback update) {
@@ -489,13 +500,6 @@ class _ReaderSettingsTab extends ConsumerWidget {
     void updateTheme(PlayerThemeSettings settings) {
       ref.read(playerThemeProvider.notifier).setTheme(settings);
     }
-
-    final previewText = '“We were somewhere around Barstow...”';
-    final previewStyle = _buildPreviewStyle(
-      readerTheme,
-      textTheme.bodyLarge,
-      colorScheme,
-    );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 12),
@@ -893,22 +897,6 @@ class _ReaderSettingsTab extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 16),
-          fade(_SettingsSectionTitle(title: 'Preview')),
-          const SizedBox(height: 10),
-          fade(
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceVariant.withAlpha(120),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                previewText,
-                style: previewStyle,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           fade(
             Center(
               child: TextButton(
@@ -927,57 +915,6 @@ class _ReaderSettingsTab extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  TextStyle _buildPreviewStyle(
-    PlayerThemeSettings theme,
-    TextStyle? baseStyle,
-    ColorScheme colorScheme,
-  ) {
-    final color = theme.textColorMode == PlayerThemeTextColorMode.fixed &&
-            theme.textColor != null
-        ? theme.textColor!
-        : colorScheme.onSurface;
-    final style = (baseStyle ?? const TextStyle()).copyWith(
-      fontSize: theme.fontSize,
-      fontWeight: _resolveFontWeight(theme.fontWeight),
-      height: theme.lineHeight,
-      color: color,
-    );
-    final family = theme.fontFamily;
-    if (family == null || family.trim().isEmpty) {
-      return style;
-    }
-    try {
-      return GoogleFonts.getFont(family, textStyle: style);
-    } catch (_) {
-      return style.copyWith(fontFamily: family);
-    }
-  }
-
-  FontWeight _resolveFontWeight(int weight) {
-    final normalized = ((weight / 100).round() * 100).clamp(100, 900);
-    switch (normalized) {
-      case 100:
-        return FontWeight.w100;
-      case 200:
-        return FontWeight.w200;
-      case 300:
-        return FontWeight.w300;
-      case 400:
-        return FontWeight.w400;
-      case 500:
-        return FontWeight.w500;
-      case 600:
-        return FontWeight.w600;
-      case 700:
-        return FontWeight.w700;
-      case 800:
-        return FontWeight.w800;
-      case 900:
-        return FontWeight.w900;
-    }
-    return FontWeight.w400;
   }
 
   PlayerThemeSettings _ambientPreset(PlayerThemeSettings base) {
@@ -1555,30 +1492,6 @@ class _FontFamilyPicker extends StatelessWidget {
     }
   }
 
-  static FontWeight _resolveFontWeight(int weight) {
-    final normalized = ((weight / 100).round() * 100).clamp(100, 900);
-    switch (normalized) {
-      case 100:
-        return FontWeight.w100;
-      case 200:
-        return FontWeight.w200;
-      case 300:
-        return FontWeight.w300;
-      case 400:
-        return FontWeight.w400;
-      case 500:
-        return FontWeight.w500;
-      case 600:
-        return FontWeight.w600;
-      case 700:
-        return FontWeight.w700;
-      case 800:
-        return FontWeight.w800;
-      case 900:
-        return FontWeight.w900;
-    }
-    return FontWeight.w400;
-  }
 
   static void _showFontPicker(
     BuildContext context, {
@@ -1703,11 +1616,11 @@ class _FontPickerSheet extends StatelessWidget {
     int fontWeight,
   ) {
     final baseStyle = textTheme.bodySmall?.copyWith(
-          fontWeight: _FontFamilyPicker._resolveFontWeight(fontWeight),
+          fontWeight: _resolveFontWeight(fontWeight),
           color: color,
         ) ??
         TextStyle(
-          fontWeight: _FontFamilyPicker._resolveFontWeight(fontWeight),
+          fontWeight: _resolveFontWeight(fontWeight),
           color: color,
         );
     if (family == null || family.trim().isEmpty) {
