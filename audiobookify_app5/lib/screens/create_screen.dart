@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../src/rust/api/epub.dart';
-import '../models/book.dart';
 
 /// Create screen with upload area and options
 class CreateScreen extends ConsumerStatefulWidget {
@@ -19,7 +18,6 @@ class CreateScreen extends ConsumerStatefulWidget {
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   bool _isLoading = false;
   EpubBook? _loadedBook;
-  Book? _savedBook;
   String? _errorMessage;
   String? _loadedFilePath;
 
@@ -416,9 +414,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                         final savedBook = ref
                             .read(bookServiceProvider)
                             .saveBook(_loadedBook!, _loadedFilePath!);
-                          setState(() {
-                            _savedBook = savedBook;
-                          });
 
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(

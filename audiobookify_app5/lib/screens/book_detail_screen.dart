@@ -11,6 +11,7 @@ import '../models/book.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
+import '../widgets/shared/state_scaffolds.dart';
 
 /// Book detail screen with cover, stats, and chapter list
 class BookDetailScreen extends ConsumerStatefulWidget {
@@ -100,44 +101,14 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Center(
-          child: CircularProgressIndicator(color: colorScheme.primary),
-        ),
-      );
+      return const LoadingScaffold();
     }
 
     if (_error != null || _book == null) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(LucideIcons.arrowLeft, color: colorScheme.onSurface),
-            onPressed: () => context.pop(),
-          ),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                LucideIcons.alertCircle,
-                size: 48,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _error ?? 'Book not found',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
+      return ErrorScaffold(
+        message: _error ?? 'Book not found',
+        onBack: () => context.pop(),
+        messageAlign: TextAlign.center,
       );
     }
 

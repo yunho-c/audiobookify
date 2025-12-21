@@ -8,6 +8,7 @@ import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../widgets/book_card.dart';
 import '../widgets/shared/pressable.dart';
+import '../widgets/shared/state_scaffolds.dart';
 import '../models/book.dart';
 
 /// Home screen with book grid from ObjectBox database
@@ -17,93 +18,87 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final booksAsync = ref.watch(booksProvider);
-    final colorScheme = Theme.of(context).colorScheme;
+    return booksAsync.when(
+      loading: () => const LoadingScaffold(),
+      error: (e, _) => ErrorScaffold(message: 'Error: $e'),
+      data: (books) {
+        final subtitle =
+            books.isEmpty ? 'Your library is empty' : 'Your library';
+        final continueBook = _selectContinueBook(books);
+        final continueChapter = continueBook != null
+            ? _estimatedResumeChapter(continueBook)
+            : null;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          const _HomeBackdrop(),
-          SafeArea(
-            child: booksAsync.when(
-              data: (books) {
-                final subtitle =
-                    books.isEmpty ? 'Your library is empty' : 'Your library';
-                final continueBook = _selectContinueBook(books);
-                final continueChapter = continueBook != null
-                    ? _estimatedResumeChapter(continueBook)
-                    : null;
-
-                if (books.isEmpty) {
-                  return CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                        sliver: SliverToBoxAdapter(
-                          child: _Header(
-                            subtitle: subtitle,
-                          ),
-                        ),
-                      ),
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _buildEmptyState(context),
-                      ),
-                    ],
-                  );
-                }
-
-                return CustomScrollView(
-                  slivers: [
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: _Header(subtitle: subtitle),
-                      ),
-                    ),
-                    if (continueBook != null)
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                        sliver: SliverToBoxAdapter(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const _SectionHeader(
-                                title: 'Continue Listening',
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Stack(
+            children: [
+              const _HomeBackdrop(),
+              SafeArea(
+                child: books.isEmpty
+                    ? CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                            sliver: SliverToBoxAdapter(
+                              child: _Header(
+                                subtitle: subtitle,
                               ),
-                              const SizedBox(height: 12),
-                              _ContinueListeningCard(
-                                book: continueBook,
-                                resumeChapter: continueChapter ?? 1,
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _buildEmptyState(context),
+                          ),
+                        ],
+                      )
+                    : CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                            sliver: SliverToBoxAdapter(
+                              child: _Header(subtitle: subtitle),
+                            ),
+                          ),
+                          if (continueBook != null)
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                              sliver: SliverToBoxAdapter(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const _SectionHeader(
+                                      title: 'Continue Listening',
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _ContinueListeningCard(
+                                      book: continueBook,
+                                      resumeChapter: continueChapter ?? 1,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                            sliver: SliverToBoxAdapter(
+                              child: _SectionHeader(
+                                title: 'Library',
+                                subtitle: '${books.length} titles',
+                              ),
+                            ),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                            sliver: _buildBookGrid(context, books),
+                          ),
+                        ],
                       ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                      sliver: SliverToBoxAdapter(
-                        child: _SectionHeader(
-                          title: 'Library',
-                          subtitle: '${books.length} titles',
-                        ),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                      sliver: _buildBookGrid(context, books),
-                    ),
-                  ],
-                );
-              },
-              loading: () => Center(
-                child: CircularProgressIndicator(color: colorScheme.primary),
               ),
-              error: (e, _) => Center(child: Text('Error: $e')),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

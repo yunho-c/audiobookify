@@ -321,6 +321,8 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
         children: [
           fade(_SettingsSectionTitle(title: 'Playback')),
           const SizedBox(height: 12),
+          // Audio sliders intentionally do not toggle the modal fade/scrim.
+          // We leave onSliderDragStart/End unset so _isSliderDragging stays false.
           fade(
             _SettingSlider(
               icon: LucideIcons.gauge,

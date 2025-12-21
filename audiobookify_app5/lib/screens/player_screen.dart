@@ -19,6 +19,7 @@ import '../src/rust/api/epub.dart';
 import '../widgets/settings_wheel.dart';
 import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
+import '../widgets/shared/state_scaffolds.dart';
 
 /// Player screen with text reader, TTS audio controls, and settings
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -604,55 +605,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Center(
-          child: CircularProgressIndicator(color: colorScheme.primary),
-        ),
-      );
+      return const LoadingScaffold();
     }
 
     if (_error != null) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(LucideIcons.arrowLeft, color: colorScheme.onSurface),
-            onPressed: () => context.pop(),
-          ),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                LucideIcons.alertCircle,
-                size: 48,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Error loading book',
-                style: textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  _error!,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
-          ),
-        ),
+      return ErrorScaffold(
+        title: 'Error loading book',
+        message: _error!,
+        onBack: () => context.pop(),
+        messagePadding: const EdgeInsets.symmetric(horizontal: 32),
+        messageAlign: TextAlign.center,
       );
     }
 
@@ -871,7 +833,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                                     ),
                                                   ),
                                                 ),
-                                      ),
+                                        ),
                                       ),
                                     ],
                                   ),
