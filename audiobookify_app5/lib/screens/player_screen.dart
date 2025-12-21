@@ -35,6 +35,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with RouteAware, SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   List<GlobalKey> _paragraphKeys = [];
+  final List<List<TapGestureRecognizer>> _sentenceRecognizers = [];
   late final AnimationController _sentenceHighlightController;
   late final Animation<double> _sentenceHighlightCurve;
 
@@ -188,6 +189,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!mounted) return;
 
     // Update local UI state
+    _clearSentenceRecognizers();
     setState(() {
       _currentChapterIndex = index;
       _paragraphs = paragraphs;
@@ -312,6 +314,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     routeObserver.unsubscribe(this);
     _ttsService.onComplete = null;
     Future.microtask(_ttsService.stop);
+    _clearSentenceRecognizers();
     _scrollController.dispose();
     _sentenceHighlightController.dispose();
     super.dispose();
@@ -410,12 +413,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             highlightColor: colorScheme.primary.withOpacity(highlightOpacity),
             intensity: highlightIntensity,
           ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () {
-              ref
-                  .read(ttsProvider.notifier)
-                  .jumpToSentence(paragraphIndex, sentenceIdx);
-            },
+          recognizer: _sentenceRecognizerFor(paragraphIndex, sentenceIdx),
         ),
       );
 
@@ -425,6 +423,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     return spans;
+  }
+
+  TapGestureRecognizer _sentenceRecognizerFor(
+    int paragraphIndex,
+    int sentenceIndex,
+  ) {
+    while (_sentenceRecognizers.length <= paragraphIndex) {
+      _sentenceRecognizers.add(<TapGestureRecognizer>[]);
+    }
+    final paragraphRecognizers = _sentenceRecognizers[paragraphIndex];
+    while (paragraphRecognizers.length <= sentenceIndex) {
+      paragraphRecognizers.add(TapGestureRecognizer());
+    }
+    final recognizer = paragraphRecognizers[sentenceIndex];
+    recognizer.onTap = () {
+      ref
+          .read(ttsProvider.notifier)
+          .jumpToSentence(paragraphIndex, sentenceIndex);
+    };
+    return recognizer;
+  }
+
+  void _clearSentenceRecognizers() {
+    for (final paragraph in _sentenceRecognizers) {
+      for (final recognizer in paragraph) {
+        recognizer.dispose();
+      }
+    }
+    _sentenceRecognizers.clear();
   }
 
   Widget _wrapShadow({

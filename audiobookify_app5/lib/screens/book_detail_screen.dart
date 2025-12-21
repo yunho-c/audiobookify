@@ -63,17 +63,20 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
       // Load EPUB to get TOC and chapters
       try {
         final epub = await openEpub(path: book.filePath);
+        if (!mounted) return;
         setState(() {
           _epubBook = epub;
           _isLoading = false;
         });
       } catch (e) {
         // EPUB file might be gone, but we still have metadata
+        if (!mounted) return;
         setState(() {
           _isLoading = false;
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;

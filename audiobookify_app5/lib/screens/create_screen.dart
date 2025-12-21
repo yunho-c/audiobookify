@@ -33,50 +33,50 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         allowedExtensions: ['epub'],
         allowMultiple: false,
       );
+      if (!mounted) return;
 
       if (result != null && result.files.isNotEmpty) {
         final path = result.files.first.path;
         if (path != null) {
           final book = await openEpub(path: path);
+          if (!mounted) return;
           setState(() {
             _loadedBook = book;
             _loadedFilePath = path;
             _isLoading = false;
           });
 
-          if (mounted) {
-            final colorScheme = Theme.of(context).colorScheme;
-            final extras = Theme.of(context).extension<AppThemeExtras>();
-            final successColor =
-                extras?.accentPalette[3] ?? colorScheme.primary;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Loaded: ${book.metadata.title ?? "Unknown"}'),
-                backgroundColor: successColor,
-              ),
-            );
-          }
+          final colorScheme = Theme.of(context).colorScheme;
+          final extras = Theme.of(context).extension<AppThemeExtras>();
+          final successColor = extras?.accentPalette[3] ?? colorScheme.primary;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Loaded: ${book.metadata.title ?? "Unknown"}'),
+              backgroundColor: successColor,
+            ),
+          );
         }
       } else {
+        if (!mounted) return;
         setState(() {
           _isLoading = false;
         });
       }
     } on EpubError catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = e.message;
       });
-      if (mounted) {
-        final colorScheme = Theme.of(context).colorScheme;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.message}'),
-            backgroundColor: colorScheme.error,
-          ),
-        );
-      }
+      final colorScheme = Theme.of(context).colorScheme;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.message}'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = e.toString();
