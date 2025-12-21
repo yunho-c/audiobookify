@@ -9,6 +9,7 @@ class TtsAudioHandler extends BaseAudioHandler
   final TtsService _ttsService;
   AudioSession? _session;
   bool _sessionActive = false;
+  bool _resumeAfterInterruption = false;
   late final void Function() _removeListener;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   StreamSubscription<void>? _noisySub;
@@ -27,14 +28,15 @@ class TtsAudioHandler extends BaseAudioHandler
     await session.configure(const AudioSessionConfiguration.speech());
     _session = session;
 
-    _interruptionSub =
-        session.interruptionEventStream.listen((event) {
+    _interruptionSub = session.interruptionEventStream.listen((event) {
       if (event.begin) {
+        _resumeAfterInterruption =
+            _ttsService.state.status == TtsStatus.playing;
         pause();
         return;
       }
-      if (event.type == AudioInterruptionType.pause &&
-          event.shouldResume) {
+      if (_resumeAfterInterruption) {
+        _resumeAfterInterruption = false;
         play();
       }
     });
@@ -78,6 +80,13 @@ class TtsAudioHandler extends BaseAudioHandler
     if (session == null || _sessionActive == active) return;
     _sessionActive = active;
     await session.setActive(active);
+  }
+
+  Future<void> _disposeResources() async {
+    _removeListener();
+    await _interruptionSub?.cancel();
+    await _noisySub?.cancel();
+    await _setSessionActive(false);
   }
 
   void updateNowPlaying({
@@ -128,11 +137,14 @@ class TtsAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> close() async {
-    _removeListener();
-    await _interruptionSub?.cancel();
-    await _noisySub?.cancel();
-    await _setSessionActive(false);
-    return super.close();
+  Future<void> onNotificationDeleted() async {
+    await _disposeResources();
+    return super.onNotificationDeleted();
+  }
+
+  @override
+  Future<void> onTaskRemoved() async {
+    await _disposeResources();
+    return super.onTaskRemoved();
   }
 }

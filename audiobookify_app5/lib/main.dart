@@ -41,7 +41,7 @@ Future<void> main() async {
       androidNotificationChannelName: 'Audiobookify Playback',
       androidNotificationChannelDescription: 'Audiobookify playback controls',
       androidNotificationOngoing: true,
-      androidStopForegroundOnPause: false,
+      androidStopForegroundOnPause: true,
     ),
   );
 
@@ -50,7 +50,7 @@ Future<void> main() async {
       overrides: [
         storeProvider.overrideWithValue(store),
         sharedPreferencesProvider.overrideWithValue(prefs),
-        ttsProvider.overrideWithValue(ttsService),
+        ttsProvider.overrideWith((ref) => ttsService),
         audioHandlerProvider.overrideWithValue(audioHandler as TtsAudioHandler),
       ],
       child: const AudiobookifyApp(),
