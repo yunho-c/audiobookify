@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -37,7 +38,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   String _searchText = '';
   String _searchQuery = '';
   final Set<String> _downloadsInProgress = {};
-  final Map<String, double> _downloadProgress = {};
+  final Map<String, double?> _downloadProgress = {};
 
   static const List<String> _exploreSuggestions = [
     'Sherlock Holmes',
@@ -183,6 +184,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   void _setDownloadProgress(String iaId, double progress) {
+    if (progress.isNaN || progress < 0) {
+      if (!mounted) return;
+      setState(() => _downloadProgress[iaId] = null);
+      return;
+    }
     final clamped = progress.clamp(0.0, 1.0);
     final previous = _downloadProgress[iaId];
     if (previous != null && (clamped - previous).abs() < 0.02) {
@@ -196,7 +202,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     if (_downloadsInProgress.contains(book.iaId)) return;
     setState(() {
       _downloadsInProgress.add(book.iaId);
-      _downloadProgress[book.iaId] = 0.0;
+      _downloadProgress[book.iaId] = null;
     });
 
     if (closeDetails && Navigator.of(context).canPop()) {
@@ -208,22 +214,33 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     final successColor = extras?.accentPalette[3] ?? colorScheme.primary;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
+    final textTheme = Theme.of(context).textTheme;
     scaffoldMessenger.showSnackBar(
       SnackBar(
-        content: Text('Downloading "${book.title}"...'),
+        content: Text(
+          'Downloading "${book.title}"...',
+          style: textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurface,
+          ),
+        ),
         backgroundColor: colorScheme.surface,
       ),
     );
 
+    File? downloadedFile;
     try {
-      final file = await _downloadEpubToFile(
+      downloadedFile = await _downloadEpubToFile(
         book,
         onProgress: (progress) => _setDownloadProgress(book.iaId, progress),
       );
-      final epub = await openEpub(path: file.path);
+      if (!await _isValidEpub(downloadedFile)) {
+        await _deleteIfExists(downloadedFile);
+        throw const EpubError(message: 'Downloaded file is not a valid EPUB.');
+      }
+      final epub = await openEpub(path: downloadedFile.path);
       if (!mounted) return;
       final savedBook =
-          ref.read(bookServiceProvider).saveBook(epub, file.path);
+          ref.read(bookServiceProvider).saveBook(epub, downloadedFile.path);
 
       scaffoldMessenger.showSnackBar(
         SnackBar(
@@ -235,6 +252,16 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       if (mounted) {
         context.go('/');
       }
+    } on EpubError catch (error) {
+      if (downloadedFile != null) {
+        await _deleteIfExists(downloadedFile);
+      }
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Download failed: ${error.message}'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
     } catch (error) {
       scaffoldMessenger.showSnackBar(
         SnackBar(
@@ -258,12 +285,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }) async {
     final client = http.Client();
     try {
-      final uri = Uri.parse(book.epubUrl);
-      final response = await client.send(http.Request('GET', uri));
-      if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}');
-      }
-
       final appDir = await getApplicationDocumentsDirectory();
       final downloadDir = Directory('${appDir.path}/downloads');
       await downloadDir.create(recursive: true);
@@ -271,48 +292,148 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       final fileName = _sanitizeFileName('${book.title}-${book.iaId}.epub');
       final file = File('${downloadDir.path}/$fileName');
       if (await file.exists()) {
-        onProgress?.call(1.0);
-        return file;
+        if (await _isValidEpub(file)) {
+          onProgress?.call(1.0);
+          return file;
+        }
+        await _deleteIfExists(file);
       }
 
-      final contentLength = response.contentLength ?? 0;
-      final sink = file.openWrite();
-      if (contentLength <= 0 || onProgress == null) {
-        await response.stream.pipe(sink);
-        return file;
+      final uri = await _resolveEpubUri(client, book);
+
+      const maxAttempts = 3;
+      for (var attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          final response = await client.send(http.Request('GET', uri));
+          if (response.statusCode != 200) {
+            throw Exception('HTTP ${response.statusCode}');
+          }
+
+          final contentLength = response.contentLength ?? 0;
+          final sink = file.openWrite();
+          if (contentLength <= 0 || onProgress == null) {
+            onProgress?.call(-1);
+            await response.stream.pipe(sink);
+            return file;
+          }
+
+          final completer = Completer<File>();
+          var received = 0;
+
+          response.stream.listen(
+            (chunk) {
+              received += chunk.length;
+              sink.add(chunk);
+              if (contentLength > 0) {
+                onProgress(received / contentLength);
+              }
+            },
+            onError: (error, stackTrace) async {
+              await sink.close();
+              await _deleteIfExists(file);
+              if (!completer.isCompleted) {
+                completer.completeError(error, stackTrace);
+              }
+            },
+            onDone: () async {
+              await sink.close();
+              if (!completer.isCompleted) {
+                onProgress(1.0);
+                completer.complete(file);
+              }
+            },
+            cancelOnError: true,
+          );
+
+          return await completer.future;
+        } catch (error) {
+          await _deleteIfExists(file);
+          if (attempt == maxAttempts - 1) {
+            rethrow;
+          }
+          final backoffMs = 300 * (attempt + 1);
+          await Future<void>.delayed(Duration(milliseconds: backoffMs));
+        }
       }
 
-      final completer = Completer<File>();
-      var received = 0;
-
-      response.stream.listen(
-        (chunk) {
-          received += chunk.length;
-          sink.add(chunk);
-          if (contentLength > 0) {
-            onProgress(received / contentLength);
-          }
-        },
-        onError: (error, stackTrace) async {
-          await sink.close();
-          if (!completer.isCompleted) {
-            completer.completeError(error, stackTrace);
-          }
-        },
-        onDone: () async {
-          await sink.close();
-          if (!completer.isCompleted) {
-            onProgress(1.0);
-            completer.complete(file);
-          }
-        },
-        cancelOnError: true,
-      );
-
-      return completer.future;
+      throw const EpubError(message: 'Download failed after retries.');
     } finally {
       client.close();
     }
+  }
+
+  Future<Uri> _resolveEpubUri(http.Client client, PublicBook book) async {
+    final metadataUri = Uri.parse('https://archive.org/metadata/${book.iaId}');
+    try {
+      final response = await client.get(metadataUri);
+      if (response.statusCode != 200) {
+        return Uri.parse(book.epubUrl);
+      }
+      final body = json.decode(response.body);
+      if (body is! Map<String, dynamic>) {
+        return Uri.parse(book.epubUrl);
+      }
+      final fileName = _extractEpubFileName(body);
+      if (fileName == null || fileName.isEmpty) {
+        return Uri.parse(book.epubUrl);
+      }
+      final encoded = Uri.encodeComponent(fileName);
+      return Uri.parse('https://archive.org/download/${book.iaId}/$encoded');
+    } catch (_) {
+      return Uri.parse(book.epubUrl);
+    }
+  }
+
+  String? _extractEpubFileName(Map<String, dynamic> metadata) {
+    final files = metadata['files'];
+    if (files is! List) return null;
+    for (final entry in files) {
+      if (entry is! Map) continue;
+      final name = entry['name'];
+      if (name is! String || name.trim().isEmpty) continue;
+      final formats = entry['format'];
+      if (_hasEpubFormat(formats) || name.toLowerCase().endsWith('.epub')) {
+        return name.trim();
+      }
+    }
+    return null;
+  }
+
+  bool _hasEpubFormat(dynamic value) {
+    if (value is String) {
+      return value.toLowerCase().contains('epub');
+    }
+    if (value is List) {
+      for (final entry in value) {
+        if (entry is String && entry.toLowerCase().contains('epub')) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _isValidEpub(File file) async {
+    try {
+      if (!await file.exists()) return false;
+      final length = await file.length();
+      if (length < 1024) return false;
+      final raf = await file.open();
+      final header = await raf.read(4);
+      await raf.close();
+      if (header.length < 2) return false;
+      return header[0] == 0x50 && header[1] == 0x4B;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _deleteIfExists(File file) async {
+    try {
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
   }
 
   String _sanitizeFileName(String value) {
