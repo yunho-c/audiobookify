@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +8,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
+import '../models/backdrop_image.dart';
 import '../models/player_settings.dart';
 import '../models/player_theme_settings.dart';
+import '../widgets/shared/pressable.dart';
 
 /// Audio settings modal with interactive sliders for speed and pitch
 class SettingsWheel extends ConsumerStatefulWidget {
@@ -315,6 +319,8 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
     final textTheme = Theme.of(context).textTheme;
     final accentPalette = widget.accentPalette;
     final accentSoftPalette = widget.accentSoftPalette;
+    final onSliderDragStart = widget.onSliderDragStart;
+    final onSliderDragEnd = widget.onSliderDragEnd;
     Widget fade(Widget child, {String? sliderId}) {
       return FadeOnSliderDrag(
         isDragging: widget.isDragging,
@@ -466,7 +472,7 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
   }
 }
 
-class _ReaderSettingsTab extends ConsumerWidget {
+class _ReaderSettingsTab extends ConsumerStatefulWidget {
   final bool isDragging;
   final String? activeSliderId;
   final ValueChanged<String> onSliderDragStart;
@@ -484,14 +490,111 @@ class _ReaderSettingsTab extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ReaderSettingsTab> createState() =>
+      _ReaderSettingsTabState();
+}
+
+class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
+  Timer? _backdropPeekTimer;
+
+  @override
+  void dispose() {
+    _backdropPeekTimer?.cancel();
+    super.dispose();
+  }
+
+  void _triggerBackdropPeek() {
+    _backdropPeekTimer?.cancel();
+    widget.onSliderDragStart('backdrop_gallery');
+    _backdropPeekTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
+      widget.onSliderDragEnd('backdrop_gallery');
+    });
+  }
+
+  void _startBackdropHold() {
+    _backdropPeekTimer?.cancel();
+    widget.onSliderDragStart('backdrop_gallery');
+  }
+
+  void _endBackdropHold() {
+    widget.onSliderDragEnd('backdrop_gallery');
+  }
+
+  void _setBackdropSelection(String id) {
+    ref.read(backdropSettingsProvider.notifier).setBackdropId(id);
+  }
+
+  void _setBrightness(double value) {
+    ref.read(backdropSettingsProvider.notifier).setBrightness(value);
+  }
+
+  void _showBackdropMessage(BuildContext context, String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(milliseconds: 1400),
+      ),
+    );
+  }
+
+  BackdropImage? _findBackdrop(List<BackdropImage> images, String id) {
+    for (final image in images) {
+      if (image.id == id) return image;
+    }
+    return null;
+  }
+
+  Widget _buildBackdropPreview(BackdropImage image) {
+    final uri = image.uri.trim();
+    if (uri.isEmpty) {
+      return const _BackdropImageFallback();
+    }
+    if (uri.startsWith('http://') || uri.startsWith('https://')) {
+      return Image.network(
+        uri,
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+        errorBuilder: (_, __, ___) => const _BackdropImageFallback(),
+      );
+    }
+    if (uri.startsWith('assets/') || uri.startsWith('packages/')) {
+      return Image.asset(
+        uri,
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+        errorBuilder: (_, __, ___) => const _BackdropImageFallback(),
+      );
+    }
+    if (image.sourceType == BackdropSourceType.upload) {
+      return Image.file(
+        File(uri),
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+        errorBuilder: (_, __, ___) => const _BackdropImageFallback(),
+      );
+    }
+    return const _BackdropImageFallback();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final readerTheme = ref.watch(playerThemeProvider);
+    final backdropSettings = ref.watch(backdropSettingsProvider);
+    final backdrops = ref.watch(backdropLibraryProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final accentPalette = widget.accentPalette;
+    final accentSoftPalette = widget.accentSoftPalette;
+    final onSliderDragStart = widget.onSliderDragStart;
+    final onSliderDragEnd = widget.onSliderDragEnd;
     Widget fade(Widget child, {String? sliderId}) {
       return FadeOnSliderDrag(
-        isDragging: isDragging,
-        activeSliderId: activeSliderId,
+        isDragging: widget.isDragging,
+        activeSliderId: widget.activeSliderId,
         sliderId: sliderId,
         child: child,
       );
@@ -500,6 +603,12 @@ class _ReaderSettingsTab extends ConsumerWidget {
     void updateTheme(PlayerThemeSettings settings) {
       ref.read(playerThemeProvider.notifier).setTheme(settings);
     }
+
+    final selectedBackdrop =
+        _findBackdrop(backdrops, backdropSettings.id);
+    final selectedMetadata =
+        BackdropImage.decodeMetadata(selectedBackdrop?.metadata);
+    final selectedAuthor = selectedMetadata['author'];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 12),
@@ -779,7 +888,7 @@ class _ReaderSettingsTab extends ConsumerWidget {
                   value: PlayerThemeBackgroundMode.solid,
                 ),
                 _ChoiceOption(
-                  label: 'Custom',
+                  label: 'Image',
                   value: PlayerThemeBackgroundMode.customImage,
                 ),
               ],
@@ -789,27 +898,121 @@ class _ReaderSettingsTab extends ConsumerWidget {
               PlayerThemeBackgroundMode.customImage) ...[
             const SizedBox(height: 12),
             fade(
-              TextFormField(
-                key: ValueKey(readerTheme.backgroundImagePath ?? ''),
-                decoration: InputDecoration(
-                  labelText: 'Asset image path',
-                  hintText: 'assets/backgrounds/paper.png',
-                  labelStyle: textTheme.labelMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  filled: true,
-                  fillColor: colorScheme.surfaceVariant.withAlpha(140),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
+              Text(
+                'Choose a backdrop',
+                style: textTheme.labelMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
                 ),
-                initialValue: readerTheme.backgroundImagePath ?? '',
-                onChanged: (value) {
-                  updateTheme(readerTheme.copyWith(backgroundImagePath: value));
-                },
               ),
             ),
+            const SizedBox(height: 10),
+            fade(
+              SizedBox(
+                height: 128,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: backdrops.length + 2,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    if (index < backdrops.length) {
+                      final image = backdrops[index];
+                      final selected = image.id == backdropSettings.id;
+                      return _BackdropTile(
+                        selected: selected,
+                        child: _buildBackdropPreview(image),
+                        onTap: () {
+                          _setBackdropSelection(image.id);
+                          _triggerBackdropPeek();
+                        },
+                        onLongPressStart: () {
+                          _setBackdropSelection(image.id);
+                          _startBackdropHold();
+                        },
+                        onLongPressEnd: _endBackdropHold,
+                      );
+                    }
+                    if (index == backdrops.length) {
+                      return _BackdropAddTile(
+                        label: 'Unsplash',
+                        icon: LucideIcons.search,
+                        onTap: () {
+                          _showBackdropMessage(
+                            context,
+                            'Unsplash search coming soon.',
+                          );
+                        },
+                      );
+                    }
+                    return _BackdropAddTile(
+                      label: 'Upload',
+                      icon: LucideIcons.upload,
+                      onTap: () {
+                        _showBackdropMessage(
+                          context,
+                          'Upload support coming soon.',
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              sliderId: 'backdrop_gallery',
+            ),
+            const SizedBox(height: 12),
+            fade(
+              _SettingSlider(
+                icon: LucideIcons.sun,
+                label: 'Brightness',
+                value: backdropSettings.brightness,
+                min: -1,
+                max: 1,
+                displayValue: backdropSettings.brightness.toStringAsFixed(2),
+                bgColor: accentSoftPalette[3],
+                fgColor: accentPalette[3],
+                onChanged: _setBrightness,
+                onChangeStart: (_) =>
+                    widget.onSliderDragStart('backdrop_brightness'),
+                onChangeEnd: (_) =>
+                    widget.onSliderDragEnd('backdrop_brightness'),
+              ),
+              sliderId: 'backdrop_brightness',
+            ),
+            const SizedBox(height: 8),
+            fade(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _PresetChip(
+                    label: 'Dim',
+                    onTap: () => _setBrightness(-0.25),
+                  ),
+                  _PresetChip(
+                    label: 'Neutral',
+                    onTap: () => _setBrightness(0.0),
+                  ),
+                  _PresetChip(
+                    label: 'Bright',
+                    onTap: () => _setBrightness(0.25),
+                  ),
+                ],
+              ),
+            ),
+            if (selectedBackdrop != null &&
+                selectedBackdrop.sourceType ==
+                    BackdropSourceType.unsplash &&
+                selectedAuthor != null) ...[
+              const SizedBox(height: 8),
+              fade(
+                Text(
+                  'Photo by $selectedAuthor on Unsplash',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 12),
           fade(
@@ -1376,6 +1579,145 @@ class _ColorSwatchRow extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _BackdropTile extends StatelessWidget {
+  final bool selected;
+  final Widget child;
+  final VoidCallback onTap;
+  final VoidCallback onLongPressStart;
+  final VoidCallback onLongPressEnd;
+
+  const _BackdropTile({
+    required this.selected,
+    required this.child,
+    required this.onTap,
+    required this.onLongPressStart,
+    required this.onLongPressEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const width = 88.0;
+    const height = 120.0;
+    final borderColor =
+        selected ? colorScheme.primary : colorScheme.outlineVariant;
+    return GestureDetector(
+      onLongPressStart: (_) => onLongPressStart(),
+      onLongPressEnd: (_) => onLongPressEnd(),
+      child: Pressable(
+        onTap: onTap,
+        pressedScale: 0.97,
+        haptic: PressableHaptic.selection,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          width: width,
+          height: height,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor, width: selected ? 2 : 1),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                child,
+                if (selected)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        LucideIcons.check,
+                        size: 12,
+                        color: colorScheme.onPrimary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackdropAddTile extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _BackdropAddTile({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const width = 88.0;
+    const height = 120.0;
+    return Pressable(
+      onTap: onTap,
+      haptic: PressableHaptic.light,
+      child: Container(
+        width: width,
+        height: height,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceVariant.withAlpha(140),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BackdropImageFallback extends StatelessWidget {
+  const _BackdropImageFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      color: colorScheme.surfaceVariant.withAlpha(140),
+      child: Center(
+        child: Icon(
+          LucideIcons.imageOff,
+          size: 18,
+          color: colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 }

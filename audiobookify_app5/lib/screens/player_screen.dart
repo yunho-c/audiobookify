@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/gestures.dart';
@@ -14,6 +15,7 @@ import '../core/route_observer.dart';
 import '../services/book_service.dart';
 import '../services/tts_service.dart';
 import '../models/book.dart';
+import '../models/backdrop_image.dart';
 import '../models/player_theme_settings.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/settings_wheel.dart';
@@ -580,6 +582,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
     });
     final readerTheme = ref.watch(playerThemeProvider);
+    final backdropSettings = ref.watch(backdropSettingsProvider);
+    final backdrops = ref.watch(backdropLibraryProvider);
     final isPlaying = ttsState.status == TtsStatus.playing;
     final currentParagraphIndex = ttsState.paragraphIndex;
     final currentSentenceIndex = ttsState.sentenceIndex;
@@ -599,6 +603,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ? _book!.author!.trim()
         : 'Unknown author';
     final coverImage = _book?.coverImage;
+    BackdropImage? selectedBackdrop;
+    if (readerTheme.backgroundMode ==
+        PlayerThemeBackgroundMode.customImage) {
+      for (final image in backdrops) {
+        if (image.id == backdropSettings.id) {
+          selectedBackdrop = image;
+          break;
+        }
+      }
+    }
     final safeParagraphSpacing =
         readerTheme.paragraphSpacing < 0 ? 0.0 : readerTheme.paragraphSpacing;
     final safeParagraphIndent =
@@ -664,6 +678,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             coverImage: coverImage,
             fallbackColor: Theme.of(context).scaffoldBackgroundColor,
             backgroundMode: readerTheme.backgroundMode,
+            backdropImage: selectedBackdrop,
+            backdropBrightness: backdropSettings.brightness,
             backgroundImagePath: readerTheme.backgroundImagePath,
             backgroundBlur: readerTheme.backgroundBlur,
             backgroundOpacity: readerTheme.backgroundOpacity,
@@ -1075,6 +1091,8 @@ class _AmbientBackground extends StatelessWidget {
   final Uint8List? coverImage;
   final Color fallbackColor;
   final PlayerThemeBackgroundMode backgroundMode;
+  final BackdropImage? backdropImage;
+  final double backdropBrightness;
   final String? backgroundImagePath;
   final double backgroundBlur;
   final double backgroundOpacity;
@@ -1083,6 +1101,8 @@ class _AmbientBackground extends StatelessWidget {
     required this.coverImage,
     required this.fallbackColor,
     required this.backgroundMode,
+    required this.backdropImage,
+    required this.backdropBrightness,
     required this.backgroundImagePath,
     required this.backgroundBlur,
     required this.backgroundOpacity,
@@ -1094,6 +1114,18 @@ class _AmbientBackground extends StatelessWidget {
     final safeBlur = backgroundBlur < 0 ? 0.0 : backgroundBlur;
     final safeOpacity = backgroundOpacity.clamp(0.0, 1.0);
     final imageLayer = _buildImageLayer();
+    final brightness = backdropBrightness.clamp(-1.0, 1.0);
+    final brightnessOverlay = backgroundMode ==
+                PlayerThemeBackgroundMode.customImage &&
+            brightness.abs() > 0.01
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+              color: brightness > 0
+                  ? Colors.white.withAlpha((brightness * 76).round())
+                  : Colors.black.withAlpha((-brightness * 76).round()),
+            ),
+          )
+        : null;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -1125,6 +1157,7 @@ class _AmbientBackground extends StatelessWidget {
               ),
             ),
           ),
+        if (brightnessOverlay != null) brightnessOverlay,
       ],
     );
   }
@@ -1139,6 +1172,31 @@ class _AmbientBackground extends StatelessWidget {
           alignment: Alignment.topCenter,
         );
       case PlayerThemeBackgroundMode.customImage:
+        final backdrop = backdropImage;
+        if (backdrop != null) {
+          final uri = backdrop.uri.trim();
+          if (uri.startsWith('http://') || uri.startsWith('https://')) {
+            return Image.network(
+              uri,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            );
+          }
+          if (uri.startsWith('assets/') || uri.startsWith('packages/')) {
+            return Image.asset(
+              uri,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            );
+          }
+          if (backdrop.sourceType == BackdropSourceType.upload) {
+            return Image.file(
+              File(uri),
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            );
+          }
+        }
         if (backgroundImagePath == null ||
             backgroundImagePath!.trim().isEmpty) {
           return null;
