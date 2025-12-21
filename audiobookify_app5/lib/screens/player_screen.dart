@@ -627,8 +627,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_book != null &&
         _paragraphs.isNotEmpty &&
         currentParagraphIndex != _lastBucketParagraph) {
-      _updateBucketProgress(currentParagraphIndex, _paragraphs.length);
-      _lastBucketParagraph = currentParagraphIndex;
+      final targetParagraph = currentParagraphIndex;
+      final targetChapter = _currentChapterIndex;
+      _lastBucketParagraph = targetParagraph;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_book == null || _paragraphs.isEmpty) return;
+        if (_currentChapterIndex != targetChapter) return;
+        _updateBucketProgress(targetParagraph, _paragraphs.length);
+      });
     }
 
     if (_isLoading) {

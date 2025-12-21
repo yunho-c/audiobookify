@@ -55,6 +55,18 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               backgroundColor: successColor,
             ),
           );
+        } else {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Unable to read file path.';
+          });
+          final colorScheme = Theme.of(context).colorScheme;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Error: unable to read file path'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
         }
       } else {
         if (!mounted) return;

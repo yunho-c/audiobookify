@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -866,7 +867,7 @@ class _BucketProgressPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BucketProgressPainter oldDelegate) {
-    return oldDelegate.buckets != buckets ||
+    return !listEquals(oldDelegate.buckets, buckets) ||
         oldDelegate.activeColor != activeColor ||
         oldDelegate.inactiveColor != inactiveColor ||
         oldDelegate.gap != gap ||
