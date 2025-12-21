@@ -279,15 +279,34 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     }
   }
 
+  Future<Directory> _bookStorageDirectory() async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final libraryDir = Directory('${appDir.path}/library');
+    if (!await libraryDir.exists()) {
+      await libraryDir.create(recursive: true);
+    }
+    return libraryDir;
+  }
+
+  Future<File> _copyEpubToLibrary({
+    required String sourcePath,
+    required String title,
+  }) async {
+    final libraryDir = await _bookStorageDirectory();
+    final safeTitle = title.trim().isEmpty ? 'book' : title.trim();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileName = _sanitizeFileName('$safeTitle-$timestamp');
+    final destPath = '${libraryDir.path}/$fileName.epub';
+    return File(sourcePath).copy(destPath);
+  }
+
   Future<File> _downloadEpubToFile(
     PublicBook book, {
     ValueChanged<double>? onProgress,
   }) async {
     final client = http.Client();
     try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final downloadDir = Directory('${appDir.path}/downloads');
-      await downloadDir.create(recursive: true);
+      final downloadDir = await _bookStorageDirectory();
 
       final fileName = _sanitizeFileName('${book.title}-${book.iaId}.epub');
       final file = File('${downloadDir.path}/$fileName');
@@ -1124,26 +1143,57 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      // Save book to database
-                      if (_loadedBook != null && _loadedFilePath != null) {
-                        final savedBook = ref
-                            .read(bookServiceProvider)
-                            .saveBook(_loadedBook!, _loadedFilePath!);
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            if (_loadedBook == null ||
+                                _loadedFilePath == null) {
+                              return;
+                            }
+                            setState(() {
+                              _isLoading = true;
+                              _errorMessage = null;
+                            });
+                            try {
+                              final storedFile = await _copyEpubToLibrary(
+                                sourcePath: _loadedFilePath!,
+                                title: _loadedBook!.metadata.title ?? 'Book',
+                              );
+                              if (!mounted) return;
+                              final savedBook = ref
+                                  .read(bookServiceProvider)
+                                  .saveBook(_loadedBook!, storedFile.path);
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Added "${savedBook.title}" to library',
-                            ),
-                            backgroundColor: successColor,
-                          ),
-                        );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Added "${savedBook.title}" to library',
+                                  ),
+                                  backgroundColor: successColor,
+                                ),
+                              );
 
-                        // Navigate to home screen
-                        context.go('/');
-                      }
-                    },
+                              context.go('/');
+                            } catch (error) {
+                              if (!mounted) return;
+                              setState(() {
+                                _errorMessage =
+                                    'Failed to save the book. Try again.';
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Save failed: $error',
+                                  ),
+                                  backgroundColor: colorScheme.error,
+                                ),
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isLoading = false);
+                              }
+                            }
+                          },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(

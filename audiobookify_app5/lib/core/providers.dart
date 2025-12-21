@@ -9,6 +9,7 @@ import '../models/backdrop_image.dart';
 import '../models/backdrop_settings.dart';
 import '../services/book_service.dart';
 import '../services/open_library_service.dart';
+import '../services/tts_audio_handler.dart';
 import '../services/tts_service.dart';
 import '../models/player_settings.dart';
 import '../models/player_theme_settings.dart';
@@ -532,6 +533,11 @@ final ttsProvider = StateNotifierProvider<TtsService, TtsPlaybackState>((ref) {
   final service = TtsService();
   ref.onDispose(service.dispose);
   return service;
+});
+
+/// Audio handler - overridden in main.dart to enable background controls.
+final audioHandlerProvider = Provider<TtsAudioHandler>((ref) {
+  throw UnimplementedError('AudioHandler must be overridden in ProviderScope');
 });
 
 /// Keep TTS engine settings in sync with persisted PlayerSettings.

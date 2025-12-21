@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:audiobookify_app5/src/rust/frb_generated.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
 import 'core/app_theme.dart';
@@ -15,6 +16,8 @@ import 'screens/book_detail_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/tts_audio_handler.dart';
+import 'services/tts_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,11 +32,26 @@ Future<void> main() async {
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
 
+  // Initialize audio handler + TTS service for background controls.
+  final ttsService = TtsService();
+  final audioHandler = await AudioService.init(
+    builder: () => TtsAudioHandler(ttsService),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'audiobookify.playback',
+      androidNotificationChannelName: 'Audiobookify Playback',
+      androidNotificationChannelDescription: 'Audiobookify playback controls',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: false,
+    ),
+  );
+
   runApp(
     ProviderScope(
       overrides: [
         storeProvider.overrideWithValue(store),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        ttsProvider.overrideWithValue(ttsService),
+        audioHandlerProvider.overrideWithValue(audioHandler as TtsAudioHandler),
       ],
       child: const AudiobookifyApp(),
     ),

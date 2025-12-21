@@ -13,6 +13,7 @@ import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../core/route_observer.dart';
 import '../services/book_service.dart';
+import '../services/tts_audio_handler.dart';
 import '../services/tts_service.dart';
 import '../models/book.dart';
 import '../models/backdrop_image.dart';
@@ -47,6 +48,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   List<String> _paragraphs = [];
   late final BookService _bookService;
   late final TtsService _ttsService;
+  late final TtsAudioHandler _audioHandler;
 
   // UI-specific state (TTS state comes from provider)
   bool _isLoading = true;
@@ -65,6 +67,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     super.initState();
     _bookService = ref.read(bookServiceProvider);
     _ttsService = ref.read(ttsProvider.notifier);
+    _audioHandler = ref.read(audioHandlerProvider);
+    _audioHandler.onSkipNext = () => _nextChapter(haptic: false);
+    _audioHandler.onSkipPrevious = () => _previousChapter(haptic: false);
     _sentenceHighlightController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 150),
@@ -104,7 +109,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void didPop() {
     if (mounted) {
-      _ttsService.stop();
+      _audioHandler.stop();
     }
     super.didPop();
   }
@@ -112,7 +117,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void didPushNext() {
     if (mounted) {
-      _ttsService.stop();
+      _audioHandler.stop();
     }
     super.didPushNext();
   }
@@ -202,6 +207,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _isLoading = false;
     });
 
+    _updateNowPlaying();
+
     // Load content into TTS provider
     final wasPlaying = _ttsService.state.status == TtsStatus.playing;
     _ttsService.loadContent(paragraphs);
@@ -279,21 +286,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final ttsState = _ttsService.state;
 
     if (ttsState.status == TtsStatus.playing) {
-      await _ttsService.pause();
+      await _audioHandler.pause();
     } else {
-      await _ttsService.play();
+      await _audioHandler.play();
     }
   }
 
-  void _previousChapter() {
-    HapticFeedback.selectionClick();
+  void _previousChapter({bool haptic = true}) {
+    if (haptic) {
+      HapticFeedback.selectionClick();
+    }
     if (_currentChapterIndex > 0) {
       _loadChapter(_currentChapterIndex - 1);
     }
   }
 
-  void _nextChapter() {
-    HapticFeedback.selectionClick();
+  void _nextChapter({bool haptic = true}) {
+    if (haptic) {
+      HapticFeedback.selectionClick();
+    }
     if (_epubBook != null &&
         _currentChapterIndex < _epubBook!.chapters.length - 1) {
       _loadChapter(_currentChapterIndex + 1);
@@ -315,7 +326,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _saveProgress();
     routeObserver.unsubscribe(this);
     _ttsService.onComplete = null;
-    Future.microtask(_ttsService.stop);
+    _audioHandler.onSkipNext = null;
+    _audioHandler.onSkipPrevious = null;
+    Future.microtask(_audioHandler.stop);
     _clearSentenceRecognizers();
     _scrollController.dispose();
     _sentenceHighlightController.dispose();
@@ -323,13 +336,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   String get _currentChapterTitle {
+    return _chapterTitleFor(_currentChapterIndex);
+  }
+
+  String _chapterTitleFor(int index) {
     if (_epubBook == null || _epubBook!.toc.isEmpty) {
-      return 'Chapter ${_currentChapterIndex + 1}';
+      return 'Chapter ${index + 1}';
     }
-    if (_currentChapterIndex < _epubBook!.toc.length) {
-      return _epubBook!.toc[_currentChapterIndex].title;
+    if (index < _epubBook!.toc.length) {
+      return _epubBook!.toc[index].title;
     }
-    return 'Chapter ${_currentChapterIndex + 1}';
+    return 'Chapter ${index + 1}';
+  }
+
+  void _updateNowPlaying() {
+    final book = _book;
+    if (book == null) return;
+    final title = (book.title?.trim().isNotEmpty ?? false)
+        ? book.title!.trim()
+        : 'Untitled';
+    final author = (book.author?.trim().isNotEmpty ?? false)
+        ? book.author!.trim()
+        : 'Unknown author';
+    _audioHandler.updateNowPlaying(
+      id: book.id.toString(),
+      title: title,
+      artist: author,
+      album: _chapterTitleFor(_currentChapterIndex),
+    );
   }
 
   void _startSentenceHighlightTransition(
