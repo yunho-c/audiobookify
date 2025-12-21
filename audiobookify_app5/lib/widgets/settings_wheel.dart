@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
@@ -499,6 +502,8 @@ class _ReaderSettingsTab extends ConsumerStatefulWidget {
 class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
   Timer? _backdropPeekTimer;
   static const int _maxBackdropFileSizeBytes = 15 * 1024 * 1024;
+  static const int _thumbnailTargetWidth = 220;
+  final Map<String, Future<File?>> _thumbnailFutures = {};
 
   @override
   void dispose() {
@@ -530,6 +535,78 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
 
   void _setBrightness(double value) {
     ref.read(backdropSettingsProvider.notifier).setBrightness(value);
+  }
+
+  Future<File?> _thumbnailFutureFor(BackdropImage image) {
+    return _thumbnailFutures.putIfAbsent(
+      image.id,
+      () => _ensureThumbnail(image),
+    );
+  }
+
+  Future<File?> _ensureThumbnail(BackdropImage image) async {
+    final directory = await _thumbnailDirectory();
+    final file = File('${directory.path}/${image.id}.png');
+    if (await file.exists()) return file;
+
+    final sourceBytes = await _loadImageBytes(image);
+    if (sourceBytes == null) return null;
+
+    final thumbnailBytes =
+        await _createThumbnailBytes(sourceBytes, _thumbnailTargetWidth);
+    if (thumbnailBytes == null) return null;
+
+    await file.writeAsBytes(thumbnailBytes, flush: true);
+    return file;
+  }
+
+  Future<Uint8List?> _loadImageBytes(BackdropImage image) async {
+    try {
+      final uri = image.uri.trim();
+      if (uri.isEmpty) return null;
+      if (image.sourceType == BackdropSourceType.upload) {
+        final file = File(uri);
+        if (!await file.exists()) return null;
+        return await file.readAsBytes();
+      }
+      if (uri.startsWith('http://') || uri.startsWith('https://')) {
+        final response = await http.get(Uri.parse(uri));
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return response.bodyBytes;
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Future<Uint8List?> _createThumbnailBytes(
+    Uint8List bytes,
+    int targetWidth,
+  ) async {
+    try {
+      final codec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: targetWidth,
+      );
+      final frame = await codec.getNextFrame();
+      final data = await frame.image
+          .toByteData(format: ui.ImageByteFormat.png);
+      frame.image.dispose();
+      return data?.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Directory> _thumbnailDirectory() async {
+    final baseDir = await getApplicationSupportDirectory();
+    final dir = Directory('${baseDir.path}/backdrops/thumbnails');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
   }
 
   Future<void> _handleUploadTap() async {
@@ -583,6 +660,7 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
 
       if (!mounted) return;
       ref.read(backdropLibraryProvider.notifier).addImage(image);
+      _thumbnailFutureFor(image);
       _setBackdropSelection(image.id);
       _triggerBackdropPeek();
     } catch (_) {
@@ -621,6 +699,23 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
   }
 
   Widget _buildBackdropPreview(BackdropImage image) {
+    return FutureBuilder<File?>(
+      future: _thumbnailFutureFor(image),
+      builder: (context, snapshot) {
+        final file = snapshot.data;
+        if (file != null) {
+          return Image.file(
+            file,
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+          );
+        }
+        return _buildBackdropPreviewFallback(image);
+      },
+    );
+  }
+
+  Widget _buildBackdropPreviewFallback(BackdropImage image) {
     final uri = image.uri.trim();
     if (uri.isEmpty) {
       return const _BackdropImageFallback();
