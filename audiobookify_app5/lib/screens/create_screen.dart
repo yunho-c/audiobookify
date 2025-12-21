@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
+import '../models/open_library_work.dart';
 import '../models/public_book.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/shared/pressable.dart';
@@ -175,6 +176,36 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         content: Text('Download for \"$title\" coming next.'),
         backgroundColor: colorScheme.surface,
       ),
+    );
+  }
+
+  void _openBookDetails(PublicBook book) {
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Book details',
+      barrierColor: Colors.black.withAlpha(140),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return _PublicBookDetailsSheet(
+          book: book,
+          onDownload: () => _showDownloadComingSoon(book.title),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween(begin: 0.96, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
     );
   }
 
@@ -567,6 +598,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               delay: _staggerDelayForIndex(index),
               child: _PublicBookCard(
                 book: book,
+                onTap: () => _openBookDetails(book),
                 onDownload: () => _showDownloadComingSoon(book.title),
               ),
             );
@@ -870,10 +902,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
 class _PublicBookCard extends StatelessWidget {
   final PublicBook book;
+  final VoidCallback onTap;
   final VoidCallback onDownload;
 
   const _PublicBookCard({
     required this.book,
+    required this.onTap,
     required this.onDownload,
   });
 
@@ -888,146 +922,156 @@ class _PublicBookCard extends StatelessWidget {
         extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(20);
     final accent = extras?.accentPalette.first ?? colorScheme.primary;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: glassBackground,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: glassBorder),
-        boxShadow: [
-          BoxShadow(
-            color: glassShadow,
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: book.coverUrl == null
-                      ? _CoverPlaceholder()
-                      : Stack(
-                          children: [
-                            const Positioned.fill(child: _CoverPlaceholder()),
-                            Positioned.fill(
-                              child: _FadingNetworkImage(
-                                url: book.coverUrl!,
-                                fit: BoxFit.cover,
+    return Pressable(
+      onTap: onTap,
+      pressedOpacity: 0.96,
+      pressedScale: 0.98,
+      haptic: PressableHaptic.selection,
+      child: Container(
+        decoration: BoxDecoration(
+          color: glassBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: glassBorder),
+          boxShadow: [
+            BoxShadow(
+              color: glassShadow,
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: book.coverUrl == null
+                        ? const _CoverPlaceholder()
+                        : Stack(
+                            children: [
+                              const Positioned.fill(
+                                child: _CoverPlaceholder(),
                               ),
-                            ),
+                              Positioned.fill(
+                                child: _FadingNetworkImage(
+                                  url: book.coverUrl!,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withAlpha(120),
                           ],
                         ),
-                ),
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withAlpha(120),
-                        ],
                       ),
                     ),
                   ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 6,
+                    child: Container(color: Colors.black.withAlpha(40)),
+                  ),
+                  Positioned(
+                    left: 6,
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    child: Container(color: Colors.white.withAlpha(70)),
+                  ),
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface.withAlpha(210),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Public Domain',
+                        style: textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+              child: Text(
+                book.title,
+                style: textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
                 ),
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: 6,
-                  child: Container(color: Colors.black.withAlpha(40)),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                '${book.primaryAuthor} • ${book.yearLabel}',
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
-                Positioned(
-                  left: 6,
-                  top: 0,
-                  bottom: 0,
-                  width: 1,
-                  child: Container(color: Colors.white.withAlpha(70)),
-                ),
-                Positioned(
-                  top: 10,
-                  left: 10,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: Pressable(
+                  onTap: onDownload,
+                  pressedOpacity: 0.9,
+                  pressedScale: 0.98,
+                  haptic: PressableHaptic.selection,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 12,
+                      vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: colorScheme.surface.withAlpha(210),
+                      color: accent.withAlpha(14),
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: accent.withAlpha(150)),
                     ),
                     child: Text(
-                      'Public Domain',
-                      style: textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurface,
+                      'Download EPUB',
+                      textAlign: TextAlign.center,
+                      style: textTheme.labelLarge?.copyWith(
+                        color: accent,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: Text(
-              book.title,
-              style: textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: colorScheme.onSurface,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              '${book.primaryAuthor} • ${book.yearLabel}',
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: SizedBox(
-              width: double.infinity,
-              child: Pressable(
-                onTap: onDownload,
-                pressedOpacity: 0.9,
-                pressedScale: 0.98,
-                haptic: PressableHaptic.selection,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: accent.withAlpha(14),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: accent.withAlpha(150)),
-                  ),
-                  child: Text(
-                    'Download EPUB',
-                    textAlign: TextAlign.center,
-                    style: textTheme.labelLarge?.copyWith(
-                      color: accent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1089,6 +1133,293 @@ class _FadingNetworkImage extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) {
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+class _PublicBookDetailsSheet extends ConsumerStatefulWidget {
+  final PublicBook book;
+  final VoidCallback onDownload;
+
+  const _PublicBookDetailsSheet({
+    required this.book,
+    required this.onDownload,
+  });
+
+  @override
+  ConsumerState<_PublicBookDetailsSheet> createState() =>
+      _PublicBookDetailsSheetState();
+}
+
+class _PublicBookDetailsSheetState
+    extends ConsumerState<_PublicBookDetailsSheet> {
+  late final Future<OpenLibraryWork?> _workFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _workFuture = ref
+        .read(openLibraryServiceProvider)
+        .fetchWorkDetails(widget.book.key);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground = extras?.glassBackground ?? colorScheme.surface;
+    final glassBorder = extras?.glassBorder ?? colorScheme.outlineVariant;
+    final glassShadow =
+        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(25);
+    final accent = extras?.accentPalette.first ?? colorScheme.primary;
+
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 560,
+              maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: glassBackground,
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: glassBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            color: glassShadow,
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Book details',
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Pressable(
+                                  onTap: () => Navigator.of(context).pop(),
+                                  pressedOpacity: 0.85,
+                                  pressedScale: 0.96,
+                                  haptic: PressableHaptic.selection,
+                                  child: Icon(
+                                    LucideIcons.x,
+                                    size: 20,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 96,
+                                  height: 136,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    color: colorScheme.surfaceVariant,
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: widget.book.coverUrl == null
+                                      ? const _CoverPlaceholder()
+                                      : _FadingNetworkImage(
+                                          url: widget.book.coverUrl!,
+                                          fit: BoxFit.cover,
+                                        ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.book.title,
+                                        style: textTheme.titleLarge?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          height: 1.1,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        widget.book.primaryAuthor,
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          _MetadataChip(
+                                            label: widget.book.yearLabel,
+                                          ),
+                                          const _MetadataChip(
+                                            label: 'Public Domain',
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            FutureBuilder<OpenLibraryWork?>(
+                              future: _workFuture,
+                              builder: (context, snapshot) {
+                                final work = snapshot.data;
+                                final description = work?.description;
+                                return Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'About this book',
+                                      style: textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting)
+                                      Text(
+                                        'Loading details...',
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color:
+                                              colorScheme.onSurfaceVariant,
+                                        ),
+                                      )
+                                    else if (description == null ||
+                                        description.isEmpty)
+                                      Text(
+                                        'No description available yet.',
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color:
+                                              colorScheme.onSurfaceVariant,
+                                        ),
+                                      )
+                                    else
+                                      Text(
+                                        description,
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color:
+                                              colorScheme.onSurfaceVariant,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    if (work != null &&
+                                        work.subjects.isNotEmpty) ...[
+                                      const SizedBox(height: 16),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: work.subjects
+                                            .take(8)
+                                            .map((subject) => _MetadataChip(
+                                                  label: subject,
+                                                ))
+                                            .toList(),
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            Pressable(
+                              onTap: widget.onDownload,
+                              pressedOpacity: 0.92,
+                              pressedScale: 0.98,
+                              haptic: PressableHaptic.medium,
+                              child: Container(
+                                width: double.infinity,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: accent,
+                                  borderRadius: BorderRadius.circular(14),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: accent.withAlpha(60),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  'Download EPUB',
+                                  textAlign: TextAlign.center,
+                                  style: textTheme.labelLarge?.copyWith(
+                                    color: colorScheme.onPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetadataChip extends StatelessWidget {
+  final String label;
+
+  const _MetadataChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceVariant.withAlpha(180),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
     );
   }
 }

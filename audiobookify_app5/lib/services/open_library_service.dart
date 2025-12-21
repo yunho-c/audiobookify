@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../models/open_library_work.dart';
 import '../models/public_book.dart';
 
 class OpenLibraryException implements Exception {
@@ -66,6 +67,22 @@ class OpenLibraryService {
     final results = _parseResults(body);
     _cache[cacheKey] = results;
     return results;
+  }
+
+  Future<OpenLibraryWork?> fetchWorkDetails(String key) async {
+    final normalized = key.trim();
+    if (normalized.isEmpty) return null;
+    final path = normalized.startsWith('/') ? normalized : '/$normalized';
+    final uri = Uri.parse('https://openlibrary.org$path.json');
+
+    final response = await _client.get(uri, headers: _headers);
+    if (response.statusCode != 200) {
+      return null;
+    }
+
+    final body = json.decode(response.body);
+    if (body is! Map<String, dynamic>) return null;
+    return OpenLibraryWork.fromMap(body);
   }
 
   void clearCache() => _cache.clear();
