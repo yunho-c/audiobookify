@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -8,6 +9,7 @@ import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../models/public_book.dart';
 import '../src/rust/api/epub.dart';
+import '../widgets/shared/pressable.dart';
 
 /// Create screen with upload area and options
 class CreateScreen extends ConsumerStatefulWidget {
@@ -182,46 +184,51 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     final textTheme = Theme.of(context).textTheme;
     final extras = Theme.of(context).extension<AppThemeExtras>();
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 24),
-              // Header
-              Text(
-                'Create Audiobook',
-                style: textTheme.displayMedium,
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          const _CreateBackdrop(),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 24),
+                  // Header
+                  Text(
+                    'Create Audiobook',
+                    style: textTheme.displayMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Turn your text into lifelike speech',
+                    style: textTheme.bodyLarge?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildModeToggle(textTheme, colorScheme),
+                  const SizedBox(height: 32),
+                  if (_mode == _CreateMode.import)
+                    _buildImportSection(
+                      context: context,
+                      textTheme: textTheme,
+                      colorScheme: colorScheme,
+                    )
+                  else
+                    _buildDiscoverSection(
+                      context: context,
+                      ref: ref,
+                      textTheme: textTheme,
+                      colorScheme: colorScheme,
+                    ),
+                  const SizedBox(height: 100), // Space for bottom nav
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Turn your text into lifelike speech',
-                style: textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildModeToggle(textTheme, colorScheme),
-              const SizedBox(height: 32),
-              if (_mode == _CreateMode.import)
-                _buildImportSection(
-                  context: context,
-                  textTheme: textTheme,
-                  colorScheme: colorScheme,
-                )
-              else
-                _buildDiscoverSection(
-                  context: context,
-                  ref: ref,
-                  textTheme: textTheme,
-                  colorScheme: colorScheme,
-                ),
-              const SizedBox(height: 100), // Space for bottom nav
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -264,29 +271,44 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     required TextTheme textTheme,
     required ColorScheme colorScheme,
   }) {
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground = extras?.glassBackground ?? colorScheme.surface;
+    final glassBorder = extras?.glassBorder ?? colorScheme.outlineVariant;
+    final glassShadow =
+        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(25);
+    final baseColor = _loadedBook != null
+        ? colorScheme.primary.withAlpha(18)
+        : glassBackground;
     return Column(
       children: [
         // Main upload area - now tappable
-        GestureDetector(
+        Pressable(
           onTap: _isLoading ? null : _pickAndLoadEpub,
+          pressedOpacity: 0.96,
+          pressedScale: 0.98,
+          haptic: PressableHaptic.medium,
           child: Container(
             width: double.infinity,
             height: 280,
             decoration: BoxDecoration(
-              color: _loadedBook != null
-                  ? colorScheme.primary.withAlpha(15)
-                  : colorScheme.surface,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  baseColor,
+                  colorScheme.surfaceVariant.withAlpha(130),
+                ],
+              ),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color:
-                    _loadedBook != null ? colorScheme.primary : colorScheme.outline,
-                width: 2,
+                color: _loadedBook != null ? colorScheme.primary : glassBorder,
+                width: 1.4,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).shadowColor.withAlpha(15),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+                  color: glassShadow,
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -349,6 +371,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   Widget _buildSearchBar(ColorScheme colorScheme, TextTheme textTheme) {
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground = extras?.glassBackground ?? colorScheme.surface;
+    final glassBorder = extras?.glassBorder ?? colorScheme.outlineVariant;
     return TextField(
       controller: _searchController,
       focusNode: _searchFocusNode,
@@ -372,14 +397,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 onPressed: () => _setSearchQuery(''),
               ),
         filled: true,
-        fillColor: colorScheme.surface,
+        fillColor: glassBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colorScheme.outlineVariant),
+          borderSide: BorderSide(color: glassBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colorScheme.outlineVariant),
+          borderSide: BorderSide(color: glassBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -390,6 +415,21 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   Widget _buildExploreSection(TextTheme textTheme, ColorScheme colorScheme) {
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final accentPalette = extras?.accentPalette ??
+        const [
+          AppColors.rose600,
+          AppColors.amber600,
+          AppColors.blue600,
+          AppColors.emerald600,
+        ];
+    final accentSoftPalette = extras?.accentSoftPalette ??
+        const [
+          AppColors.rose100,
+          AppColors.amber100,
+          AppColors.blue100,
+          AppColors.emerald100,
+        ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -410,14 +450,26 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         Wrap(
           spacing: 10,
           runSpacing: 10,
-          children: _exploreSuggestions
-              .map(
-                (label) => ActionChip(
-                  label: Text(label),
-                  onPressed: () => _setSearchQuery(label),
-                ),
-              )
-              .toList(),
+          children: _exploreSuggestions.asMap().entries.map((entry) {
+            final index = entry.key;
+            final label = entry.value;
+            final accent = accentPalette[index % accentPalette.length];
+            final accentSoft =
+                accentSoftPalette[index % accentSoftPalette.length];
+            return ActionChip(
+              label: Text(label),
+              onPressed: () => _setSearchQuery(label),
+              backgroundColor: accentSoft,
+              labelStyle: textTheme.labelLarge?.copyWith(
+                color: accent,
+                fontWeight: FontWeight.w600,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: accent.withAlpha(80)),
+              ),
+            );
+          }).toList(),
         ),
       ],
     );
@@ -511,9 +563,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           ),
           itemBuilder: (context, index) {
             final book = books[index];
-            return _PublicBookCard(
-              book: book,
-              onDownload: () => _showDownloadComingSoon(book.title),
+            return _StaggeredFadeIn(
+              delay: _staggerDelayForIndex(index),
+              child: _PublicBookCard(
+                book: book,
+                onDownload: () => _showDownloadComingSoon(book.title),
+              ),
             );
           },
         );
@@ -527,25 +582,41 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return 2;
   }
 
+  Duration _staggerDelayForIndex(int index) {
+    final jitter = (index * 37) % 120;
+    return Duration(milliseconds: 40 + jitter);
+  }
+
   Widget _buildDiscoverCta(
     BuildContext context,
     TextTheme textTheme,
     ColorScheme colorScheme,
   ) {
-    return GestureDetector(
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground = extras?.glassBackground ?? colorScheme.surface;
+    final glassBorder = extras?.glassBorder ?? colorScheme.outlineVariant;
+    final glassShadow =
+        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(25);
+    final accent = extras?.accentPalette.first ?? colorScheme.primary;
+    final accentSoft = extras?.accentSoftPalette.first ??
+        colorScheme.primary.withAlpha(20);
+    return Pressable(
       onTap: () => _selectMode(_CreateMode.discover),
+      pressedOpacity: 0.95,
+      pressedScale: 0.98,
+      haptic: PressableHaptic.selection,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: colorScheme.surface,
+          color: glassBackground,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: colorScheme.outlineVariant),
+          border: Border.all(color: glassBorder),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).shadowColor.withAlpha(15),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+              color: glassShadow,
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -555,12 +626,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: colorScheme.primary.withAlpha(15),
+                color: accentSoft,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
                 LucideIcons.search,
-                color: colorScheme.primary,
+                color: accent,
                 size: 24,
               ),
             ),
@@ -810,16 +881,23 @@ class _PublicBookCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final glassBackground = extras?.glassBackground ?? colorScheme.surface;
+    final glassBorder = extras?.glassBorder ?? colorScheme.outlineVariant;
+    final glassShadow =
+        extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(20);
+    final accent = extras?.accentPalette.first ?? colorScheme.primary;
 
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        color: glassBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: glassBorder),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).shadowColor.withAlpha(15),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: glassShadow,
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -833,13 +911,45 @@ class _PublicBookCard extends StatelessWidget {
                 Positioned.fill(
                   child: book.coverUrl == null
                       ? _CoverPlaceholder()
-                      : Image.network(
-                          book.coverUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return _CoverPlaceholder();
-                          },
+                      : Stack(
+                          children: [
+                            const Positioned.fill(child: _CoverPlaceholder()),
+                            Positioned.fill(
+                              child: _FadingNetworkImage(
+                                url: book.coverUrl!,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ],
                         ),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withAlpha(120),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 6,
+                  child: Container(color: Colors.black.withAlpha(40)),
+                ),
+                Positioned(
+                  left: 6,
+                  top: 0,
+                  bottom: 0,
+                  width: 1,
+                  child: Container(color: Colors.white.withAlpha(70)),
                 ),
                 Positioned(
                   top: 10,
@@ -871,6 +981,7 @@ class _PublicBookCard extends StatelessWidget {
               book.title,
               style: textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w700,
+                color: colorScheme.onSurface,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -891,13 +1002,28 @@ class _PublicBookCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
-                onPressed: onDownload,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colorScheme.primary,
-                  side: BorderSide(color: colorScheme.primary),
+              child: Pressable(
+                onTap: onDownload,
+                pressedOpacity: 0.9,
+                pressedScale: 0.98,
+                haptic: PressableHaptic.selection,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: accent.withAlpha(14),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: accent.withAlpha(150)),
+                  ),
+                  child: Text(
+                    'Download EPUB',
+                    textAlign: TextAlign.center,
+                    style: textTheme.labelLarge?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-                child: const Text('Download EPUB'),
               ),
             ),
           ),
@@ -908,6 +1034,8 @@ class _PublicBookCard extends StatelessWidget {
 }
 
 class _CoverPlaceholder extends StatelessWidget {
+  const _CoverPlaceholder();
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -927,6 +1055,166 @@ class _CoverPlaceholder extends StatelessWidget {
           LucideIcons.bookOpen,
           color: colorScheme.onSurfaceVariant,
           size: 36,
+        ),
+      ),
+    );
+  }
+}
+
+class _FadingNetworkImage extends StatelessWidget {
+  final String url;
+  final BoxFit fit;
+
+  const _FadingNetworkImage({
+    required this.url,
+    required this.fit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      url,
+      fit: fit,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded) {
+          return child;
+        }
+        return AnimatedOpacity(
+          opacity: frame == null ? 0 : 1,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOut,
+          child: child,
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return const SizedBox.shrink();
+      },
+    );
+  }
+}
+
+class _StaggeredFadeIn extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+  final Duration duration;
+  final Offset offset;
+
+  const _StaggeredFadeIn({
+    required this.child,
+    required this.delay,
+    this.duration = const Duration(milliseconds: 220),
+    this.offset = const Offset(0, 0.04),
+  });
+
+  @override
+  State<_StaggeredFadeIn> createState() => _StaggeredFadeInState();
+}
+
+class _StaggeredFadeInState extends State<_StaggeredFadeIn> {
+  bool _visible = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(widget.delay, () {
+      if (!mounted) return;
+      setState(() => _visible = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _visible ? 1 : 0,
+      duration: widget.duration,
+      curve: Curves.easeInOut,
+      child: AnimatedSlide(
+        offset: _visible ? Offset.zero : widget.offset,
+        duration: widget.duration,
+        curve: Curves.easeInOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _CreateBackdrop extends StatelessWidget {
+  const _CreateBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final palette = extras?.accentPalette ??
+        const [
+          AppColors.rose600,
+          AppColors.amber600,
+          AppColors.blue600,
+          AppColors.emerald600,
+        ];
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(color: colorScheme.background),
+        ),
+        Positioned(
+          top: -140,
+          right: -80,
+          child: _GlowOrb(
+            size: 260,
+            color: palette[1].withAlpha(50),
+          ),
+        ),
+        Positioned(
+          bottom: -160,
+          left: -80,
+          child: _GlowOrb(
+            size: 280,
+            color: palette[3].withAlpha(40),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                colorScheme.surface.withAlpha(50),
+                colorScheme.background.withAlpha(240),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _GlowOrb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
         ),
       ),
     );
