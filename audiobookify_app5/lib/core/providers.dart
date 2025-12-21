@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
+import '../data/built_in_backdrops.dart';
+import '../models/backdrop_image.dart';
+import '../models/backdrop_settings.dart';
 import '../services/book_service.dart';
 import '../services/open_library_service.dart';
 import '../services/tts_service.dart';
@@ -350,6 +354,150 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
 final playerThemeProvider =
     NotifierProvider<PlayerThemeSettingsNotifier, PlayerThemeSettings>(
       PlayerThemeSettingsNotifier.new,
+    );
+
+// ========================================
+// Backdrop Library
+// ========================================
+
+class BackdropLibraryNotifier extends Notifier<List<BackdropImage>> {
+  static const _libraryKey = 'backdrop_library_v1';
+
+  @override
+  List<BackdropImage> build() {
+    return _loadFromPrefs();
+  }
+
+  List<BackdropImage> _loadFromPrefs() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final raw = prefs.getString(_libraryKey);
+    final custom = <BackdropImage>[];
+
+    if (raw != null && raw.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final entry in decoded) {
+            try {
+              if (entry is Map<String, dynamic>) {
+                custom.add(BackdropImage.fromJson(entry));
+              } else if (entry is Map) {
+                custom.add(
+                  BackdropImage.fromJson(
+                    Map<String, dynamic>.from(entry),
+                  ),
+                );
+              }
+            } catch (_) {
+              // Skip malformed entries.
+            }
+          }
+        }
+      } catch (_) {
+        // Ignore malformed cache entries.
+      }
+    }
+
+    return List.unmodifiable([...builtInBackdrops, ...custom]);
+  }
+
+  bool _isBuiltIn(String id) {
+    for (final entry in builtInBackdrops) {
+      if (entry.id == id) return true;
+    }
+    return false;
+  }
+
+  Future<void> _saveCustom(List<BackdropImage> images) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final custom =
+        images.where((image) => !_isBuiltIn(image.id)).toList();
+    final payload =
+        jsonEncode(custom.map((image) => image.toJson()).toList());
+    await prefs.setString(_libraryKey, payload);
+  }
+
+  void addImage(BackdropImage image) {
+    final updated = [
+      ...state.where((entry) => entry.id != image.id),
+      image,
+    ];
+    state = List.unmodifiable(updated);
+    _saveCustom(state);
+  }
+
+  void removeImage(String id) {
+    if (_isBuiltIn(id)) return;
+    state =
+        List.unmodifiable(state.where((entry) => entry.id != id));
+    _saveCustom(state);
+  }
+
+  BackdropImage? findById(String id) {
+    for (final entry in state) {
+      if (entry.id == id) return entry;
+    }
+    return null;
+  }
+}
+
+final backdropLibraryProvider =
+    NotifierProvider<BackdropLibraryNotifier, List<BackdropImage>>(
+      BackdropLibraryNotifier.new,
+    );
+
+class BackdropSettingsNotifier extends Notifier<BackdropSettings> {
+  static const _backdropIdKey = 'backdrop_settings_id';
+  static const _brightnessKey = 'backdrop_settings_brightness';
+
+  @override
+  BackdropSettings build() {
+    return _loadFromPrefs();
+  }
+
+  BackdropSettings _loadFromPrefs() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final defaultId =
+        builtInBackdrops.isEmpty ? '' : builtInBackdrops.first.id;
+    final id = prefs.getString(_backdropIdKey) ?? defaultId;
+    final brightness = prefs.getDouble(_brightnessKey) ?? 0.0;
+    return BackdropSettings(
+      id: id,
+      brightness: brightness.clamp(-1.0, 1.0),
+    );
+  }
+
+  Future<void> _saveToPrefs() async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (state.id.trim().isEmpty) {
+      await prefs.remove(_backdropIdKey);
+    } else {
+      await prefs.setString(_backdropIdKey, state.id.trim());
+    }
+    await prefs.setDouble(_brightnessKey, state.brightness);
+  }
+
+  void setBackdropId(String id) {
+    state = state.copyWith(id: id.trim());
+    _saveToPrefs();
+  }
+
+  void setBrightness(double brightness) {
+    state = state.copyWith(brightness: brightness.clamp(-1.0, 1.0));
+    _saveToPrefs();
+  }
+
+  void reset() {
+    final defaultId =
+        builtInBackdrops.isEmpty ? '' : builtInBackdrops.first.id;
+    state = BackdropSettings(id: defaultId, brightness: 0.0);
+    _saveToPrefs();
+  }
+}
+
+final backdropSettingsProvider =
+    NotifierProvider<BackdropSettingsNotifier, BackdropSettings>(
+      BackdropSettingsNotifier.new,
     );
 
 // ========================================
