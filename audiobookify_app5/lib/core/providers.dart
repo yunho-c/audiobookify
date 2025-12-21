@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
 import '../services/book_service.dart';
+import '../services/open_library_service.dart';
 import '../services/tts_service.dart';
 import '../models/player_settings.dart';
 import '../models/player_theme_settings.dart';
+import '../models/public_book.dart';
 import 'app_theme.dart';
 
 /// ObjectBox Store provider - overridden in main.dart
@@ -23,6 +25,56 @@ final bookServiceProvider = Provider<BookService>((ref) {
 final booksProvider = StreamProvider((ref) {
   return ref.watch(bookServiceProvider).watchAllBooks();
 });
+
+// ========================================
+// Open Library
+// ========================================
+
+/// Open Library service provider.
+final openLibraryServiceProvider = Provider<OpenLibraryService>((ref) {
+  final service = OpenLibraryService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+class OpenLibrarySearchArgs {
+  final String query;
+  final int page;
+  final int limit;
+  final String? language;
+
+  const OpenLibrarySearchArgs({
+    required this.query,
+    this.page = 1,
+    this.limit = 20,
+    this.language,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is OpenLibrarySearchArgs &&
+        other.query == query &&
+        other.page == page &&
+        other.limit == limit &&
+        other.language == language;
+  }
+
+  @override
+  int get hashCode => Object.hash(query, page, limit, language);
+}
+
+/// Search provider for public-domain Open Library results.
+final openLibrarySearchProvider =
+    FutureProvider.family<List<PublicBook>, OpenLibrarySearchArgs>(
+  (ref, args) {
+    return ref.read(openLibraryServiceProvider).searchPublicDomain(
+          query: args.query,
+          page: args.page,
+          limit: args.limit,
+          language: args.language,
+        );
+  },
+);
 
 /// SharedPreferences provider - overridden in main.dart
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
