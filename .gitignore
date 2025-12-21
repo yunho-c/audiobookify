@@ -422,5 +422,7 @@ docs/_book
 
 # TODO: where does this rule come from?
 test/
+!audiobookify_app5/test/
+!audiobookify_app5/test/**
 
 # End of https://www.toptal.com/developers/gitignore/api/dart,flutter,node,vue,nuxtjs,python
