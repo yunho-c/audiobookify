@@ -26,6 +26,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   String? _loadedFilePath;
   _CreateMode _mode = _CreateMode.import;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchDebounce;
   String _searchText = '';
   String _searchQuery = '';
@@ -43,6 +44,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   void dispose() {
     _searchDebounce?.cancel();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -125,6 +127,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     if (_mode == mode) return;
     setState(() => _mode = mode);
     FocusManager.instance.primaryFocus?.unfocus();
+    if (mode == _CreateMode.discover) {
+      _focusSearchSoon();
+    }
   }
 
   void _onSearchChanged(String value) {
@@ -154,6 +159,13 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     FocusManager.instance.primaryFocus?.unfocus();
   }
 
+  void _focusSearchSoon() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocusNode.requestFocus();
+    });
+  }
+
   void _showDownloadComingSoon(String title) {
     final colorScheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -169,20 +181,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final extras = Theme.of(context).extension<AppThemeExtras>();
-    final accentPalette = extras?.accentPalette ??
-        [
-          colorScheme.primary,
-          colorScheme.primary,
-          colorScheme.primary,
-          colorScheme.primary,
-        ];
-    final accentSoftPalette = extras?.accentSoftPalette ??
-        [
-          colorScheme.primary.withAlpha(15),
-          colorScheme.primary.withAlpha(15),
-          colorScheme.primary.withAlpha(15),
-          colorScheme.primary.withAlpha(15),
-        ];
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
@@ -212,8 +210,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   context: context,
                   textTheme: textTheme,
                   colorScheme: colorScheme,
-                  accentPalette: accentPalette,
-                  accentSoftPalette: accentSoftPalette,
                 )
               else
                 _buildDiscoverSection(
@@ -267,8 +263,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     required BuildContext context,
     required TextTheme textTheme,
     required ColorScheme colorScheme,
-    required List<Color> accentPalette,
-    required List<Color> accentSoftPalette,
   }) {
     return Column(
       children: [
@@ -303,92 +297,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 : _buildUploadState(),
           ),
         ),
-        const SizedBox(height: 24),
-        // Option buttons
-        Row(
-          children: [
-            Expanded(
-              child: _OptionCard(
-                icon: LucideIcons.fileText,
-                label: 'Paste Text',
-                bgColor: accentSoftPalette[2],
-                fgColor: accentPalette[2],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _OptionCard(
-                icon: LucideIcons.mic,
-                label: 'Record Voice',
-                bgColor: accentSoftPalette[3],
-                fgColor: accentPalette[3],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 32),
-        // Recent drafts
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Recent Drafts',
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
         const SizedBox(height: 16),
-        Container(
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).shadowColor.withAlpha(15),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceVariant,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Icon(
-                  LucideIcons.fileText,
-                  size: 18,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            title: Text(
-              'My Biography',
-              style: textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            subtitle: Text(
-              'Edited 2h ago',
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            trailing: Icon(
-              LucideIcons.arrowRight,
-              size: 18,
-              color: colorScheme.outline,
-            ),
-          ),
-        ),
+        _buildDiscoverCta(context, textTheme, colorScheme),
       ],
     );
   }
@@ -441,6 +351,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   Widget _buildSearchBar(ColorScheme colorScheme, TextTheme textTheme) {
     return TextField(
       controller: _searchController,
+      focusNode: _searchFocusNode,
       textInputAction: TextInputAction.search,
       onChanged: _onSearchChanged,
       decoration: InputDecoration(
@@ -614,6 +525,75 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     if (width >= 980) return 4;
     if (width >= 720) return 3;
     return 2;
+  }
+
+  Widget _buildDiscoverCta(
+    BuildContext context,
+    TextTheme textTheme,
+    ColorScheme colorScheme,
+  ) {
+    return GestureDetector(
+      onTap: () => _selectMode(_CreateMode.discover),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: colorScheme.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).shadowColor.withAlpha(15),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withAlpha(15),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                LucideIcons.search,
+                color: colorScheme.primary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Discover public-domain books',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Search Open Library and download free EPUBs.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              LucideIcons.arrowRight,
+              size: 18,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildUploadState() {
@@ -809,62 +789,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OptionCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color bgColor;
-  final Color fgColor;
-
-  const _OptionCard({
-    required this.icon,
-    required this.label,
-    required this.bgColor,
-    required this.fgColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).shadowColor.withAlpha(15),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(child: Icon(icon, size: 20, color: fgColor)),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
             ),
           ),
         ],
