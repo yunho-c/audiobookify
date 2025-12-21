@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../models/open_library_work.dart';
@@ -33,6 +36,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   Timer? _searchDebounce;
   String _searchText = '';
   String _searchQuery = '';
+  final Set<String> _downloadsInProgress = {};
+  final Map<String, double> _downloadProgress = {};
 
   static const List<String> _exploreSuggestions = [
     'Sherlock Holmes',
@@ -169,14 +174,152 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     });
   }
 
-  void _showDownloadComingSoon(String title) {
+  bool _isDownloading(PublicBook book) {
+    return _downloadsInProgress.contains(book.iaId);
+  }
+
+  double? _downloadProgressFor(PublicBook book) {
+    return _downloadProgress[book.iaId];
+  }
+
+  void _setDownloadProgress(String iaId, double progress) {
+    final clamped = progress.clamp(0.0, 1.0);
+    final previous = _downloadProgress[iaId];
+    if (previous != null && (clamped - previous).abs() < 0.02) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _downloadProgress[iaId] = clamped);
+  }
+
+  Future<void> _downloadAndImport(PublicBook book, {bool closeDetails = false}) async {
+    if (_downloadsInProgress.contains(book.iaId)) return;
+    setState(() {
+      _downloadsInProgress.add(book.iaId);
+      _downloadProgress[book.iaId] = 0.0;
+    });
+
+    if (closeDetails && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
     final colorScheme = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context).showSnackBar(
+    final extras = Theme.of(context).extension<AppThemeExtras>();
+    final successColor = extras?.accentPalette[3] ?? colorScheme.primary;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    scaffoldMessenger.showSnackBar(
       SnackBar(
-        content: Text('Download for \"$title\" coming next.'),
+        content: Text('Downloading "${book.title}"...'),
         backgroundColor: colorScheme.surface,
       ),
     );
+
+    try {
+      final file = await _downloadEpubToFile(
+        book,
+        onProgress: (progress) => _setDownloadProgress(book.iaId, progress),
+      );
+      final epub = await openEpub(path: file.path);
+      if (!mounted) return;
+      final savedBook =
+          ref.read(bookServiceProvider).saveBook(epub, file.path);
+
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Added "${savedBook.title}" to library'),
+          backgroundColor: successColor,
+        ),
+      );
+
+      if (mounted) {
+        context.go('/');
+      }
+    } catch (error) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Download failed: $error'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloadsInProgress.remove(book.iaId);
+          _downloadProgress.remove(book.iaId);
+        });
+      }
+    }
+  }
+
+  Future<File> _downloadEpubToFile(
+    PublicBook book, {
+    ValueChanged<double>? onProgress,
+  }) async {
+    final client = http.Client();
+    try {
+      final uri = Uri.parse(book.epubUrl);
+      final response = await client.send(http.Request('GET', uri));
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final downloadDir = Directory('${appDir.path}/downloads');
+      await downloadDir.create(recursive: true);
+
+      final fileName = _sanitizeFileName('${book.title}-${book.iaId}.epub');
+      final file = File('${downloadDir.path}/$fileName');
+      if (await file.exists()) {
+        onProgress?.call(1.0);
+        return file;
+      }
+
+      final contentLength = response.contentLength ?? 0;
+      final sink = file.openWrite();
+      if (contentLength <= 0 || onProgress == null) {
+        await response.stream.pipe(sink);
+        return file;
+      }
+
+      final completer = Completer<File>();
+      var received = 0;
+
+      response.stream.listen(
+        (chunk) {
+          received += chunk.length;
+          sink.add(chunk);
+          if (contentLength > 0) {
+            onProgress(received / contentLength);
+          }
+        },
+        onError: (error, stackTrace) async {
+          await sink.close();
+          if (!completer.isCompleted) {
+            completer.completeError(error, stackTrace);
+          }
+        },
+        onDone: () async {
+          await sink.close();
+          if (!completer.isCompleted) {
+            onProgress(1.0);
+            completer.complete(file);
+          }
+        },
+        cancelOnError: true,
+      );
+
+      return completer.future;
+    } finally {
+      client.close();
+    }
+  }
+
+  String _sanitizeFileName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return 'untitled.epub';
+    final sanitized = trimmed.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    return sanitized.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   void _openBookDetails(PublicBook book) {
@@ -189,7 +332,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       pageBuilder: (context, animation, secondaryAnimation) {
         return _PublicBookDetailsSheet(
           book: book,
-          onDownload: () => _showDownloadComingSoon(book.title),
+          onDownload: () => _downloadAndImport(book, closeDetails: true),
+          isDownloading: _isDownloading(book),
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -599,7 +743,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               child: _PublicBookCard(
                 book: book,
                 onTap: () => _openBookDetails(book),
-                onDownload: () => _showDownloadComingSoon(book.title),
+                onDownload: () => _downloadAndImport(book),
+                isDownloading: _isDownloading(book),
+                downloadProgress: _downloadProgressFor(book),
               ),
             );
           },
@@ -904,11 +1050,15 @@ class _PublicBookCard extends StatelessWidget {
   final PublicBook book;
   final VoidCallback onTap;
   final VoidCallback onDownload;
+  final bool isDownloading;
+  final double? downloadProgress;
 
   const _PublicBookCard({
     required this.book,
     required this.onTap,
     required this.onDownload,
+    required this.isDownloading,
+    required this.downloadProgress,
   });
 
   @override
@@ -1044,7 +1194,7 @@ class _PublicBookCard extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: Pressable(
-                  onTap: onDownload,
+                  onTap: isDownloading ? null : onDownload,
                   pressedOpacity: 0.9,
                   pressedScale: 0.98,
                   haptic: PressableHaptic.selection,
@@ -1054,17 +1204,15 @@ class _PublicBookCard extends StatelessWidget {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: accent.withAlpha(14),
+                      color: accent.withAlpha(isDownloading ? 8 : 14),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: accent.withAlpha(150)),
                     ),
-                    child: Text(
-                      'Download EPUB',
-                      textAlign: TextAlign.center,
-                      style: textTheme.labelLarge?.copyWith(
-                        color: accent,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: _DownloadLabel(
+                      isDownloading: isDownloading,
+                      progress: downloadProgress,
+                      accent: accent,
+                      textTheme: textTheme,
                     ),
                   ),
                 ),
@@ -1073,6 +1221,76 @@ class _PublicBookCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DownloadLabel extends StatelessWidget {
+  final bool isDownloading;
+  final double? progress;
+  final Color accent;
+  final TextTheme textTheme;
+
+  const _DownloadLabel({
+    required this.isDownloading,
+    required this.progress,
+    required this.accent,
+    required this.textTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progressValue =
+        progress == null ? null : progress!.clamp(0.0, 1.0);
+    final progressPercent = progressValue == null
+        ? null
+        : (progressValue * 100).round();
+    final label = isDownloading
+        ? (progressPercent != null
+            ? 'Downloading $progressPercent%'
+            : 'Downloading...')
+        : 'Download EPUB';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (isDownloading && progressPercent == null) ...[
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: accent,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: textTheme.labelLarge?.copyWith(
+                color: accent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        if (isDownloading && progressValue != null) ...[
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progressValue,
+              minHeight: 4,
+              backgroundColor: accent.withAlpha(40),
+              valueColor: AlwaysStoppedAnimation(accent),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1140,10 +1358,12 @@ class _FadingNetworkImage extends StatelessWidget {
 class _PublicBookDetailsSheet extends ConsumerStatefulWidget {
   final PublicBook book;
   final VoidCallback onDownload;
+  final bool isDownloading;
 
   const _PublicBookDetailsSheet({
     required this.book,
     required this.onDownload,
+    required this.isDownloading,
   });
 
   @override
@@ -1173,6 +1393,7 @@ class _PublicBookDetailsSheetState
     final glassShadow =
         extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(25);
     final accent = extras?.accentPalette.first ?? colorScheme.primary;
+    final debugEnabled = ref.watch(debugModeProvider);
 
     return SafeArea(
       child: Center(
@@ -1353,8 +1574,38 @@ class _PublicBookDetailsSheetState
                               },
                             ),
                             const SizedBox(height: 20),
+                            if (debugEnabled) ...[
+                              Text(
+                                'Download link (debug)',
+                                style: textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color:
+                                      colorScheme.surfaceVariant.withAlpha(160),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: colorScheme.outlineVariant,
+                                  ),
+                                ),
+                                child: SelectableText(
+                                  widget.book.epubUrl,
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
                             Pressable(
-                              onTap: widget.onDownload,
+                              onTap: widget.isDownloading
+                                  ? null
+                                  : widget.onDownload,
                               pressedOpacity: 0.92,
                               pressedScale: 0.98,
                               haptic: PressableHaptic.medium,
@@ -1363,7 +1614,9 @@ class _PublicBookDetailsSheetState
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 14),
                                 decoration: BoxDecoration(
-                                  color: accent,
+                                  color: widget.isDownloading
+                                      ? accent.withAlpha(120)
+                                      : accent,
                                   borderRadius: BorderRadius.circular(14),
                                   boxShadow: [
                                     BoxShadow(
@@ -1373,13 +1626,31 @@ class _PublicBookDetailsSheetState
                                     ),
                                   ],
                                 ),
-                                child: Text(
-                                  'Download EPUB',
-                                  textAlign: TextAlign.center,
-                                  style: textTheme.labelLarge?.copyWith(
-                                    color: colorScheme.onPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (widget.isDownloading) ...[
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: colorScheme.onPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                    ],
+                                    Text(
+                                      widget.isDownloading
+                                          ? 'Downloading...'
+                                          : 'Download EPUB',
+                                      textAlign: TextAlign.center,
+                                      style: textTheme.labelLarge?.copyWith(
+                                        color: colorScheme.onPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
