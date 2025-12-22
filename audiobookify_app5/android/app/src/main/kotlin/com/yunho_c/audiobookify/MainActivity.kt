@@ -1,4 +1,4 @@
-package com.example.audiobookify_app5
+package com.yunho_c.audiobookify
 
 import io.flutter.embedding.android.FlutterActivity
 
