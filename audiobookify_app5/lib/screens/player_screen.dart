@@ -159,7 +159,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
 
       // Load EPUB
-      final epub = await openEpub(path: book.filePath);
+      final epub = await ref.read(epubServiceProvider).openEpub(book.filePath);
 
       if (!mounted) return;
       setState(() {

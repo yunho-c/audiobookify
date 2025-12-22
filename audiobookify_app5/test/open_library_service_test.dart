@@ -125,4 +125,65 @@ void main() {
     expect(results, isEmpty);
     expect(called, isFalse);
   });
+
+  test('searchPublicDomain caches repeated queries', () async {
+    var callCount = 0;
+    final responseBody = json.encode({
+      'docs': [
+        {
+          'title': 'Cached Book',
+          'author_name': ['Cached Author'],
+          'ia': ['cachedid'],
+          'ebook_access': 'public',
+          'key': '/works/OL10W',
+        },
+      ],
+    });
+
+    final client = MockClient((request) async {
+      callCount += 1;
+      return http.Response(responseBody, 200);
+    });
+
+    final service = OpenLibraryService(client: client);
+    final first = await service.searchPublicDomain(query: 'cached');
+    final second = await service.searchPublicDomain(query: 'cached');
+
+    expect(first, isNotEmpty);
+    expect(second, isNotEmpty);
+    expect(callCount, 1);
+  });
+
+  test('fetchWorkDetails parses work metadata', () async {
+    final responseBody = json.encode({
+      'title': 'Work Title',
+      'description': {'value': 'A classic work.'},
+      'subjects': ['Fiction', 'Mystery'],
+      'first_publish_date': '1892',
+    });
+
+    final client = MockClient((request) async {
+      return http.Response(responseBody, 200);
+    });
+
+    final service = OpenLibraryService(client: client);
+    final work = await service.fetchWorkDetails('/works/OL42W');
+
+    expect(work, isNotNull);
+    expect(work!.title, 'Work Title');
+    expect(work.description, 'A classic work.');
+    expect(work.subjects, ['Fiction', 'Mystery']);
+    expect(work.firstPublishDate, '1892');
+  });
+
+  test('fetchWorkDetails returns null on non-200', () async {
+    final client = MockClient((request) async {
+      return http.Response('Not found', 404);
+    });
+
+    final service = OpenLibraryService(client: client);
+    final work = await service.fetchWorkDetails('/works/OL404W');
+
+    expect(work, isNull);
+  });
 }

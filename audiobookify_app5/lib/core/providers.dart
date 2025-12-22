@@ -8,6 +8,7 @@ import '../data/built_in_backdrops.dart';
 import '../models/backdrop_image.dart';
 import '../models/backdrop_settings.dart';
 import '../services/book_service.dart';
+import '../services/epub_service.dart';
 import '../services/open_library_service.dart';
 import '../services/tts_audio_handler.dart';
 import '../services/tts_service.dart';
@@ -24,6 +25,10 @@ final storeProvider = Provider<Store>((ref) {
 /// BookService provider - depends on Store
 final bookServiceProvider = Provider<BookService>((ref) {
   return BookService(ref.read(storeProvider));
+});
+
+final epubServiceProvider = Provider<EpubService>((ref) {
+  return const EpubService();
 });
 
 /// Reactive stream of all books
