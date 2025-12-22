@@ -64,7 +64,8 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
 
       // Load EPUB to get TOC and chapters
       try {
-        final epub = await openEpub(path: book.filePath);
+        final epub =
+            await ref.read(epubServiceProvider).openEpub(book.filePath);
         if (!mounted) return;
         setState(() {
           _epubBook = epub;
