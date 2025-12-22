@@ -439,7 +439,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               received += chunk.length;
               sink.add(chunk);
               if (contentLength > 0) {
-                onProgress(received / contentLength);
+                onProgress?.call(received / contentLength);
               }
             },
             onError: (error, stackTrace) async {
@@ -460,7 +460,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               } catch (_) {}
               if (!completer.isCompleted) {
                 if (contentLength > 0) {
-                  onProgress(1.0);
+                  onProgress?.call(1.0);
                 } else {
                   onProgress?.call(-1);
                 }
