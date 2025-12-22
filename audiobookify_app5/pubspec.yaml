@@ -50,6 +50,7 @@ dependencies:
   path_provider: ^2.1.0
   http: ^1.2.0
   archive: ^3.5.1
+  sentry_flutter: ^9.6.0
   audio_service: ^0.18.12
   audio_session: ^0.2.2
   permission_handler: ^12.0.1

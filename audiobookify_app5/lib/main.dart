@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audiobookify_app5/src/rust/frb_generated.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'core/app_theme.dart';
 import 'core/error_reporter.dart';
 import 'core/nav_transition.dart';
@@ -25,14 +26,34 @@ import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
 
 Future<void> main() async {
-  await runZonedGuarded(
-    () async {
-      WidgetsFlutterBinding.ensureInitialized();
-      _initErrorHandling();
-      await _startApp();
+  WidgetsFlutterBinding.ensureInitialized();
+  await SentryFlutter.init(
+    (options) {
+      final dsn = const String.fromEnvironment('SENTRY_DSN');
+      if (dsn.isNotEmpty) {
+        options.dsn = dsn;
+      }
+      final environment = const String.fromEnvironment('APP_ENV');
+      options.environment =
+          environment.isNotEmpty
+              ? environment
+              : (kReleaseMode ? 'production' : 'development');
+      final release = const String.fromEnvironment('APP_RELEASE');
+      if (release.isNotEmpty) {
+        options.release = release;
+      }
+      options.tracesSampleRate = 0.1;
     },
-    (error, stackTrace) {
-      reportError(error, stackTrace, context: 'zone');
+    appRunner: () {
+      runZonedGuarded(
+        () async {
+          _initErrorHandling();
+          await _startApp();
+        },
+        (error, stackTrace) {
+          reportError(error, stackTrace, context: 'zone');
+        },
+      );
     },
   );
 }
