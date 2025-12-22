@@ -572,6 +572,8 @@ class _ChapterList extends ConsumerWidget {
   final List<ChapterInfo> chapters;
   final int progress;
 
+  static const bool kPreferTocTitles = true;
+
   const _ChapterList({
     required this.bookId,
     required this.toc,
@@ -582,9 +584,22 @@ class _ChapterList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const bucketCount = 64;
-    final filteredToc =
-        toc.where((t) => t.title.trim().isNotEmpty).toList();
-    final hasChapters = filteredToc.isNotEmpty || chapters.isNotEmpty;
+    final filteredToc = toc
+        .where(
+          (entry) =>
+              entry.title.trim().isNotEmpty && entry.href.trim().isNotEmpty,
+        )
+        .toList();
+    final tocTitleByHref = <String, String>{};
+    if (kPreferTocTitles) {
+      for (final entry in filteredToc) {
+        final key = _normalizeHref(entry.href);
+        if (key.isNotEmpty) {
+          tocTitleByHref[key] = entry.title.trim();
+        }
+      }
+    }
+    final hasChapters = chapters.isNotEmpty;
 
     if (!hasChapters) {
       return Container(
@@ -643,34 +658,26 @@ class _ChapterList extends ConsumerWidget {
                 ),
           ),
           const SizedBox(height: 16),
-          if (filteredToc.isNotEmpty)
-            ...filteredToc.asMap().entries.map(
-                  (entry) => _TocItem(
-                    index: entry.key + 1,
-                    title: entry.value.title,
-                    bookId: bookId,
-                    status: _chapterStatus(
-                      entry.key + 1,
-                      filteredToc.length,
-                      progress,
-                    ),
-                    bucketCount: bucketCount,
-                  ),
-                )
-          else
-            ...chapters.asMap().entries.map(
-              (entry) => _TocItem(
-                index: entry.key + 1,
-                title: entry.value.id ?? 'Chapter ${entry.key + 1}',
+          ...chapters.asMap().entries.map(
+            (entry) {
+              final index = entry.key + 1;
+              return _TocItem(
+                index: index,
+                title: _chapterTitleFor(
+                  entry.value,
+                  index,
+                  tocTitleByHref,
+                ),
                 bookId: bookId,
                 status: _chapterStatus(
-                  entry.key + 1,
+                  index,
                   chapters.length,
                   progress,
                 ),
                 bucketCount: bucketCount,
-              ),
-            ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -678,6 +685,32 @@ class _ChapterList extends ConsumerWidget {
 }
 
 enum _ChapterStatus { newChapter, inProgress, completed }
+
+String _chapterTitleFor(
+  ChapterInfo chapter,
+  int index,
+  Map<String, String> tocTitleByHref,
+) {
+  if (_ChapterList.kPreferTocTitles) {
+    final tocTitle = tocTitleByHref[_normalizeHref(chapter.href)];
+    if (tocTitle != null && tocTitle.trim().isNotEmpty) {
+      return tocTitle.trim();
+    }
+  }
+  final fallback = chapter.id.trim();
+  if (fallback.isNotEmpty) return fallback;
+  return 'Chapter $index';
+}
+
+String _normalizeHref(String href) {
+  final trimmed = href.trim();
+  if (trimmed.isEmpty) return '';
+  final withoutFragment = trimmed.split('#').first;
+  if (withoutFragment.startsWith('./')) {
+    return withoutFragment.substring(2);
+  }
+  return withoutFragment;
+}
 
 _ChapterStatus _chapterStatus(int index, int total, int progress) {
   if (total <= 0) return _ChapterStatus.newChapter;
