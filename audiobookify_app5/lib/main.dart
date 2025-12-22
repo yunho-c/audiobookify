@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,42 +26,65 @@ import 'services/tts_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _initErrorHandling();
 
-  // Initialize flutter_rust_bridge
-  await RustLib.init();
-
-  // Initialize ObjectBox
-  final appDir = await getApplicationDocumentsDirectory();
-  final store = await openStore(directory: '${appDir.path}/objectbox');
-
-  // Initialize SharedPreferences
-  final prefs = await SharedPreferences.getInstance();
-  await _maybeRequestAndroidNotificationPermission(prefs);
-
-  // Initialize audio handler + TTS service for background controls.
-  final ttsService = TtsService();
-  final audioHandler = await AudioService.init(
-    builder: () => TtsAudioHandler(ttsService),
-    config: const AudioServiceConfig(
-      androidNotificationChannelId: 'audiobookify.playback',
-      androidNotificationChannelName: 'Audiobookify Playback',
-      androidNotificationChannelDescription: 'Audiobookify playback controls',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
-    ),
+  await runZonedGuarded(
+    () async {
+      await _startApp();
+    },
+    (error, stackTrace) {
+      _reportError(error, stackTrace);
+    },
   );
+}
 
-  runApp(
-    ProviderScope(
-      overrides: [
-        storeProvider.overrideWithValue(store),
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        ttsProvider.overrideWith((ref) => ttsService),
-        audioHandlerProvider.overrideWithValue(audioHandler as TtsAudioHandler),
-      ],
-      child: const AudiobookifyApp(),
-    ),
-  );
+Future<void> _startApp() async {
+  try {
+    // Initialize flutter_rust_bridge
+    await RustLib.init();
+
+    // Initialize ObjectBox
+    final appDir = await getApplicationDocumentsDirectory();
+    final store = await openStore(directory: '${appDir.path}/objectbox');
+
+    // Initialize SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await _maybeRequestAndroidNotificationPermission(prefs);
+
+    // Initialize audio handler + TTS service for background controls.
+    final ttsService = TtsService();
+    final audioHandler = await AudioService.init(
+      builder: () => TtsAudioHandler(ttsService),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'audiobookify.playback',
+        androidNotificationChannelName: 'Audiobookify Playback',
+        androidNotificationChannelDescription: 'Audiobookify playback controls',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+      ),
+    );
+
+    runApp(
+      ProviderScope(
+        overrides: [
+          storeProvider.overrideWithValue(store),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          ttsProvider.overrideWith((ref) => ttsService),
+          audioHandlerProvider.overrideWithValue(
+            audioHandler as TtsAudioHandler,
+          ),
+        ],
+        child: const AudiobookifyApp(),
+      ),
+    );
+  } catch (error, stackTrace) {
+    _reportError(error, stackTrace);
+    runApp(
+      _BootstrapErrorApp(
+        message: _startupErrorMessage(error, stackTrace),
+      ),
+    );
+  }
 }
 
 Future<void> _maybeRequestAndroidNotificationPermission(
@@ -76,6 +102,70 @@ Future<void> _maybeRequestAndroidNotificationPermission(
     // Ignore permission request failures.
   } finally {
     await prefs.setBool(key, true);
+  }
+}
+
+void _initErrorHandling() {
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    _reportError(details.exception, details.stack ?? StackTrace.current);
+  };
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    _reportError(error, stackTrace);
+    return true;
+  };
+}
+
+void _reportError(Object error, StackTrace stackTrace) {
+  log(
+    'Unhandled error',
+    name: 'audiobookify',
+    error: error,
+    stackTrace: stackTrace,
+  );
+}
+
+String _startupErrorMessage(Object error, StackTrace stackTrace) {
+  if (kDebugMode) {
+    return '$error\n\n$stackTrace';
+  }
+  return 'Please restart the app. If the problem persists, reinstall.';
+}
+
+class _BootstrapErrorApp extends StatelessWidget {
+  final String message;
+
+  const _BootstrapErrorApp({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  'App failed to start',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
