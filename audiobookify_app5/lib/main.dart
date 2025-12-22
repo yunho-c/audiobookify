@@ -26,13 +26,14 @@ import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final dsn = const String.fromEnvironment('SENTRY_DSN');
+  if (dsn.isEmpty) {
+    await _runApp();
+    return;
+  }
   await SentryFlutter.init(
     (options) {
-      final dsn = const String.fromEnvironment('SENTRY_DSN');
-      if (dsn.isNotEmpty) {
-        options.dsn = dsn;
-      }
+      options.dsn = dsn;
       final environment = const String.fromEnvironment('APP_ENV');
       options.environment =
           environment.isNotEmpty
@@ -43,22 +44,36 @@ Future<void> main() async {
         options.release = release;
       }
       options.tracesSampleRate = 0.1;
+      options.beforeSend = (event, hint) {
+        return isCrashReportingEnabled ? event : null;
+      };
+      options.beforeSendTransaction = (transaction, hint) {
+        return isCrashReportingEnabled ? transaction : null;
+      };
     },
-    appRunner: () {
-      runZonedGuarded(
-        () async {
-          _initErrorHandling();
-          await _startApp();
-        },
-        (error, stackTrace) {
-          reportError(error, stackTrace, context: 'zone');
-        },
+    appRunner: _runApp,
+  );
+}
+
+Future<void> _runApp() async {
+  return runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      final prefs = await SharedPreferences.getInstance();
+      setCrashReportingEnabled(
+        prefs.getBool(crashReportingPrefsKey) ??
+            crashReportingDefaultEnabled,
       );
+      _initErrorHandling();
+      await _startApp(prefs);
+    },
+    (error, stackTrace) {
+      reportError(error, stackTrace, context: 'zone');
     },
   );
 }
 
-Future<void> _startApp() async {
+Future<void> _startApp(SharedPreferences prefs) async {
   try {
     // Initialize flutter_rust_bridge
     await RustLib.init();
@@ -68,7 +83,6 @@ Future<void> _startApp() async {
     final store = await openStore(directory: '${appDir.path}/objectbox');
 
     // Initialize SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
     await _maybeRequestAndroidNotificationPermission(prefs);
 
     // Initialize audio handler + TTS service for background controls.
@@ -190,6 +204,7 @@ class AudiobookifyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(ttsSettingsSyncProvider);
+    ref.watch(crashReportingSyncProvider);
     final themePreference = ref.watch(themePreferenceProvider);
     return MaterialApp.router(
       title: 'Audiobookify',

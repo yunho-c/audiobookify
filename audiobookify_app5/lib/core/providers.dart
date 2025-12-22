@@ -17,6 +17,7 @@ import '../models/player_settings.dart';
 import '../models/player_theme_settings.dart';
 import '../models/public_book.dart';
 import 'app_theme.dart';
+import 'error_reporter.dart';
 
 /// ObjectBox Store provider - overridden in main.dart
 final storeProvider = Provider<Store>((ref) {
@@ -529,6 +530,40 @@ class DebugModeNotifier extends Notifier<bool> {
 
 final debugModeProvider =
     NotifierProvider<DebugModeNotifier, bool>(DebugModeNotifier.new);
+
+// ========================================
+// Crash Reporting
+// ========================================
+
+const crashReportingPrefsKey = 'crash_reporting_enabled';
+const crashReportingDefaultEnabled = true;
+
+class CrashReportingNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    return prefs.getBool(crashReportingPrefsKey) ??
+        crashReportingDefaultEnabled;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(crashReportingPrefsKey, enabled);
+  }
+}
+
+final crashReportingProvider =
+    NotifierProvider<CrashReportingNotifier, bool>(
+      CrashReportingNotifier.new,
+    );
+
+final crashReportingSyncProvider = Provider<void>((ref) {
+  setCrashReportingEnabled(ref.read(crashReportingProvider));
+  ref.listen<bool>(crashReportingProvider, (previous, next) {
+    setCrashReportingEnabled(next);
+  });
+});
 
 // ========================================
 // Labs Mode

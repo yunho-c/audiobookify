@@ -14,6 +14,7 @@ class SettingsScreen extends ConsumerWidget {
     final textTheme = Theme.of(context).textTheme;
     final themePreference = ref.watch(themePreferenceProvider);
     final debugEnabled = ref.watch(debugModeProvider);
+    final crashReportingEnabled = ref.watch(crashReportingProvider);
     final labsEnabled = ref.watch(labsModeProvider);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -169,6 +170,57 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: (value) {
                         ref
                             .read(debugModeProvider.notifier)
+                            .setEnabled(value);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _SettingsCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        LucideIcons.shield,
+                        size: 20,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Crash Reporting',
+                            style: textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Send anonymous diagnostics',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: crashReportingEnabled,
+                      onChanged: (value) {
+                        ref
+                            .read(crashReportingProvider.notifier)
                             .setEnabled(value);
                       },
                     ),
