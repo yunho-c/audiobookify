@@ -25,11 +25,10 @@ import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  _initErrorHandling();
-
   await runZonedGuarded(
     () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      _initErrorHandling();
       await _startApp();
     },
     (error, stackTrace) {
