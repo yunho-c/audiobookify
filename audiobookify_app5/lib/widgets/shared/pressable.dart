@@ -6,19 +6,23 @@ enum PressableHaptic { none, selection, light, medium }
 class Pressable extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final double pressedOpacity;
   final double pressedScale;
   final Duration duration;
   final PressableHaptic haptic;
+  final PressableHaptic longPressHaptic;
 
   const Pressable({
     super.key,
     required this.child,
     this.onTap,
+    this.onLongPress,
     this.pressedOpacity = 0.75,
     this.pressedScale = 0.98,
     this.duration = const Duration(milliseconds: 140),
     this.haptic = PressableHaptic.none,
+    this.longPressHaptic = PressableHaptic.none,
   });
 
   @override
@@ -35,12 +39,12 @@ class _PressableState extends State<Pressable> {
 
   void _handleTap() {
     if (widget.onTap == null) return;
-    _performHaptic();
+    _performHaptic(widget.haptic);
     widget.onTap!();
   }
 
-  void _performHaptic() {
-    switch (widget.haptic) {
+  void _performHaptic(PressableHaptic haptic) {
+    switch (haptic) {
       case PressableHaptic.selection:
         HapticFeedback.selectionClick();
         break;
@@ -55,6 +59,15 @@ class _PressableState extends State<Pressable> {
     }
   }
 
+  void _handleLongPress() {
+    if (widget.onLongPress == null) return;
+    final haptic = widget.longPressHaptic == PressableHaptic.none
+        ? widget.haptic
+        : widget.longPressHaptic;
+    _performHaptic(haptic);
+    widget.onLongPress!();
+  }
+
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
@@ -63,6 +76,7 @@ class _PressableState extends State<Pressable> {
       onTapUp: !enabled ? null : (_) => _setPressed(false),
       onTapCancel: !enabled ? null : () => _setPressed(false),
       onTap: !enabled ? null : _handleTap,
+      onLongPress: widget.onLongPress == null ? null : _handleLongPress,
       child: AnimatedOpacity(
         duration: widget.duration,
         opacity: _isPressed ? widget.pressedOpacity : 1,

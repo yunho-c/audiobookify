@@ -14,6 +14,8 @@ class BookCard extends StatelessWidget {
   final Color? color;
   final Uint8List? coverImage;
   final int progress;
+  final VoidCallback? onLongPress;
+  final PressableHaptic longPressHaptic;
 
   const BookCard({
     super.key,
@@ -23,16 +25,24 @@ class BookCard extends StatelessWidget {
     this.color,
     this.coverImage,
     this.progress = 0,
+    this.onLongPress,
+    this.longPressHaptic = PressableHaptic.none,
   });
 
   /// Factory to create BookCard from a Book model
-  factory BookCard.fromBook(Book book) {
+  factory BookCard.fromBook(
+    Book book, {
+    VoidCallback? onLongPress,
+    PressableHaptic longPressHaptic = PressableHaptic.none,
+  }) {
     return BookCard(
       id: book.id,
       title: book.title ?? 'Unknown',
       author: book.author ?? 'Unknown Author',
       coverImage: book.coverImage,
       progress: book.progress,
+      onLongPress: onLongPress,
+      longPressHaptic: longPressHaptic,
     );
   }
 
@@ -52,7 +62,9 @@ class BookCard extends StatelessWidget {
 
     return Pressable(
       onTap: () => context.push('/book/$id'),
+      onLongPress: onLongPress,
       haptic: PressableHaptic.selection,
+      longPressHaptic: longPressHaptic,
       pressedOpacity: 0.85,
       pressedScale: 0.98,
       duration: const Duration(milliseconds: 120),

@@ -10,6 +10,7 @@ import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../models/book.dart';
 import '../src/rust/api/epub.dart';
+import '../widgets/book_actions_sheet.dart';
 import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
@@ -100,6 +101,40 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     return palette[_book!.id % palette.length];
   }
 
+  void _showBookActions(BuildContext context) {
+    final book = _book;
+    if (book == null) return;
+    final title = (book.title?.trim().isNotEmpty ?? false)
+        ? book.title!.trim()
+        : 'Untitled';
+    final author = (book.author?.trim().isNotEmpty ?? false)
+        ? book.author!.trim()
+        : 'Unknown author';
+    showBookActionsSheet(
+      context: context,
+      title: title,
+      author: author,
+      coverImage: book.coverImage,
+      onDelete: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        final removed = await ref
+            .read(bookServiceProvider)
+            .deleteBookAndAssets(book.id);
+        if (!mounted) return;
+        if (removed) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Removed "$title" from library')),
+          );
+          context.pop();
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Could not delete book')),
+          );
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -157,6 +192,11 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                         GlassIconButton(
                           icon: LucideIcons.arrowLeft,
                           onTap: () => context.pop(),
+                        ),
+                        const Spacer(),
+                        GlassIconButton(
+                          icon: LucideIcons.moreVertical,
+                          onTap: () => _showBookActions(context),
                         ),
                       ],
                     ),

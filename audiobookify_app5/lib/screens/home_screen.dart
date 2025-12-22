@@ -7,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
 import '../widgets/book_card.dart';
+import '../widgets/book_actions_sheet.dart';
 import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
 import '../models/book.dart';
@@ -90,7 +91,7 @@ class HomeScreen extends ConsumerWidget {
                           ),
                           SliverPadding(
                             padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                            sliver: _buildBookGrid(context, books),
+                            sliver: _buildBookGrid(context, ref, books),
                           ),
                         ],
                       ),
@@ -157,7 +158,11 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBookGrid(BuildContext context, List<Book> books) {
+  Widget _buildBookGrid(
+    BuildContext context,
+    WidgetRef ref,
+    List<Book> books,
+  ) {
     final width = MediaQuery.sizeOf(context).width - 48;
     final crossAxisCount = _getCrossAxisCount(width);
     return SliverGrid(
@@ -171,7 +176,11 @@ class HomeScreen extends ConsumerWidget {
         (context, index) {
           if (index < books.length) {
             final book = books[index];
-            return BookCard.fromBook(book);
+            return BookCard.fromBook(
+              book,
+              onLongPress: () => _showBookActions(context, ref, book),
+              longPressHaptic: PressableHaptic.medium,
+            );
           }
           return const AddBookCard();
         },
@@ -204,6 +213,37 @@ class HomeScreen extends ConsumerWidget {
     if (book.chapterCount <= 0) return 1;
     final estimated = (book.progress / 100) * book.chapterCount;
     return estimated.clamp(1, book.chapterCount).ceil();
+  }
+
+  void _showBookActions(BuildContext context, WidgetRef ref, Book book) {
+    final title = (book.title?.trim().isNotEmpty ?? false)
+        ? book.title!.trim()
+        : 'Untitled';
+    final author = (book.author?.trim().isNotEmpty ?? false)
+        ? book.author!.trim()
+        : 'Unknown author';
+    showBookActionsSheet(
+      context: context,
+      title: title,
+      author: author,
+      coverImage: book.coverImage,
+      onDelete: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        final removed = await ref
+            .read(bookServiceProvider)
+            .deleteBookAndAssets(book.id);
+        if (!context.mounted) return;
+        if (removed) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('Removed "$title" from library')),
+          );
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Could not delete book')),
+          );
+        }
+      },
+    );
   }
 }
 

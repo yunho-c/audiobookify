@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import '../models/book.dart';
 import '../models/book_progress_bucket.dart';
@@ -132,6 +133,38 @@ class BookService {
   /// Delete a book
   bool deleteBook(int id) {
     return _bookBox.remove(id);
+  }
+
+  /// Delete a book and remove stored assets (file + progress buckets).
+  Future<bool> deleteBookAndAssets(int id) async {
+    final book = _bookBox.get(id);
+    if (book == null) return false;
+
+    final progressQuery = _progressBox.query(
+      BookProgressBucket_.bookId.equals(id),
+    );
+    final progressHandle = progressQuery.build();
+    try {
+      progressHandle.remove();
+    } finally {
+      progressHandle.close();
+    }
+
+    final removed = _bookBox.remove(id);
+
+    final filePath = book.filePath.trim();
+    if (filePath.isNotEmpty) {
+      try {
+        final file = File(filePath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {
+        // Ignore file cleanup errors.
+      }
+    }
+
+    return removed;
   }
 
   /// Stream of all books (for reactive UI)
