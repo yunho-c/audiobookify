@@ -93,6 +93,7 @@ class _BookActionsSheet extends StatelessWidget {
                           title,
                           style: textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w700,
+                            color: colorScheme.onSurface,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,

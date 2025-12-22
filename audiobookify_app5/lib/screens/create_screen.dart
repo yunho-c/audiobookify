@@ -962,6 +962,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     'Discover public-domain books',
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1011,6 +1012,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           'Upload EPUB',
           style: textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 8),

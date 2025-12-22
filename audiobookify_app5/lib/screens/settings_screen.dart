@@ -59,6 +59,7 @@ class SettingsScreen extends ConsumerWidget {
                             'John Doe',
                             style: textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                           const SizedBox(height: 4),
