@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audiobookify_app5/src/rust/frb_generated.dart';
@@ -31,6 +33,7 @@ Future<void> main() async {
 
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
+  await _maybeRequestAndroidNotificationPermission(prefs);
 
   // Initialize audio handler + TTS service for background controls.
   final ttsService = TtsService();
@@ -56,6 +59,24 @@ Future<void> main() async {
       child: const AudiobookifyApp(),
     ),
   );
+}
+
+Future<void> _maybeRequestAndroidNotificationPermission(
+  SharedPreferences prefs,
+) async {
+  if (!Platform.isAndroid) return;
+  const key = 'notification_permission_prompted_v1';
+  if (prefs.getBool(key) ?? false) return;
+  try {
+    final status = await Permission.notification.status;
+    if (status.isDenied) {
+      await Permission.notification.request();
+    }
+  } catch (_) {
+    // Ignore permission request failures.
+  } finally {
+    await prefs.setBool(key, true);
+  }
 }
 
 class AudiobookifyApp extends ConsumerWidget {
