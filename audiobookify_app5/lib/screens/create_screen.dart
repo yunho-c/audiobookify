@@ -8,6 +8,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
 import '../core/app_theme.dart';
 import '../core/error_reporter.dart';
@@ -557,11 +558,22 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       if (!await file.exists()) return false;
       final length = await file.length();
       if (length < 1024) return false;
-      final raf = await file.open();
-      final header = await raf.read(4);
-      await raf.close();
-      if (header.length < 2) return false;
-      return header[0] == 0x50 && header[1] == 0x4B;
+      final input = InputFileStream(file.path);
+      try {
+        final archive = ZipDecoder().decodeBuffer(input, verify: true);
+        final mimetypeEntry = archive.findFile('mimetype');
+        if (mimetypeEntry == null) return false;
+        final mimetypeContent = mimetypeEntry.content;
+        final mimetype = switch (mimetypeContent) {
+          String value => value.trim(),
+          List<int> bytes => utf8.decode(bytes, allowMalformed: true).trim(),
+          _ => '',
+        };
+        if (mimetype != 'application/epub+zip') return false;
+        return archive.findFile('META-INF/container.xml') != null;
+      } finally {
+        input.close();
+      }
     } catch (_) {
       return false;
     }

@@ -503,6 +503,7 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
   Timer? _backdropPeekTimer;
   static const int _maxBackdropFileSizeBytes = 15 * 1024 * 1024;
   static const int _thumbnailTargetWidth = 220;
+  static const Duration _thumbnailFetchTimeout = Duration(seconds: 8);
   final Map<String, Future<File?>> _thumbnailFutures = {};
 
   @override
@@ -570,7 +571,9 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
         return await file.readAsBytes();
       }
       if (uri.startsWith('http://') || uri.startsWith('https://')) {
-        final response = await http.get(Uri.parse(uri));
+        final response = await http
+            .get(Uri.parse(uri))
+            .timeout(_thumbnailFetchTimeout);
         if (response.statusCode >= 200 && response.statusCode < 300) {
           return response.bodyBytes;
         }

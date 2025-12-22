@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/open_library_work.dart';
@@ -18,6 +19,7 @@ class OpenLibraryService {
   static const String _defaultUserAgent =
       'Audiobookify/1.0 (contact@audiobookify.app)';
   static const Duration _requestTimeout = Duration(seconds: 12);
+  static const int _cacheMaxEntries = 50;
 
   OpenLibraryService({http.Client? client, String? userAgent})
       : _client = client ?? http.Client(),
@@ -27,7 +29,7 @@ class OpenLibraryService {
 
   final http.Client _client;
   final Map<String, String> _headers;
-  final Map<String, List<PublicBook>> _cache = {};
+  final LinkedHashMap<String, List<PublicBook>> _cache = LinkedHashMap();
 
   Future<List<PublicBook>> searchPublicDomain({
     required String query,
@@ -39,8 +41,11 @@ class OpenLibraryService {
     if (normalizedQuery.isEmpty) return [];
 
     final cacheKey = _cacheKey(normalizedQuery, page, limit, language);
-    final cached = _cache[cacheKey];
-    if (cached != null) return cached;
+    final cached = _cache.remove(cacheKey);
+    if (cached != null) {
+      _cache[cacheKey] = cached;
+      return cached;
+    }
 
     final params = <String, String>{
       'q': normalizedQuery,
@@ -70,6 +75,9 @@ class OpenLibraryService {
     final body = json.decode(response.body);
     final results = _parseResults(body);
     _cache[cacheKey] = results;
+    while (_cache.length > _cacheMaxEntries) {
+      _cache.remove(_cache.keys.first);
+    }
     return results;
   }
 
