@@ -48,6 +48,7 @@ app.*.map.json
 
 # Test files
 *.epub
+!test/assets/*.epub
 
 # Rust/flutter_rust_bridge generated
 rust/target/

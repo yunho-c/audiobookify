@@ -11,9 +11,8 @@ Future<void> main() async {
 
   print('=== EPUB Integration Test ===\n');
 
-  // Path to test EPUB file (use absolute path for macOS sandbox compatibility)
-  final epubPath =
-      '/Users/yunhocho/GitHub/audiobookify/audiobookify_app5/test_ebook.epub';
+  // Path to test EPUB file
+  final epubPath = '${Directory.current.path}/test/assets/test_ebook.epub';
 
   if (!File(epubPath).existsSync()) {
     print('ERROR: Test EPUB file not found at $epubPath');
