@@ -530,6 +530,29 @@ final debugModeProvider =
     NotifierProvider<DebugModeNotifier, bool>(DebugModeNotifier.new);
 
 // ========================================
+// Labs Mode
+// ========================================
+
+class LabsModeNotifier extends Notifier<bool> {
+  static const _labsKey = 'labs_mode_enabled';
+
+  @override
+  bool build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    return prefs.getBool(_labsKey) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(_labsKey, enabled);
+  }
+}
+
+final labsModeProvider =
+    NotifierProvider<LabsModeNotifier, bool>(LabsModeNotifier.new);
+
+// ========================================
 // TTS Playback State Management
 // ========================================
 

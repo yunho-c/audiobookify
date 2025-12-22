@@ -10,7 +10,7 @@ import 'package:audiobookify_app5/screens/settings_screen.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('SettingsScreen toggles debug mode and theme preference',
+  testWidgets('SettingsScreen toggles debug mode, labs, and theme preference',
       (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -32,16 +32,28 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    final debugSwitchFinder = find.byType(Switch);
-    expect(debugSwitchFinder, findsOneWidget);
-    final debugSwitch =
-        tester.widget<Switch>(debugSwitchFinder);
-    expect(debugSwitch.value, isFalse);
+    final switches = find.byType(Switch);
+    expect(switches, findsNWidgets(2));
 
-    await tester.tap(debugSwitchFinder);
+    final debugSwitch = tester.widget<Switch>(switches.at(0));
+    final labsSwitch = tester.widget<Switch>(switches.at(1));
+    expect(debugSwitch.value, isFalse);
+    expect(labsSwitch.value, isFalse);
+
+    expect(find.text('Account'), findsNothing);
+    expect(find.text('Log Out'), findsNothing);
+
+    await tester.tap(switches.at(0));
     await tester.pumpAndSettle();
     expect(container.read(debugModeProvider), isTrue);
     expect(prefs.getBool('debug_mode_enabled'), isTrue);
+
+    await tester.tap(switches.at(1));
+    await tester.pumpAndSettle();
+    expect(container.read(labsModeProvider), isTrue);
+    expect(prefs.getBool('labs_mode_enabled'), isTrue);
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.text('Log Out'), findsOneWidget);
 
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();

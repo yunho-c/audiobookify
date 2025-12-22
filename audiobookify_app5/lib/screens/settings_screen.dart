@@ -14,6 +14,7 @@ class SettingsScreen extends ConsumerWidget {
     final textTheme = Theme.of(context).textTheme;
     final themePreference = ref.watch(themePreferenceProvider);
     final debugEnabled = ref.watch(debugModeProvider);
+    final labsEnabled = ref.watch(labsModeProvider);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
@@ -29,60 +30,62 @@ class SettingsScreen extends ConsumerWidget {
                 style: textTheme.displayLarge,
               ),
               const SizedBox(height: 24),
-              // Profile card
-              _SettingsCard(
-                child: Row(
-                  children: [
-                    // Avatar
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceVariant,
-                        borderRadius: BorderRadius.circular(32),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          LucideIcons.user,
-                          size: 28,
-                          color: colorScheme.onSurfaceVariant,
+              if (labsEnabled) ...[
+                // Profile card
+                _SettingsCard(
+                  child: Row(
+                    children: [
+                      // Avatar
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant,
+                          borderRadius: BorderRadius.circular(32),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            LucideIcons.user,
+                            size: 28,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Name and status
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'John Doe',
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
+                      const SizedBox(width: 16),
+                      // Name and status
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'John Doe',
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Premium Member',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                            const SizedBox(height: 4),
+                            Text(
+                              'Premium Member',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    // Edit button
-                    Text(
-                      'Edit',
-                      style: textTheme.labelLarge?.copyWith(
-                        color: colorScheme.primary,
+                      // Edit button
+                      Text(
+                        'Edit',
+                        style: textTheme.labelLarge?.copyWith(
+                          color: colorScheme.primary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
+              ],
               _SettingsCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,16 +176,66 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 24),
+              _SettingsCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        LucideIcons.flaskConical,
+                        size: 20,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Labs',
+                            style: textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Opt-in to using experimental features',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: labsEnabled,
+                      onChanged: (value) {
+                        ref.read(labsModeProvider.notifier).setEnabled(value);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
               // Menu items group 1
               _SettingsCard(
                 padding: EdgeInsets.zero,
                 child: Column(
                   children: [
-                    _MenuItem(
-                      icon: LucideIcons.user,
-                      label: 'Account',
-                      showDivider: true,
-                    ),
+                    if (labsEnabled)
+                      _MenuItem(
+                        icon: LucideIcons.user,
+                        label: 'Account',
+                        showDivider: true,
+                      ),
                     _MenuItem(
                       icon: LucideIcons.bell,
                       label: 'Notifications',
@@ -207,12 +260,13 @@ class SettingsScreen extends ConsumerWidget {
                       label: 'Help & Support',
                       showDivider: true,
                     ),
-                    _MenuItem(
-                      icon: LucideIcons.logOut,
-                      label: 'Log Out',
-                      showDivider: false,
-                      isDestructive: true,
-                    ),
+                    if (labsEnabled)
+                      _MenuItem(
+                        icon: LucideIcons.logOut,
+                        label: 'Log Out',
+                        showDivider: false,
+                        isDestructive: true,
+                      ),
                   ],
                 ),
               ),
