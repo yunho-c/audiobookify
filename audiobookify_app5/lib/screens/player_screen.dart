@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -618,6 +619,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
     });
     final readerTheme = ref.watch(playerThemeProvider);
+    final debugEnabled = ref.watch(debugModeProvider);
     final backdropSettings = ref.watch(backdropSettingsProvider);
     final backdrops = ref.watch(backdropLibraryProvider);
     final isPlaying = ttsState.status == TtsStatus.playing;
@@ -632,6 +634,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         extras?.glassBorder ?? colorScheme.onSurface.withAlpha(40);
     final glassShadow =
         extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(30);
+    final glassBlur =
+        readerTheme.backgroundBlur < 0 ? 0.0 : readerTheme.backgroundBlur;
     final bookTitle = (_book?.title?.trim().isNotEmpty ?? false)
         ? _book!.title!.trim()
         : 'Untitled';
@@ -701,6 +705,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         messageAlign: TextAlign.center,
       );
     }
+
+    const bucketCount = 64;
+    final debugBuckets =
+        debugEnabled && _book != null
+            ? ref
+                    .watch(
+                      bucketProgressProvider(
+                        BucketProgressArgs(
+                          bookId: _book!.id,
+                          chapterIndex: _currentChapterIndex + 1,
+                          bucketCount: bucketCount,
+                        ),
+                      ),
+                    )
+                    .value ??
+                Uint8List(bucketCount)
+            : null;
 
     final progress = _paragraphs.isEmpty
         ? 0.0
@@ -945,6 +966,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               glassBackground: glassBackground,
               glassBorder: glassBorder,
               glassShadow: glassShadow,
+              glassBlur: glassBlur,
+              debugEnabled: debugEnabled,
+              debugBuckets: debugBuckets,
               onPlayPause: _togglePlayPause,
               onPrevious: _previousChapter,
               onNext: _nextChapter,
@@ -976,6 +1000,9 @@ class _PlayerControlsEnhanced extends StatelessWidget {
   final Color glassBackground;
   final Color glassBorder;
   final Color glassShadow;
+  final double glassBlur;
+  final bool debugEnabled;
+  final Uint8List? debugBuckets;
   final VoidCallback onPlayPause;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -990,6 +1017,9 @@ class _PlayerControlsEnhanced extends StatelessWidget {
     required this.glassBackground,
     required this.glassBorder,
     required this.glassShadow,
+    required this.glassBlur,
+    required this.debugEnabled,
+    required this.debugBuckets,
     required this.onPlayPause,
     required this.onPrevious,
     required this.onNext,
@@ -1002,17 +1032,27 @@ class _PlayerControlsEnhanced extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final glassTop = glassBackground.withAlpha(180);
+    final glassBottom = glassBackground.withAlpha(130);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottomPadding),
       child: ClipRRect(
+        // Intentional: keep the pill-like radius for the player bar.
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: glassBlur, sigmaY: glassBlur),
           child: Container(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
             decoration: BoxDecoration(
-              color: glassBackground,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  glassTop,
+                  glassBottom,
+                ],
+              ),
               border: Border.all(color: glassBorder, width: 1),
               boxShadow: [
                 BoxShadow(
@@ -1025,33 +1065,45 @@ class _PlayerControlsEnhanced extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    backgroundColor: colorScheme.surfaceVariant,
-                    valueColor: AlwaysStoppedAnimation(colorScheme.primary),
-                    minHeight: 6,
+                if (debugEnabled)
+                  _PlayerBucketProgressBar(
+                    buckets: debugBuckets ?? Uint8List(0),
+                    activeColor: colorScheme.primary,
+                    inactiveColor: colorScheme.surfaceVariant,
+                    height: 6,
+                    gap: -2,
+                    activeOverlap: 3,
+                  )
+                else
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      backgroundColor: colorScheme.surfaceVariant,
+                      valueColor: AlwaysStoppedAnimation(colorScheme.primary),
+                      minHeight: 6,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '$currentParagraph / $totalParagraphs',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                if (debugEnabled) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '$currentParagraph / $totalParagraphs',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${(progress * 100).toInt()}%',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                      Text(
+                        '${(progress * 100).toInt()}%',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1285,8 +1337,8 @@ class _RoundedControlButton extends StatelessWidget {
       opacity: onTap == null ? 0.45 : 1,
       child: Pressable(
         onTap: onTap,
-        pressedOpacity: 0.7,
-        pressedScale: 1,
+        pressedOpacity: 0.82,
+        pressedScale: 0.96,
         child: Container(
           width: size,
           height: size,
@@ -1302,5 +1354,105 @@ class _RoundedControlButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _PlayerBucketProgressBar extends StatelessWidget {
+  final Uint8List buckets;
+  final Color activeColor;
+  final Color inactiveColor;
+  final double height;
+  final double gap;
+  final double activeOverlap;
+
+  const _PlayerBucketProgressBar({
+    required this.buckets,
+    required this.activeColor,
+    required this.inactiveColor,
+    this.height = 6,
+    this.gap = -2,
+    this.activeOverlap = 3,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (buckets.isEmpty) {
+      return Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: inactiveColor,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: height,
+      child: CustomPaint(
+        painter: _PlayerBucketProgressPainter(
+          buckets: buckets,
+          activeColor: activeColor,
+          inactiveColor: inactiveColor,
+          gap: gap,
+          activeOverlap: activeOverlap,
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerBucketProgressPainter extends CustomPainter {
+  final Uint8List buckets;
+  final Color activeColor;
+  final Color inactiveColor;
+  final double gap;
+  final double activeOverlap;
+
+  _PlayerBucketProgressPainter({
+    required this.buckets,
+    required this.activeColor,
+    required this.inactiveColor,
+    required this.gap,
+    required this.activeOverlap,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final count = buckets.length;
+    if (count == 0) return;
+    final totalGap = gap * (count - 1);
+    final bucketWidth = (size.width - totalGap) / count;
+    final basePaint = Paint()..color = inactiveColor;
+    final activePaint = Paint()..color = activeColor;
+    final radius = Radius.circular(size.height / 2);
+
+    for (var i = 0; i < count; i++) {
+      final left = i * (bucketWidth + gap);
+      final rect = Rect.fromLTWH(left, 0, bucketWidth, size.height);
+      final rrect = RRect.fromRectAndRadius(rect, radius);
+      canvas.drawRRect(rrect, basePaint);
+    }
+
+    for (var i = 0; i < count; i++) {
+      if (buckets[i] != 1) continue;
+      final left = i * (bucketWidth + gap) - activeOverlap / 2;
+      final rect = Rect.fromLTWH(
+        left,
+        0,
+        bucketWidth + activeOverlap,
+        size.height,
+      );
+      final rrect = RRect.fromRectAndRadius(rect, radius);
+      canvas.drawRRect(rrect, activePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlayerBucketProgressPainter oldDelegate) {
+    return !listEquals(oldDelegate.buckets, buckets) ||
+        oldDelegate.activeColor != activeColor ||
+        oldDelegate.inactiveColor != inactiveColor ||
+        oldDelegate.gap != gap ||
+        oldDelegate.activeOverlap != activeOverlap;
   }
 }
