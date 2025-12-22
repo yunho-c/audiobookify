@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import '../models/book.dart';
@@ -134,17 +133,20 @@ class BookService {
     required int chapterIndex,
     int bucketCount = 64,
   }) {
-    final query = _progressBox.query(
+    final queryBuilder = _progressBox.query(
       BookProgressBucket_.bookId.equals(bookId) &
           BookProgressBucket_.chapterIndex.equals(chapterIndex),
     );
-    final handle = query.build();
-    return _watchQuery(handle, (result) {
-      final bucket = result.findFirst();
-      if (bucket == null || bucket.buckets.length != bucketCount) {
-        return Uint8List(bucketCount);
+    return queryBuilder.watch(triggerImmediately: true).map((query) {
+      try {
+        final bucket = query.findFirst();
+        if (bucket == null || bucket.buckets.length != bucketCount) {
+          return Uint8List(bucketCount);
+        }
+        return bucket.buckets;
+      } finally {
+        query.close();
       }
-      return bucket.buckets;
     });
   }
 
@@ -187,43 +189,14 @@ class BookService {
 
   /// Stream of all books (for reactive UI)
   Stream<List<Book>> watchAllBooks() {
-    final query = _bookBox.query()
+    final queryBuilder = _bookBox.query()
       ..order(Book_.addedAt, flags: Order.descending);
-    final handle = query.build();
-    return _watchQuery(handle, (result) => result.find());
-  }
-
-  Stream<R> _watchQuery<T, R>(
-    Query<T> query,
-    R Function(Query<T>) mapper,
-  ) {
-    final controller = StreamController<R>();
-    late final StreamSubscription<Query<T>> subscription;
-
-    void closeQuery() {
+    return queryBuilder.watch(triggerImmediately: true).map((query) {
       try {
+        return query.find();
+      } finally {
         query.close();
-      } catch (_) {}
-    }
-
-    controller.onListen = () {
-      subscription = query.watch(triggerImmediately: true).listen(
-        (result) => controller.add(mapper(result)),
-        onError: controller.addError,
-        onDone: () {
-          closeQuery();
-          if (!controller.isClosed) {
-            controller.close();
-          }
-        },
-      );
-    };
-
-    controller.onCancel = () async {
-      await subscription.cancel();
-      closeQuery();
-    };
-
-    return controller.stream;
+      }
+    });
   }
 }
