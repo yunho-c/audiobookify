@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +11,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audiobookify_app5/src/rust/frb_generated.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
 import 'core/app_theme.dart';
+import 'core/error_reporter.dart';
 import 'core/nav_transition.dart';
 import 'core/providers.dart';
 import 'core/route_observer.dart';
@@ -33,7 +33,7 @@ Future<void> main() async {
       await _startApp();
     },
     (error, stackTrace) {
-      _reportError(error, stackTrace);
+      reportError(error, stackTrace, context: 'zone');
     },
   );
 }
@@ -78,7 +78,7 @@ Future<void> _startApp() async {
       ),
     );
   } catch (error, stackTrace) {
-    _reportError(error, stackTrace);
+    reportError(error, stackTrace, context: 'startup');
     runApp(
       _BootstrapErrorApp(
         message: _startupErrorMessage(error, stackTrace),
@@ -108,21 +108,16 @@ Future<void> _maybeRequestAndroidNotificationPermission(
 void _initErrorHandling() {
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    _reportError(details.exception, details.stack ?? StackTrace.current);
+    reportError(
+      details.exception,
+      details.stack ?? StackTrace.current,
+      context: 'flutter',
+    );
   };
   PlatformDispatcher.instance.onError = (error, stackTrace) {
-    _reportError(error, stackTrace);
+    reportError(error, stackTrace, context: 'platform');
     return true;
   };
-}
-
-void _reportError(Object error, StackTrace stackTrace) {
-  log(
-    'Unhandled error',
-    name: 'audiobookify',
-    error: error,
-    stackTrace: stackTrace,
-  );
 }
 
 String _startupErrorMessage(Object error, StackTrace stackTrace) {

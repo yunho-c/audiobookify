@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
+import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../models/book.dart';
 import '../src/rust/api/epub.dart';
@@ -30,6 +31,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   EpubBook? _epubBook;
   bool _isLoading = true;
   String? _error;
+  String? _epubLoadError;
 
   @override
   void initState() {
@@ -60,6 +62,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
 
       setState(() {
         _book = book;
+        _epubLoadError = null;
       });
 
       // Load EPUB to get TOC and chapters
@@ -71,11 +74,13 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
           _epubBook = epub;
           _isLoading = false;
         });
-      } catch (e) {
+      } catch (e, stackTrace) {
+        reportError(e, stackTrace, context: 'book_detail.loadEpub');
         // EPUB file might be gone, but we still have metadata
         if (!mounted) return;
         setState(() {
           _isLoading = false;
+          _epubLoadError = e.toString();
         });
       }
     } catch (e) {
@@ -140,6 +145,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final debugEnabled = ref.watch(debugModeProvider);
     if (_isLoading) {
       return const LoadingScaffold();
     }
@@ -273,6 +279,41 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      if (debugEnabled && _epubLoadError != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: colorScheme.error.withAlpha(80),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                LucideIcons.alertTriangle,
+                                size: 18,
+                                color: colorScheme.onErrorContainer,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'EPUB load failed: $_epubLoadError',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onErrorContainer,
+                                  ),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       Pressable(
                         onTap: () => context.push('/player/${book.id}'),

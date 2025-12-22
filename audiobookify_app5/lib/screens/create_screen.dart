@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../core/app_theme.dart';
+import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../models/open_library_work.dart';
 import '../models/public_book.dart';
@@ -146,7 +147,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           _isLoading = false;
         });
       }
-    } on EpubError catch (e) {
+    } on EpubError catch (e, stackTrace) {
+      reportError(e, stackTrace, context: 'create_screen.pickEpub');
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -159,7 +161,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           backgroundColor: colorScheme.error,
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      reportError(e, stackTrace, context: 'create_screen.pickEpub');
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -307,7 +310,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           backgroundColor: colorScheme.surface,
         ),
       );
-    } on EpubError catch (error) {
+    } on EpubError catch (error, stackTrace) {
+      reportError(error, stackTrace, context: 'create_screen.download');
       if (downloadedFile != null) {
         await _deleteIfExists(downloadedFile);
       }
@@ -317,7 +321,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           backgroundColor: colorScheme.error,
         ),
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      reportError(error, stackTrace, context: 'create_screen.download');
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text('Download failed: $error'),

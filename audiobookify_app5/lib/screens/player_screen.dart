@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../core/app_theme.dart';
+import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../core/route_observer.dart';
 import '../services/book_service.dart';
@@ -175,7 +176,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           : 0;
 
       await _loadChapter(chapterIndex);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      reportError(e, stackTrace, context: 'player_screen.load');
       if (!mounted) return;
       setState(() {
         _error = e.toString();

@@ -122,7 +122,13 @@ fn load_epub_data(epub: &Epub) -> Result<EpubBook, EpubError> {
             });
             
             // Read chapter content
-            let content = manifest_entry.read_str().unwrap_or_default();
+            let content = manifest_entry.read_str().map_err(|e| EpubError {
+                message: format!(
+                    "Failed to read chapter content ({}): {}",
+                    manifest_entry.id(),
+                    e
+                ),
+            })?;
             chapter_contents.push(content);
         }
     }
