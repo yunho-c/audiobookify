@@ -1,4 +1,10 @@
 .DS_Store
+.metadata
+ios/Podfile.lock
+macos/Podfile.lock
+test/widget_test.dart
+audiobookify_app3/
+audiobookify_app4/
 
 # Created by https://www.toptal.com/developers/gitignore/api/dart,flutter,node,vue,nuxtjs,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=dart,flutter,node,vue,nuxtjs,python
