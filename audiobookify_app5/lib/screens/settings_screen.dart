@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
@@ -22,11 +23,35 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final TextEditingController _feedbackController = TextEditingController();
+  PackageInfo? _packageInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackageInfo();
+  }
 
   @override
   void dispose() {
     _feedbackController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() => _packageInfo = info);
+  }
+
+  String _versionLabel() {
+    final info = _packageInfo;
+    if (info == null) return 'Version -';
+    final version = info.version.trim();
+    final build = info.buildNumber.trim();
+    if (version.isEmpty && build.isEmpty) return 'Version -';
+    if (build.isEmpty) return 'Version $version';
+    if (version.isEmpty) return 'Version $build';
+    return 'Version $version ($build)';
   }
 
   Future<void> _openExternalUrl(
@@ -521,7 +546,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               // Version
               Center(
                 child: Text(
-                  'Version 1.0.0',
+                  _versionLabel(),
                   style: textTheme.labelSmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),

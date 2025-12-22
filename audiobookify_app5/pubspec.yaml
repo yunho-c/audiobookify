@@ -55,6 +55,7 @@ dependencies:
   audio_session: ^0.2.2
   permission_handler: ^12.0.1
   url_launcher: ^6.2.6
+  package_info_plus: ^8.0.3
   state_notifier: ^1.0.0
 
 dev_dependencies:
