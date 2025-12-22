@@ -1,15 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
 
 /// Settings screen with profile card and menu items
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
+  static const String _issuesUrl =
+      'https://github.com/yunho-c/audiobookify/issues';
+  static const String _contactEmail = 'audiobookify@yunhocho.com';
+  static const String _appStoreUrl = 'https://example.com/app-store';
+  static const String _googlePlayUrl = 'https://example.com/google-play';
+  static const String _microsoftStoreUrl = 'https://example.com/microsoft-store';
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final TextEditingController _feedbackController = TextEditingController();
+
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openExternalUrl(
+    BuildContext context,
+    String url, {
+    String failureMessage = 'Unable to open link.',
+  }) async {
+    final uri = Uri.parse(url);
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(failureMessage)),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(failureMessage)),
+        );
+      }
+    }
+  }
+
+  Future<void> _openIssues(BuildContext context) async {
+    await _openExternalUrl(
+      context,
+      SettingsScreen._issuesUrl,
+      failureMessage: 'Unable to open GitHub Issues.',
+    );
+  }
+
+  Future<void> _sendFeedback(BuildContext context) async {
+    final text = _feedbackController.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter feedback first.')),
+      );
+      return;
+    }
+    final uri = Uri(
+      scheme: 'mailto',
+      path: SettingsScreen._contactEmail,
+      queryParameters: {'body': text},
+    );
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open email client.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final themePreference = ref.watch(themePreferenceProvider);
@@ -304,24 +379,144 @@ class SettingsScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               // Menu items group 2
               _SettingsCard(
-                padding: EdgeInsets.zero,
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _MenuItem(
-                      icon: LucideIcons.helpCircle,
-                      label: 'Help & Support',
-                      showDivider: true,
+                    Text(
+                      'Help & Feedback',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
-                    if (labsEnabled)
+                    const SizedBox(height: 8),
+                    Text(
+                      'Share bugs or feature requests on GitHub Issues.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openIssues(context),
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        label: const Text('Open GitHub Issues'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Leave a review',
+                      style: textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => _openExternalUrl(
+                            context,
+                            SettingsScreen._appStoreUrl,
+                            failureMessage: 'Unable to open App Store.',
+                          ),
+                          icon: const Icon(Icons.store, size: 18),
+                          label: const Text('App Store'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _openExternalUrl(
+                            context,
+                            SettingsScreen._googlePlayUrl,
+                            failureMessage: 'Unable to open Google Play.',
+                          ),
+                          icon: const Icon(Icons.play_arrow, size: 18),
+                          label: const Text('Google Play'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _openExternalUrl(
+                            context,
+                            SettingsScreen._microsoftStoreUrl,
+                            failureMessage: 'Unable to open Microsoft Store.',
+                          ),
+                          icon: const Icon(Icons.window, size: 18),
+                          label: const Text('Microsoft Store'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _feedbackController,
+                      minLines: 3,
+                      maxLines: 6,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: 'Share feedback...',
+                        filled: true,
+                        fillColor: colorScheme.surfaceVariant.withAlpha(120),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: colorScheme.outlineVariant),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: colorScheme.primary, width: 1.4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => _sendFeedback(context),
+                        child: const Text('Send feedback'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.email_outlined,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        SelectableText(
+                          SettingsScreen._contactEmail,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (labsEnabled) ...[
+                const SizedBox(height: 24),
+                _SettingsCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: const [
                       _MenuItem(
                         icon: LucideIcons.logOut,
                         label: 'Log Out',
                         showDivider: false,
                         isDestructive: true,
                       ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 32),
               // Version
               Center(
