@@ -68,6 +68,7 @@ dev_dependencies:
     sdk: flutter
   build_runner: ^2.10.4
   objectbox_generator: ^5.1.0
+  msix: ^3.16.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -113,3 +114,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+msix_config:
+  display_name: Audiobookify
+  publisher_display_name: Yunho Cho
+  identity_name: YunhoCho.Audiobookify
+  publisher: CN=Yunho Cho
+  msix_version: 1.0.0.0
+  logo_path: windows/runner/resources/app_icon.ico
+  capabilities: internetClient

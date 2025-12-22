@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "audiobookify_app5" "\0"
+            VALUE "CompanyName", "Yunho Cho" "\0"
+            VALUE "FileDescription", "" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "audiobookify_app5" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "audiobookify_app5.exe" "\0"
-            VALUE "ProductName", "audiobookify_app5" "\0"
+            VALUE "InternalName", "Audiobookify" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 Yunho Cho. All rights reserved." "\0"
+            VALUE "OriginalFilename", "Audiobookify.exe" "\0"
+            VALUE "ProductName", "Audiobookify" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
