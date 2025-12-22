@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import '../models/book.dart';
@@ -37,7 +38,12 @@ class BookService {
   List<Book> getAllBooks() {
     final query = _bookBox.query()
       ..order(Book_.addedAt, flags: Order.descending);
-    return query.build().find();
+    final handle = query.build();
+    try {
+      return handle.find();
+    } finally {
+      handle.close();
+    }
   }
 
   /// Get a single book by ID
@@ -72,7 +78,13 @@ class BookService {
       BookProgressBucket_.bookId.equals(bookId) &
           BookProgressBucket_.chapterIndex.equals(chapterIndex),
     );
-    final bucket = query.build().findFirst();
+    final handle = query.build();
+    BookProgressBucket? bucket;
+    try {
+      bucket = handle.findFirst();
+    } finally {
+      handle.close();
+    }
 
     final current = bucket ??
         BookProgressBucket(
@@ -104,11 +116,16 @@ class BookService {
       BookProgressBucket_.bookId.equals(bookId) &
           BookProgressBucket_.chapterIndex.equals(chapterIndex),
     );
-    final bucket = query.build().findFirst();
-    if (bucket == null || bucket.buckets.length != bucketCount) {
-      return Uint8List(bucketCount);
+    final handle = query.build();
+    try {
+      final bucket = handle.findFirst();
+      if (bucket == null || bucket.buckets.length != bucketCount) {
+        return Uint8List(bucketCount);
+      }
+      return bucket.buckets;
+    } finally {
+      handle.close();
     }
-    return bucket.buckets;
   }
 
   /// Stream bucket progress for a chapter (0/1 values).
@@ -121,7 +138,8 @@ class BookService {
       BookProgressBucket_.bookId.equals(bookId) &
           BookProgressBucket_.chapterIndex.equals(chapterIndex),
     );
-    return query.watch(triggerImmediately: true).map((result) {
+    final handle = query.build();
+    return _watchQuery(handle, (result) {
       final bucket = result.findFirst();
       if (bucket == null || bucket.buckets.length != bucketCount) {
         return Uint8List(bucketCount);
@@ -171,6 +189,41 @@ class BookService {
   Stream<List<Book>> watchAllBooks() {
     final query = _bookBox.query()
       ..order(Book_.addedAt, flags: Order.descending);
-    return query.watch(triggerImmediately: true).map((q) => q.find());
+    final handle = query.build();
+    return _watchQuery(handle, (result) => result.find());
+  }
+
+  Stream<R> _watchQuery<T, R>(
+    Query<T> query,
+    R Function(Query<T>) mapper,
+  ) {
+    final controller = StreamController<R>();
+    late final StreamSubscription<Query<T>> subscription;
+
+    void closeQuery() {
+      try {
+        query.close();
+      } catch (_) {}
+    }
+
+    controller.onListen = () {
+      subscription = query.watch(triggerImmediately: true).listen(
+        (result) => controller.add(mapper(result)),
+        onError: controller.addError,
+        onDone: () {
+          closeQuery();
+          if (!controller.isClosed) {
+            controller.close();
+          }
+        },
+      );
+    };
+
+    controller.onCancel = () async {
+      await subscription.cancel();
+      closeQuery();
+    };
+
+    return controller.stream;
   }
 }
