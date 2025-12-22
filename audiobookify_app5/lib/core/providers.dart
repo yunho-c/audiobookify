@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart' show StateNotifierProvider;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify_app5/objectbox.g.dart';
 import '../data/built_in_backdrops.dart';
