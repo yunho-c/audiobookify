@@ -4,7 +4,7 @@ import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod/legacy.dart' show StateNotifierProvider;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:audiobookify_app5/objectbox.g.dart';
+import 'package:audiobookify/objectbox.g.dart';
 import '../data/built_in_backdrops.dart';
 import '../models/backdrop_image.dart';
 import '../models/backdrop_settings.dart';
