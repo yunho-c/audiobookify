@@ -26,6 +26,34 @@ class CreateScreen extends ConsumerStatefulWidget {
 
 enum _CreateMode { import, discover }
 
+class _DownloadCanceled implements Exception {
+  const _DownloadCanceled();
+}
+
+class _DownloadController {
+  bool _isCanceled = false;
+  StreamSubscription<List<int>>? subscription;
+  http.Client? client;
+  Future<void> Function()? _cancelHandler;
+
+  bool get isCanceled => _isCanceled;
+
+  void setCancelHandler(Future<void> Function() handler) {
+    _cancelHandler = handler;
+  }
+
+  void cancel() {
+    if (_isCanceled) return;
+    _isCanceled = true;
+    subscription?.cancel();
+    client?.close();
+    final handler = _cancelHandler;
+    if (handler != null) {
+      unawaited(handler());
+    }
+  }
+}
+
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   bool _isLoading = false;
   EpubBook? _loadedBook;
@@ -39,6 +67,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   String _searchQuery = '';
   final Set<String> _downloadsInProgress = {};
   final Map<String, double?> _downloadProgress = {};
+  final Map<String, _DownloadController> _downloadControllers = {};
+
+  static const Duration _requestTimeout = Duration(seconds: 12);
+  static const Duration _downloadIdleTimeout = Duration(seconds: 20);
 
   static const List<String> _exploreSuggestions = [
     'Sherlock Holmes',
@@ -54,6 +86,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     _searchDebounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    for (final controller in _downloadControllers.values) {
+      controller.cancel();
+    }
+    _downloadControllers.clear();
     super.dispose();
   }
 
@@ -198,11 +234,19 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     setState(() => _downloadProgress[iaId] = clamped);
   }
 
+  void _cancelDownload(PublicBook book) {
+    final controller = _downloadControllers[book.iaId];
+    if (controller == null) return;
+    controller.cancel();
+  }
+
   Future<void> _downloadAndImport(PublicBook book, {bool closeDetails = false}) async {
     if (_downloadsInProgress.contains(book.iaId)) return;
+    final controller = _DownloadController();
     setState(() {
       _downloadsInProgress.add(book.iaId);
       _downloadProgress[book.iaId] = null;
+      _downloadControllers[book.iaId] = controller;
     });
 
     if (closeDetails && Navigator.of(context).canPop()) {
@@ -232,6 +276,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       downloadedFile = await _downloadEpubToFile(
         book,
         onProgress: (progress) => _setDownloadProgress(book.iaId, progress),
+        controller: controller,
       );
       if (!await _isValidEpub(downloadedFile)) {
         await _deleteIfExists(downloadedFile);
@@ -252,6 +297,16 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       if (mounted) {
         context.go('/');
       }
+    } on _DownloadCanceled {
+      if (downloadedFile != null) {
+        await _deleteIfExists(downloadedFile);
+      }
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: const Text('Download canceled'),
+          backgroundColor: colorScheme.surface,
+        ),
+      );
     } on EpubError catch (error) {
       if (downloadedFile != null) {
         await _deleteIfExists(downloadedFile);
@@ -274,6 +329,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         setState(() {
           _downloadsInProgress.remove(book.iaId);
           _downloadProgress.remove(book.iaId);
+          _downloadControllers.remove(book.iaId);
         });
       }
     }
@@ -303,8 +359,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   Future<File> _downloadEpubToFile(
     PublicBook book, {
     ValueChanged<double>? onProgress,
+    required _DownloadController controller,
   }) async {
     final client = http.Client();
+    controller.client = client;
     try {
       final downloadDir = await _bookStorageDirectory();
 
@@ -323,24 +381,61 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       const maxAttempts = 3;
       for (var attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          final response = await client.send(http.Request('GET', uri));
+          if (controller.isCanceled) {
+            throw const _DownloadCanceled();
+          }
+          final response = await client
+              .send(http.Request('GET', uri))
+              .timeout(_requestTimeout);
           if (response.statusCode != 200) {
             throw Exception('HTTP ${response.statusCode}');
           }
 
           final contentLength = response.contentLength ?? 0;
           final sink = file.openWrite();
-          if (contentLength <= 0 || onProgress == null) {
-            onProgress?.call(-1);
-            await response.stream.pipe(sink);
-            return file;
-          }
-
           final completer = Completer<File>();
+          Timer? idleTimer;
           var received = 0;
 
-          response.stream.listen(
+          Future<void> completeWithError(
+            Object error, [
+            StackTrace? stackTrace,
+          ]) async {
+            if (completer.isCompleted) return;
+            idleTimer?.cancel();
+            try {
+              await sink.close();
+            } catch (_) {}
+            await _deleteIfExists(file);
+            if (!completer.isCompleted) {
+              completer.completeError(error, stackTrace);
+            }
+          }
+
+          void resetIdleTimer() {
+            idleTimer?.cancel();
+            idleTimer = Timer(_downloadIdleTimeout, () {
+              controller.cancel();
+              unawaited(
+                completeWithError(
+                  TimeoutException('Download stalled.'),
+                ),
+              );
+            });
+          }
+
+          controller.setCancelHandler(() {
+            return completeWithError(const _DownloadCanceled());
+          });
+
+          resetIdleTimer();
+          controller.subscription = response.stream.listen(
             (chunk) {
+              if (controller.isCanceled) {
+                unawaited(completeWithError(const _DownloadCanceled()));
+                return;
+              }
+              resetIdleTimer();
               received += chunk.length;
               sink.add(chunk);
               if (contentLength > 0) {
@@ -348,16 +443,27 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               }
             },
             onError: (error, stackTrace) async {
-              await sink.close();
-              await _deleteIfExists(file);
-              if (!completer.isCompleted) {
-                completer.completeError(error, stackTrace);
+              if (controller.isCanceled) {
+                await completeWithError(const _DownloadCanceled());
+                return;
               }
+              await completeWithError(error, stackTrace);
             },
             onDone: () async {
-              await sink.close();
+              if (controller.isCanceled) {
+                await completeWithError(const _DownloadCanceled());
+                return;
+              }
+              idleTimer?.cancel();
+              try {
+                await sink.close();
+              } catch (_) {}
               if (!completer.isCompleted) {
-                onProgress(1.0);
+                if (contentLength > 0) {
+                  onProgress(1.0);
+                } else {
+                  onProgress?.call(-1);
+                }
                 completer.complete(file);
               }
             },
@@ -365,6 +471,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           );
 
           return await completer.future;
+        } on _DownloadCanceled {
+          await _deleteIfExists(file);
+          rethrow;
+        } on TimeoutException catch (error) {
+          await _deleteIfExists(file);
+          if (attempt == maxAttempts - 1) {
+            throw error;
+          }
         } catch (error) {
           await _deleteIfExists(file);
           if (attempt == maxAttempts - 1) {
@@ -384,7 +498,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   Future<Uri> _resolveEpubUri(http.Client client, PublicBook book) async {
     final metadataUri = Uri.parse('https://archive.org/metadata/${book.iaId}');
     try {
-      final response = await client.get(metadataUri);
+      final response =
+          await client.get(metadataUri).timeout(_requestTimeout);
       if (response.statusCode != 200) {
         return Uri.parse(book.epubUrl);
       }
@@ -473,6 +588,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         return _PublicBookDetailsSheet(
           book: book,
           onDownload: () => _downloadAndImport(book, closeDetails: true),
+          onCancel: () => _cancelDownload(book),
           isDownloading: _isDownloading(book),
         );
       },
@@ -884,6 +1000,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 book: book,
                 onTap: () => _openBookDetails(book),
                 onDownload: () => _downloadAndImport(book),
+                onCancel: () => _cancelDownload(book),
                 isDownloading: _isDownloading(book),
                 downloadProgress: _downloadProgressFor(book),
               ),
@@ -1223,6 +1340,7 @@ class _PublicBookCard extends StatelessWidget {
   final PublicBook book;
   final VoidCallback onTap;
   final VoidCallback onDownload;
+  final VoidCallback onCancel;
   final bool isDownloading;
   final double? downloadProgress;
 
@@ -1230,6 +1348,7 @@ class _PublicBookCard extends StatelessWidget {
     required this.book,
     required this.onTap,
     required this.onDownload,
+    required this.onCancel,
     required this.isDownloading,
     required this.downloadProgress,
   });
@@ -1366,11 +1485,11 @@ class _PublicBookCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               child: SizedBox(
                 width: double.infinity,
-                child: Pressable(
-                  onTap: isDownloading ? null : onDownload,
-                  pressedOpacity: 0.9,
-                  pressedScale: 0.98,
-                  haptic: PressableHaptic.selection,
+                  child: Pressable(
+                    onTap: isDownloading ? onCancel : onDownload,
+                    pressedOpacity: 0.9,
+                    pressedScale: 0.98,
+                    haptic: PressableHaptic.selection,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -1420,8 +1539,8 @@ class _DownloadLabel extends StatelessWidget {
         : (progressValue * 100).round();
     final label = isDownloading
         ? (progressPercent != null
-            ? 'Downloading $progressPercent%'
-            : 'Downloading...')
+            ? 'Cancel ($progressPercent%)'
+            : 'Cancel Download')
         : 'Download EPUB';
 
     return Column(
@@ -1531,11 +1650,13 @@ class _FadingNetworkImage extends StatelessWidget {
 class _PublicBookDetailsSheet extends ConsumerStatefulWidget {
   final PublicBook book;
   final VoidCallback onDownload;
+  final VoidCallback onCancel;
   final bool isDownloading;
 
   const _PublicBookDetailsSheet({
     required this.book,
     required this.onDownload,
+    required this.onCancel,
     required this.isDownloading,
   });
 
@@ -1777,7 +1898,7 @@ class _PublicBookDetailsSheetState
                             ],
                             Pressable(
                               onTap: widget.isDownloading
-                                  ? null
+                                  ? widget.onCancel
                                   : widget.onDownload,
                               pressedOpacity: 0.92,
                               pressedScale: 0.98,
@@ -1815,7 +1936,7 @@ class _PublicBookDetailsSheetState
                                     ],
                                     Text(
                                       widget.isDownloading
-                                          ? 'Downloading...'
+                                          ? 'Cancel Download'
                                           : 'Download EPUB',
                                       textAlign: TextAlign.center,
                                       style: textTheme.labelLarge?.copyWith(

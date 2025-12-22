@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/open_library_work.dart';
@@ -16,6 +17,7 @@ class OpenLibraryService {
   static const String _baseUrl = 'https://openlibrary.org/search.json';
   static const String _defaultUserAgent =
       'Audiobookify/1.0 (contact@audiobookify.app)';
+  static const Duration _requestTimeout = Duration(seconds: 12);
 
   OpenLibraryService({http.Client? client, String? userAgent})
       : _client = client ?? http.Client(),
@@ -55,7 +57,9 @@ class OpenLibraryService {
     }
 
     final uri = Uri.parse(_baseUrl).replace(queryParameters: params);
-    final response = await _client.get(uri, headers: _headers);
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(_requestTimeout);
 
     if (response.statusCode != 200) {
       throw OpenLibraryException(
@@ -75,7 +79,9 @@ class OpenLibraryService {
     final path = normalized.startsWith('/') ? normalized : '/$normalized';
     final uri = Uri.parse('https://openlibrary.org$path.json');
 
-    final response = await _client.get(uri, headers: _headers);
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(_requestTimeout);
     if (response.statusCode != 200) {
       return null;
     }
