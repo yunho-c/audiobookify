@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
@@ -659,15 +660,18 @@ final bucketProgressProvider =
 
 class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
   static const _resumeKey = 'book_resume_positions_v1';
+  static const _saveDebounce = Duration(milliseconds: 500);
+  Timer? _saveTimer;
+  late final SharedPreferences _prefs;
 
   @override
   Map<int, BookResumePosition> build() {
+    _prefs = ref.read(sharedPreferencesProvider);
     return _loadFromPrefs();
   }
 
   Map<int, BookResumePosition> _loadFromPrefs() {
-    final prefs = ref.read(sharedPreferencesProvider);
-    final raw = prefs.getString(_resumeKey);
+    final raw = _prefs.getString(_resumeKey);
     if (raw == null || raw.trim().isEmpty) {
       return const <int, BookResumePosition>{};
     }
@@ -691,12 +695,19 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
   }
 
   Future<void> _saveToPrefs(Map<int, BookResumePosition> positions) async {
-    final prefs = ref.read(sharedPreferencesProvider);
     final payload = <String, dynamic>{};
     for (final entry in positions.entries) {
       payload[entry.key.toString()] = entry.value.toJson();
     }
-    await prefs.setString(_resumeKey, jsonEncode(payload));
+    await _prefs.setString(_resumeKey, jsonEncode(payload));
+  }
+
+  void _scheduleSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(_saveDebounce, () {
+      _saveTimer = null;
+      unawaited(_saveToPrefs(state));
+    });
   }
 
   void setPosition({
@@ -714,7 +725,7 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
     final next = Map<int, BookResumePosition>.from(state)
       ..[bookId] = position;
     state = Map.unmodifiable(next);
-    _saveToPrefs(state);
+    _scheduleSave();
   }
 
   void clearPosition(int bookId) {
@@ -723,6 +734,14 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
       ..remove(bookId);
     state = Map.unmodifiable(next);
     _saveToPrefs(state);
+  }
+
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    unawaited(_saveToPrefs(state));
+    super.dispose();
   }
 }
 
