@@ -1030,6 +1030,48 @@ class _InfoRow extends StatelessWidget {
     final trailingColor = isDestructive
         ? colorScheme.error
         : colorScheme.outline;
+    final isAction = onTap != null;
+    final actionColor =
+        isDestructive ? colorScheme.error : colorScheme.primary;
+    final actionBackground = isDestructive
+        ? colorScheme.error.withAlpha(18)
+        : colorScheme.primary.withAlpha(18);
+    final actionBorder = isDestructive
+        ? colorScheme.error.withAlpha(90)
+        : colorScheme.primary.withAlpha(90);
+    final trailingTextStyle = isAction
+        ? textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: actionColor,
+          )
+        : textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: trailingColor,
+          );
+    final trailingWidget = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isAction ? actionBackground : colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isAction ? actionBorder : colorScheme.outlineVariant,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(trailingLabel, style: trailingTextStyle),
+          if (showExternalIcon) ...[
+            const SizedBox(width: 6),
+            Icon(
+              LucideIcons.externalLink,
+              size: 14,
+              color: actionColor,
+            ),
+          ],
+        ],
+      ),
+    );
     final row = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -1057,21 +1099,7 @@ class _InfoRow extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            trailingLabel,
-            style: textTheme.labelSmall?.copyWith(
-              color: trailingColor,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (showExternalIcon) ...[
-            const SizedBox(width: 8),
-            Icon(
-              LucideIcons.externalLink,
-              size: 16,
-              color: colorScheme.outline,
-            ),
-          ],
+          trailingWidget,
         ],
       ),
     );
