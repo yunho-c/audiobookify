@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -53,6 +54,33 @@ class _DownloadController {
     if (handler != null) {
       unawaited(handler());
     }
+  }
+}
+
+bool _isValidEpubInIsolate(String path) {
+  try {
+    final file = File(path);
+    if (!file.existsSync()) return false;
+    final length = file.lengthSync();
+    if (length < 1024) return false;
+    final input = InputFileStream(path);
+    try {
+      final archive = ZipDecoder().decodeBuffer(input, verify: true);
+      final mimetypeEntry = archive.findFile('mimetype');
+      if (mimetypeEntry == null) return false;
+      final mimetypeContent = mimetypeEntry.content;
+      final mimetype = switch (mimetypeContent) {
+        String value => value.trim(),
+        List<int> bytes => utf8.decode(bytes, allowMalformed: true).trim(),
+        _ => '',
+      };
+      if (mimetype != 'application/epub+zip') return false;
+      return archive.findFile('META-INF/container.xml') != null;
+    } finally {
+      input.close();
+    }
+  } catch (_) {
+    return false;
   }
 }
 
@@ -554,29 +582,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   Future<bool> _isValidEpub(File file) async {
-    try {
-      if (!await file.exists()) return false;
-      final length = await file.length();
-      if (length < 1024) return false;
-      final input = InputFileStream(file.path);
-      try {
-        final archive = ZipDecoder().decodeBuffer(input, verify: true);
-        final mimetypeEntry = archive.findFile('mimetype');
-        if (mimetypeEntry == null) return false;
-        final mimetypeContent = mimetypeEntry.content;
-        final mimetype = switch (mimetypeContent) {
-          String value => value.trim(),
-          List<int> bytes => utf8.decode(bytes, allowMalformed: true).trim(),
-          _ => '',
-        };
-        if (mimetype != 'application/epub+zip') return false;
-        return archive.findFile('META-INF/container.xml') != null;
-      } finally {
-        input.close();
-      }
-    } catch (_) {
-      return false;
-    }
+    return compute(_isValidEpubInIsolate, file.path);
   }
 
   Future<void> _deleteIfExists(File file) async {

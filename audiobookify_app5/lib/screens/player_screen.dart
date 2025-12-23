@@ -26,6 +26,31 @@ import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
 
+List<String> _extractParagraphsInIsolate(String htmlContent) {
+  final document = html_parser.parse(htmlContent);
+  final body = document.body;
+  if (body == null) return [];
+
+  final paragraphs = <String>[];
+  final textNodes = body.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
+
+  for (final node in textNodes) {
+    final text = node.text.trim();
+    if (text.isNotEmpty) {
+      paragraphs.add(text);
+    }
+  }
+
+  if (paragraphs.isEmpty) {
+    final text = body.text.trim();
+    paragraphs.addAll(
+      text.split(RegExp(r'\n\s*\n')).where((p) => p.trim().isNotEmpty),
+    );
+  }
+
+  return paragraphs;
+}
+
 /// Player screen with text reader, TTS audio controls, and settings
 class PlayerScreen extends ConsumerStatefulWidget {
   final String bookId;
@@ -194,7 +219,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (index < 0 || index >= chapters.length) return;
 
     final chapterContent = _epubBook!.chapterContents[index];
-    final paragraphs = _extractParagraphs(chapterContent);
+    final paragraphs = await _extractParagraphs(chapterContent);
 
     if (!mounted) return;
 
@@ -222,30 +247,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  List<String> _extractParagraphs(String htmlContent) {
-    final document = html_parser.parse(htmlContent);
-    final body = document.body;
-    if (body == null) return [];
-
-    final paragraphs = <String>[];
-    final textNodes = body.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
-
-    for (final node in textNodes) {
-      final text = node.text.trim();
-      if (text.isNotEmpty) {
-        paragraphs.add(text);
-      }
-    }
-
-    // If no paragraph tags, split by double newlines
-    if (paragraphs.isEmpty) {
-      final text = body.text.trim();
-      paragraphs.addAll(
-        text.split(RegExp(r'\n\s*\n')).where((p) => p.trim().isNotEmpty),
-      );
-    }
-
-    return paragraphs;
+  Future<List<String>> _extractParagraphs(String htmlContent) {
+    if (htmlContent.trim().isEmpty) return Future.value(const []);
+    return compute(_extractParagraphsInIsolate, htmlContent);
   }
 
   void _openSettings() {
