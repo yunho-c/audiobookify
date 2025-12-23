@@ -741,6 +741,12 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
     _saveToPrefs(state);
   }
 
+  void clearAll() {
+    if (state.isEmpty) return;
+    state = const <int, BookResumePosition>{};
+    _saveToPrefs(state);
+  }
+
 }
 
 final bookResumeProvider =

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -30,6 +31,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   PackageInfo? _packageInfo;
   PermissionStatus? _notificationStatus;
   bool _notificationBusy = false;
+  bool _isClearingAppData = false;
 
   @override
   void initState() {
@@ -158,6 +160,279 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       SettingsScreen._issuesUrl,
       failureMessage: 'Unable to open GitHub Issues.',
     );
+  }
+
+  Future<void> _showCrashReportingDetails(BuildContext context) async {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Crash Reporting Details'),
+          content: SingleChildScrollView(
+            child: DefaultTextStyle(
+              style: textTheme.bodyMedium!.copyWith(
+                color: colorScheme.onSurface,
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'When enabled, crash reports include:',
+                  ),
+                  SizedBox(height: 8),
+                  Text('• App version and build'),
+                  Text('• Device model and OS version'),
+                  Text('• Stack traces and error context'),
+                  Text('• Performance traces (when enabled)'),
+                  SizedBox(height: 12),
+                  Text(
+                    'Reports never include your book files or personal notes.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showThirdPartyDetails(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Third-Party Services'),
+          content: const Text(
+            'Audiobookify uses Open Library and Archive.org for discovery and '
+            'downloads, and Sentry for optional crash reporting.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => _openExternalUrl(
+                dialogContext,
+                'https://openlibrary.org/privacy',
+                failureMessage: 'Unable to open Open Library privacy policy.',
+              ),
+              child: const Text('Open Library'),
+            ),
+            TextButton(
+              onPressed: () => _openExternalUrl(
+                dialogContext,
+                'https://archive.org/about/privacy.php',
+                failureMessage: 'Unable to open Archive.org privacy policy.',
+              ),
+              child: const Text('Archive.org'),
+            ),
+            TextButton(
+              onPressed: () => _openExternalUrl(
+                dialogContext,
+                'https://sentry.io/privacy/',
+                failureMessage: 'Unable to open Sentry privacy policy.',
+              ),
+              child: const Text('Sentry'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showPermissionsDetails(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Permissions'),
+          content: const Text(
+            'Notification permissions are managed above. '
+            'Use system settings to review or change permissions.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await openAppSettings();
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: const Text('Open Settings'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<_StorageSnapshot> _loadStorageSnapshot() async {
+    final service = ref.read(bookServiceProvider);
+    final books = service.getAllBooks();
+    var totalBytes = 0;
+    for (final book in books) {
+      final path = book.filePath.trim();
+      if (path.isEmpty) continue;
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          totalBytes += await file.length();
+        }
+      } catch (_) {
+        // Ignore file size errors.
+      }
+    }
+    return _StorageSnapshot(
+      bookCount: books.length,
+      totalBytes: totalBytes,
+    );
+  }
+
+  Future<void> _showStorageDetails(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final textTheme = Theme.of(sheetContext).textTheme;
+        final colorScheme = Theme.of(sheetContext).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: FutureBuilder<_StorageSnapshot>(
+            future: _loadStorageSnapshot(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Checking local storage...',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                );
+              }
+              final data = snapshot.data!;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Stored on this device',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${data.bookCount} saved books',
+                    style: textTheme.bodyMedium,
+                  ),
+                  Text(
+                    _formatBytes(data.totalBytes),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Clearing app data removes downloads and listening history.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B used';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    var size = bytes.toDouble();
+    var unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+    return '${size.toStringAsFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]} used';
+  }
+
+  Future<void> _confirmClearAppData(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Clear app data?'),
+          content: const Text(
+            'This removes downloaded books and listening progress from this '
+            'device. Your preferences will remain.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Clear'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirm != true || !mounted) return;
+    if (_isClearingAppData) return;
+    setState(() => _isClearingAppData = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final service = ref.read(bookServiceProvider);
+      final books = service.getAllBooks();
+      var removed = 0;
+      for (final book in books) {
+        final didRemove = await service.deleteBookAndAssets(book.id);
+        if (didRemove) removed += 1;
+      }
+      ref.read(bookResumeProvider.notifier).clearAll();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Removed $removed books from this device.')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to clear app data.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingAppData = false);
+      }
+    }
   }
 
   Future<void> _sendFeedback(BuildContext context) async {
@@ -323,6 +598,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       subtitle: 'What we collect and why',
                       trailingLabel: 'View',
                       showDivider: true,
+                      showExternalIcon: true,
                       onTap: () => _openExternalUrl(
                         context,
                         SettingsScreen._privacyPolicyUrl,
@@ -341,41 +617,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
-                    const _InfoRow(
+                    _InfoRow(
                       icon: LucideIcons.activity,
                       title: 'Crash Reporting Details',
                       subtitle: 'Diagnostics included in reports',
-                      trailingLabel: 'Coming soon',
+                      trailingLabel: 'View',
                       showDivider: true,
+                      onTap: () => _showCrashReportingDetails(context),
                     ),
-                    const _InfoRow(
+                    _InfoRow(
                       icon: LucideIcons.database,
                       title: 'Data Stored on Device',
                       subtitle: 'Books, progress, and preferences',
-                      trailingLabel: 'Coming soon',
+                      trailingLabel: 'View',
                       showDivider: true,
+                      onTap: () => _showStorageDetails(context),
                     ),
-                    const _InfoRow(
+                    _InfoRow(
                       icon: LucideIcons.key,
                       title: 'Permissions',
                       subtitle: 'Notifications and storage access',
-                      trailingLabel: 'Coming soon',
+                      trailingLabel: 'Manage',
                       showDivider: true,
+                      onTap: () => _showPermissionsDetails(context),
                     ),
-                    const _InfoRow(
+                    _InfoRow(
                       icon: LucideIcons.link,
                       title: 'Third-Party Services',
                       subtitle: 'Open Library, Archive.org, Sentry',
-                      trailingLabel: 'Coming soon',
+                      trailingLabel: 'View',
                       showDivider: true,
+                      onTap: () => _showThirdPartyDetails(context),
                     ),
-                    const _InfoRow(
+                    _InfoRow(
                       icon: LucideIcons.trash2,
                       title: 'Clear App Data',
                       subtitle: 'Remove downloads and history',
-                      trailingLabel: 'Not available yet',
+                      trailingLabel: _isClearingAppData ? 'Clearing...' : 'Clear',
                       showDivider: false,
                       isDestructive: true,
+                      onTap: _isClearingAppData
+                          ? null
+                          : () => _confirmClearAppData(context),
                     ),
                   ],
                 ),
@@ -721,6 +1004,7 @@ class _InfoRow extends StatelessWidget {
   final bool showDivider;
   final bool isDestructive;
   final VoidCallback? onTap;
+  final bool showExternalIcon;
 
   const _InfoRow({
     required this.icon,
@@ -730,6 +1014,7 @@ class _InfoRow extends StatelessWidget {
     required this.showDivider,
     this.isDestructive = false,
     this.onTap,
+    this.showExternalIcon = false,
   });
 
   @override
@@ -779,7 +1064,7 @@ class _InfoRow extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          if (onTap != null) ...[
+          if (showExternalIcon) ...[
             const SizedBox(width: 8),
             Icon(
               LucideIcons.externalLink,
@@ -805,6 +1090,16 @@ class _InfoRow extends StatelessWidget {
       ],
     );
   }
+}
+
+class _StorageSnapshot {
+  final int bookCount;
+  final int totalBytes;
+
+  const _StorageSnapshot({
+    required this.bookCount,
+    required this.totalBytes,
+  });
 }
 
 class _NotificationSettingsRow extends StatelessWidget {
