@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
@@ -21,18 +22,31 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _feedbackController = TextEditingController();
   PackageInfo? _packageInfo;
+  PermissionStatus? _notificationStatus;
+  bool _notificationBusy = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadPackageInfo();
+    _loadNotificationStatus();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadNotificationStatus();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _feedbackController.dispose();
     super.dispose();
   }
@@ -41,6 +55,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final info = await PackageInfo.fromPlatform();
     if (!mounted) return;
     setState(() => _packageInfo = info);
+  }
+
+  Future<void> _loadNotificationStatus() async {
+    final status = await Permission.notification.status;
+    if (!mounted) return;
+    setState(() => _notificationStatus = status);
   }
 
   String _versionLabel() {
@@ -52,6 +72,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (build.isEmpty) return 'Version $version';
     if (version.isEmpty) return 'Version $build';
     return 'Version $version ($build)';
+  }
+
+  String _notificationSubtitle(PermissionStatus? status) {
+    if (status == null) return 'Check notification permission';
+    if (status.isGranted) return 'Enabled';
+    if (status.isLimited) return 'Limited';
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      return 'Blocked in system settings';
+    }
+    if (status.isDenied) return 'Off';
+    return 'Unavailable';
+  }
+
+  String _notificationActionLabel(PermissionStatus? status) {
+    if (status == null) return 'Check';
+    if (status.isGranted) return 'Manage';
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      return 'Open Settings';
+    }
+    return 'Enable';
+  }
+
+  Future<void> _handleNotificationAction(BuildContext context) async {
+    if (_notificationBusy) return;
+    setState(() => _notificationBusy = true);
+    try {
+      final current =
+          _notificationStatus ?? await Permission.notification.status;
+      PermissionStatus updated;
+      if (current.isGranted) {
+        await openAppSettings();
+        updated = await Permission.notification.status;
+      } else if (current.isPermanentlyDenied || current.isRestricted) {
+        await openAppSettings();
+        updated = await Permission.notification.status;
+      } else {
+        updated = await Permission.notification.request();
+      }
+      if (!mounted) return;
+      setState(() => _notificationStatus = updated);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to update notifications.')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _notificationBusy = false);
+      }
+    }
   }
 
   Future<void> _openExternalUrl(
@@ -388,9 +459,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         label: 'Account',
                         showDivider: true,
                       ),
-                    _MenuItem(
-                      icon: LucideIcons.bell,
-                      label: 'Notifications',
+                    _NotificationSettingsRow(
+                      isBusy: _notificationBusy,
+                      subtitle: _notificationSubtitle(_notificationStatus),
+                      actionLabel:
+                          _notificationActionLabel(_notificationStatus),
+                      onAction: () => _handleNotificationAction(context),
                       showDivider: true,
                     ),
                     _MenuItem(
@@ -608,6 +682,85 @@ class _MenuItem extends StatelessWidget {
                   size: 18,
                   color: colorScheme.outline,
                 ),
+            ],
+          ),
+        ),
+        if (showDivider)
+          const Divider(height: 1, indent: 16, endIndent: 16),
+      ],
+    );
+  }
+}
+
+class _NotificationSettingsRow extends StatelessWidget {
+  final bool isBusy;
+  final String subtitle;
+  final String actionLabel;
+  final VoidCallback onAction;
+  final bool showDivider;
+
+  const _NotificationSettingsRow({
+    required this.isBusy,
+    required this.subtitle,
+    required this.actionLabel,
+    required this.onAction,
+    required this.showDivider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(
+                LucideIcons.bell,
+                size: 20,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Notifications',
+                      style: textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                height: 32,
+                child: OutlinedButton(
+                  onPressed: isBusy ? null : onAction,
+                  child: isBusy
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colorScheme.primary,
+                          ),
+                        )
+                      : Text(actionLabel),
+                ),
+              ),
             ],
           ),
         ),
