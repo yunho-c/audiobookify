@@ -88,6 +88,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _activeSentenceParagraphIndex = -1;
   int _previousSentenceIndex = -1;
   int _previousSentenceParagraphIndex = -1;
+  int _lastResumeChapter = -1;
+  int _lastResumeParagraph = -1;
+  int _lastResumeSentence = -1;
 
   @override
   void initState() {
@@ -194,14 +197,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _epubBook = epub;
       });
 
-      // Get chapter from query params
+      // Get chapter and resume position from query params or stored resume.
       final uri = GoRouterState.of(context).uri;
       final chapterParam = uri.queryParameters['chapter'];
-      final chapterIndex = chapterParam != null
-          ? (int.tryParse(chapterParam) ?? 1) - 1
-          : 0;
+      final paragraphParam = uri.queryParameters['paragraph'];
+      final sentenceParam = uri.queryParameters['sentence'];
+      final storedResume = ref.read(bookResumeProvider)[book.id];
 
-      await _loadChapter(chapterIndex);
+      final rawChapterIndex = chapterParam != null
+          ? (int.tryParse(chapterParam) ?? 1) - 1
+          : (storedResume?.chapterIndex ?? 0);
+      final totalChapters = epub.chapters.length;
+      final chapterIndex = totalChapters == 0
+          ? 0
+          : rawChapterIndex.clamp(0, totalChapters - 1).toInt();
+      final resumeParagraphIndex = chapterParam != null
+          ? (_parseQueryIndex(paragraphParam) ?? 0)
+          : storedResume?.paragraphIndex;
+      final resumeSentenceIndex = chapterParam != null
+          ? (_parseQueryIndex(sentenceParam) ?? 0)
+          : storedResume?.sentenceIndex;
+
+      await _loadChapter(
+        chapterIndex,
+        resumeParagraphIndex: resumeParagraphIndex,
+        resumeSentenceIndex: resumeSentenceIndex,
+      );
     } catch (e, stackTrace) {
       reportError(e, stackTrace, context: 'player_screen.load');
       if (!mounted) return;
@@ -212,7 +233,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<void> _loadChapter(int index) async {
+  Future<void> _loadChapter(
+    int index, {
+    int? resumeParagraphIndex,
+    int? resumeSentenceIndex,
+  }) async {
     if (_epubBook == null || !mounted) return;
 
     final chapters = _epubBook!.chapters;
@@ -240,6 +265,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Load content into TTS provider
     final wasPlaying = _ttsService.state.status == TtsStatus.playing;
     _ttsService.loadContent(paragraphs);
+
+    if (resumeParagraphIndex != null && paragraphs.isNotEmpty) {
+      final targetParagraph = resumeParagraphIndex
+          .clamp(0, paragraphs.length - 1)
+          .toInt();
+      final targetSentence = resumeSentenceIndex ?? 0;
+      await _ttsService.jumpToSentence(targetParagraph, targetSentence);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToParagraph(targetParagraph);
+        _lastScrolledToParagraph = targetParagraph;
+      });
+    }
 
     // Resume playback if we were playing
     if (wasPlaying) {
@@ -326,6 +364,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         .round();
 
     _bookService.updateProgress(_book!.id, progress);
+  }
+
+  void _persistResumePosition(TtsPlaybackState ttsState) {
+    final book = _book;
+    if (book == null || _epubBook == null || _paragraphs.isEmpty) return;
+    final chapterIndex = _currentChapterIndex
+        .clamp(0, _epubBook!.chapters.length - 1)
+        .toInt();
+    final paragraphIndex =
+        ttsState.paragraphIndex.clamp(0, _paragraphs.length - 1).toInt();
+    var sentenceIndex = ttsState.sentenceIndex;
+    final sentences = ttsState.sentencesPerParagraph;
+    if (paragraphIndex < sentences.length) {
+      final count = sentences[paragraphIndex].length;
+      sentenceIndex =
+          count > 0 ? sentenceIndex.clamp(0, count - 1).toInt() : 0;
+    } else {
+      sentenceIndex = 0;
+    }
+
+    if (chapterIndex == _lastResumeChapter &&
+        paragraphIndex == _lastResumeParagraph &&
+        sentenceIndex == _lastResumeSentence) {
+      return;
+    }
+    _lastResumeChapter = chapterIndex;
+    _lastResumeParagraph = paragraphIndex;
+    _lastResumeSentence = sentenceIndex;
+    ref.read(bookResumeProvider.notifier).setPosition(
+          bookId: book.id,
+          chapterIndex: chapterIndex,
+          paragraphIndex: paragraphIndex,
+          sentenceIndex: sentenceIndex,
+        );
+  }
+
+  int? _parseQueryIndex(String? value) {
+    final parsed = int.tryParse(value ?? '');
+    if (parsed == null) return null;
+    return parsed <= 0 ? 0 : parsed - 1;
   }
 
   @override
@@ -621,6 +699,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         next.paragraphIndex,
         next.sentenceIndex,
       );
+      _persistResumePosition(next);
     });
     final readerTheme = ref.watch(playerThemeProvider);
     final debugEnabled = ref.watch(debugModeProvider);

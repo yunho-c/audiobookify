@@ -11,6 +11,7 @@ import '../widgets/book_actions_sheet.dart';
 import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
 import '../models/book.dart';
+import '../models/book_resume_position.dart';
 
 /// Home screen with book grid from ObjectBox database
 class HomeScreen extends ConsumerStatefulWidget {
@@ -77,15 +78,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final booksAsync = ref.watch(booksProvider);
+    final resumePositions = ref.watch(bookResumeProvider);
     return booksAsync.when(
       loading: () => const LoadingScaffold(),
       error: (e, _) => ErrorScaffold(message: 'Error: $e'),
       data: (books) {
         final subtitle =
             books.isEmpty ? 'Your library is empty' : 'Your library';
-        final continueBook = _selectContinueBook(books);
+        final continueBook = _selectContinueBook(books, resumePositions);
+        final continueResume =
+            continueBook != null ? resumePositions[continueBook.id] : null;
         final continueChapter = continueBook != null
-            ? _estimatedResumeChapter(continueBook)
+            ? (continueResume != null
+                ? continueResume.chapterIndex + 1
+                : _estimatedResumeChapter(continueBook))
             : null;
 
         return Scaffold(
@@ -133,6 +139,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     _ContinueListeningCard(
                                       book: continueBook,
                                       resumeChapter: continueChapter ?? 1,
+                                      resumePosition: continueResume,
                                     ),
                                   ],
                                 ),
@@ -250,10 +257,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return 2;
   }
 
-  Book? _selectContinueBook(List<Book> books) {
-    final inProgress = books
-        .where((book) => book.progress > 0 && book.progress < 100)
-        .toList();
+  Book? _selectContinueBook(
+    List<Book> books,
+    Map<int, BookResumePosition> resumePositions,
+  ) {
+    final inProgress = books.where((book) {
+      if (book.progress > 0 && book.progress < 100) return true;
+      return book.progress < 100 && resumePositions.containsKey(book.id);
+    }).toList();
     if (inProgress.isEmpty) return null;
     inProgress.sort((a, b) {
       final progressCompare = b.progress.compareTo(a.progress);
@@ -288,6 +299,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .deleteBookAndAssets(book.id);
         if (!context.mounted) return;
         if (removed) {
+          ref.read(bookResumeProvider.notifier).clearPosition(book.id);
           messenger.showSnackBar(
             SnackBar(content: Text('Removed "$title" from library')),
           );
@@ -364,10 +376,12 @@ class _SectionHeader extends StatelessWidget {
 class _ContinueListeningCard extends StatelessWidget {
   final Book book;
   final int resumeChapter;
+  final BookResumePosition? resumePosition;
 
   const _ContinueListeningCard({
     required this.book,
     required this.resumeChapter,
+    required this.resumePosition,
   });
 
   @override
@@ -379,9 +393,14 @@ class _ContinueListeningCard extends StatelessWidget {
         ? 'Chapter $resumeChapter of ${book.chapterCount}'
         : 'Resume listening';
 
+    final resume = resumePosition;
+    final path = resume == null
+        ? '/player/${book.id}?chapter=$resumeChapter'
+        : '/player/${book.id}?chapter=${resume.chapterIndex + 1}'
+            '&paragraph=${resume.paragraphIndex + 1}'
+            '&sentence=${resume.sentenceIndex + 1}';
     return Pressable(
-      onTap: () =>
-          context.push('/player/${book.id}?chapter=$resumeChapter'),
+      onTap: () => context.push(path),
       haptic: PressableHaptic.selection,
       child: Container(
         padding: const EdgeInsets.all(16),

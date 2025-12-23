@@ -128,6 +128,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
             .deleteBookAndAssets(book.id);
         if (!mounted) return;
         if (removed) {
+          ref.read(bookResumeProvider.notifier).clearPosition(book.id);
           messenger.showSnackBar(
             SnackBar(content: Text('Removed "$title" from library')),
           );
@@ -146,6 +147,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final debugEnabled = ref.watch(debugModeProvider);
+    final resumePositions = ref.watch(bookResumeProvider);
+    final resumePosition =
+        _book == null ? null : resumePositions[_book!.id];
     if (_isLoading) {
       return const LoadingScaffold();
     }
@@ -177,6 +181,11 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
       'Added ${book.addedAt.year}',
     ];
     final progress = (book.progress.clamp(0, 100)) / 100;
+    final resumePath = resumePosition == null
+        ? '/player/${book.id}'
+        : '/player/${book.id}?chapter=${resumePosition.chapterIndex + 1}'
+            '&paragraph=${resumePosition.paragraphIndex + 1}'
+            '&sentence=${resumePosition.sentenceIndex + 1}';
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
@@ -316,7 +325,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                       ],
                       const SizedBox(height: 16),
                       Pressable(
-                        onTap: () => context.push('/player/${book.id}'),
+                        onTap: () => context.push(resumePath),
                         pressedScale: 1,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -346,7 +355,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                book.progress > 0 ? 'Resume' : 'Start',
+                                (resumePosition != null || book.progress > 0)
+                                    ? 'Resume'
+                                    : 'Start',
                                 style: textTheme.bodyLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: colorScheme.onPrimary,

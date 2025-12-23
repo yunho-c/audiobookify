@@ -13,6 +13,7 @@ import '../services/epub_service.dart';
 import '../services/open_library_service.dart';
 import '../services/tts_audio_handler.dart';
 import '../services/tts_service.dart';
+import '../models/book_resume_position.dart';
 import '../models/player_settings.dart';
 import '../models/player_theme_settings.dart';
 import '../models/public_book.dart';
@@ -651,3 +652,81 @@ final bucketProgressProvider =
         bucketCount: args.bucketCount,
       );
 });
+
+// ========================================
+// Resume Position
+// ========================================
+
+class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
+  static const _resumeKey = 'book_resume_positions_v1';
+
+  @override
+  Map<int, BookResumePosition> build() {
+    return _loadFromPrefs();
+  }
+
+  Map<int, BookResumePosition> _loadFromPrefs() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final raw = prefs.getString(_resumeKey);
+    if (raw == null || raw.trim().isEmpty) {
+      return const <int, BookResumePosition>{};
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const <int, BookResumePosition>{};
+      final positions = <int, BookResumePosition>{};
+      for (final entry in decoded.entries) {
+        final key = entry.key;
+        final id = int.tryParse(key.toString());
+        if (id == null) continue;
+        final position = BookResumePosition.fromJson(entry.value);
+        if (position != null) {
+          positions[id] = position;
+        }
+      }
+      return Map.unmodifiable(positions);
+    } catch (_) {
+      return const <int, BookResumePosition>{};
+    }
+  }
+
+  Future<void> _saveToPrefs(Map<int, BookResumePosition> positions) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final payload = <String, dynamic>{};
+    for (final entry in positions.entries) {
+      payload[entry.key.toString()] = entry.value.toJson();
+    }
+    await prefs.setString(_resumeKey, jsonEncode(payload));
+  }
+
+  void setPosition({
+    required int bookId,
+    required int chapterIndex,
+    required int paragraphIndex,
+    required int sentenceIndex,
+  }) {
+    final position = BookResumePosition(
+      chapterIndex: chapterIndex.clamp(0, 1 << 30).toInt(),
+      paragraphIndex: paragraphIndex.clamp(0, 1 << 30).toInt(),
+      sentenceIndex: sentenceIndex.clamp(0, 1 << 30).toInt(),
+      updatedAt: DateTime.now(),
+    );
+    final next = Map<int, BookResumePosition>.from(state)
+      ..[bookId] = position;
+    state = Map.unmodifiable(next);
+    _saveToPrefs(state);
+  }
+
+  void clearPosition(int bookId) {
+    if (!state.containsKey(bookId)) return;
+    final next = Map<int, BookResumePosition>.from(state)
+      ..remove(bookId);
+    state = Map.unmodifiable(next);
+    _saveToPrefs(state);
+  }
+}
+
+final bookResumeProvider =
+    NotifierProvider<BookResumeNotifier, Map<int, BookResumePosition>>(
+  BookResumeNotifier.new,
+);
