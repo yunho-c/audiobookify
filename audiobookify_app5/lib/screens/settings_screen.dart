@@ -16,7 +16,9 @@ class SettingsScreen extends ConsumerStatefulWidget {
   static const String _contactEmail = 'audiobookify@yunhocho.com';
   static const String _appStoreUrl = 'https://example.com/app-store';
   static const String _googlePlayUrl = 'https://example.com/google-play';
-  static const String _microsoftStoreUrl = 'https://example.com/microsoft-store';
+  static const String _microsoftStoreUrl =
+      'https://example.com/microsoft-store';
+  static const String _privacyPolicyUrl = 'https://example.com/privacy';
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -137,15 +139,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         mode: LaunchMode.externalApplication,
       );
       if (!launched && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failureMessage)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failureMessage)));
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failureMessage)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failureMessage)));
       }
     }
   }
@@ -197,10 +199,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             children: [
               const SizedBox(height: 24),
               // Header
-              Text(
-                'Settings',
-                style: textTheme.displayLarge,
-              ),
+              Text('Settings', style: textTheme.displayLarge),
               const SizedBox(height: 24),
               _SettingsCard(
                 child: Column(
@@ -243,47 +242,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ),
               ),
               const SizedBox(height: 24),
-              _SettingsCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    _SettingsToggleRow(
-                      icon: LucideIcons.bug,
-                      title: 'Debug Mode',
-                      subtitle: 'Show progress diagnostics',
-                      value: debugEnabled,
-                      onChanged: (value) {
-                        ref
-                            .read(debugModeProvider.notifier)
-                            .setEnabled(value);
-                      },
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    _SettingsToggleRow(
-                      icon: LucideIcons.shield,
-                      title: 'Crash Reporting',
-                      subtitle: 'Send anonymous diagnostics',
-                      value: crashReportingEnabled,
-                      onChanged: (value) {
-                        ref
-                            .read(crashReportingProvider.notifier)
-                            .setEnabled(value);
-                      },
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    _SettingsToggleRow(
-                      icon: LucideIcons.flaskConical,
-                      title: 'Labs',
-                      subtitle: 'Opt-in to using experimental features',
-                      value: labsEnabled,
-                      onChanged: (value) {
-                        ref.read(labsModeProvider.notifier).setEnabled(value);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
               // Menu items group 1
               _SettingsCard(
                 padding: EdgeInsets.zero,
@@ -298,8 +256,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     _NotificationSettingsRow(
                       isBusy: _notificationBusy,
                       subtitle: _notificationSubtitle(_notificationStatus),
-                      actionLabel:
-                          _notificationActionLabel(_notificationStatus),
+                      actionLabel: _notificationActionLabel(
+                        _notificationStatus,
+                      ),
                       onAction: () => _handleNotificationAction(context),
                       showDivider: false,
                     ),
@@ -335,13 +294,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       ),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
-                    const _InfoRow(
+                    _InfoRow(
                       icon: LucideIcons.fileText,
                       title: 'Privacy Policy',
                       subtitle: 'What we collect and why',
-                      trailingLabel: 'Coming soon',
+                      trailingLabel: 'View',
                       showDivider: true,
+                      onTap: () => _openExternalUrl(
+                        context,
+                        SettingsScreen._privacyPolicyUrl,
+                        failureMessage: 'Unable to open privacy policy.',
+                      ),
                     ),
+                    _SettingsToggleRow(
+                      icon: LucideIcons.shield,
+                      title: 'Crash Reporting',
+                      subtitle: 'Send anonymous diagnostics',
+                      value: crashReportingEnabled,
+                      onChanged: (value) {
+                        ref
+                            .read(crashReportingProvider.notifier)
+                            .setEnabled(value);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
                     const _InfoRow(
                       icon: LucideIcons.activity,
                       title: 'Crash Reporting Details',
@@ -468,13 +444,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              BorderSide(color: colorScheme.outlineVariant),
+                          borderSide: BorderSide(
+                            color: colorScheme.outlineVariant,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              BorderSide(color: colorScheme.primary, width: 1.4),
+                          borderSide: BorderSide(
+                            color: colorScheme.primary,
+                            width: 1.4,
+                          ),
                         ),
                       ),
                     ),
@@ -522,6 +501,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   ),
                 ),
               ],
+              const SizedBox(height: 24),
+              _SettingsCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Developer',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    _SettingsToggleRow(
+                      icon: LucideIcons.bug,
+                      title: 'Debug Mode',
+                      subtitle: 'Show diagnostics',
+                      value: debugEnabled,
+                      onChanged: (value) {
+                        ref.read(debugModeProvider.notifier).setEnabled(value);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    _SettingsToggleRow(
+                      icon: LucideIcons.flaskConical,
+                      title: 'Labs',
+                      subtitle: 'Opt-in to using experimental features',
+                      value: labsEnabled,
+                      onChanged: (value) {
+                        ref.read(labsModeProvider.notifier).setEnabled(value);
+                      },
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 32),
               // Version
               Center(
@@ -576,8 +600,9 @@ class _MenuItem extends StatelessWidget {
                   label,
                   style: textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color:
-                        isDestructive ? colorScheme.error : colorScheme.onSurface,
+                    color: isDestructive
+                        ? colorScheme.error
+                        : colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -590,8 +615,7 @@ class _MenuItem extends StatelessWidget {
             ],
           ),
         ),
-        if (showDivider)
-          const Divider(height: 1, indent: 16, endIndent: 16),
+        if (showDivider) const Divider(height: 1, indent: 16, endIndent: 16),
       ],
     );
   }
@@ -604,6 +628,7 @@ class _InfoRow extends StatelessWidget {
   final String trailingLabel;
   final bool showDivider;
   final bool isDestructive;
+  final VoidCallback? onTap;
 
   const _InfoRow({
     required this.icon,
@@ -612,59 +637,79 @@ class _InfoRow extends StatelessWidget {
     required this.trailingLabel,
     required this.showDivider,
     this.isDestructive = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final titleColor =
-        isDestructive ? colorScheme.error : colorScheme.onSurface;
-    final iconColor =
-        isDestructive ? colorScheme.error : colorScheme.onSurfaceVariant;
-    final trailingColor =
-        isDestructive ? colorScheme.error : colorScheme.outline;
+    final titleColor = isDestructive
+        ? colorScheme.error
+        : colorScheme.onSurface;
+    final iconColor = isDestructive
+        ? colorScheme.error
+        : colorScheme.onSurfaceVariant;
+    final trailingColor = isDestructive
+        ? colorScheme.error
+        : colorScheme.outline;
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: titleColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            trailingLabel,
+            style: textTheme.labelSmall?.copyWith(
+              color: trailingColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 8),
+            Icon(
+              LucideIcons.externalLink,
+              size: 16,
+              color: colorScheme.outline,
+            ),
+          ],
+        ],
+      ),
+    );
+
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Icon(icon, size: 20, color: iconColor),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: titleColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                trailingLabel,
-                style: textTheme.labelSmall?.copyWith(
-                  color: trailingColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+        if (onTap == null)
+          row
+        else
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: row,
           ),
-        ),
-        if (showDivider)
-          const Divider(height: 1, indent: 16, endIndent: 16),
+        if (showDivider) const Divider(height: 1, indent: 16, endIndent: 16),
       ],
     );
   }
@@ -742,8 +787,7 @@ class _NotificationSettingsRow extends StatelessWidget {
             ],
           ),
         ),
-        if (showDivider)
-          const Divider(height: 1, indent: 16, endIndent: 16),
+        if (showDivider) const Divider(height: 1, indent: 16, endIndent: 16),
       ],
     );
   }
@@ -779,11 +823,7 @@ class _SettingsToggleRow extends StatelessWidget {
               color: colorScheme.surfaceVariant,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              icon,
-              size: 20,
-              color: colorScheme.onSurfaceVariant,
-            ),
+            child: Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -807,10 +847,7 @@ class _SettingsToggleRow extends StatelessWidget {
               ],
             ),
           ),
-          Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
-          ),
+          Switch.adaptive(value: value, onChanged: onChanged),
         ],
       ),
     );
