@@ -2,8 +2,8 @@
 // This test loads a sample EPUB and verifies basic functionality
 
 import 'dart:io';
-import 'package:audiobookify_app5/src/rust/api/epub.dart';
-import 'package:audiobookify_app5/src/rust/frb_generated.dart';
+import 'package:audiobookify/src/rust/api/epub.dart';
+import 'package:audiobookify/src/rust/frb_generated.dart';
 
 Future<void> main() async {
   // Initialize flutter_rust_bridge

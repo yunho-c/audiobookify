@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:audiobookify_app5/main.dart';
-import 'package:audiobookify_app5/core/providers.dart';
-import 'package:audiobookify_app5/models/book.dart';
+import 'package:audiobookify/main.dart';
+import 'package:audiobookify/core/providers.dart';
+import 'package:audiobookify/models/book.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

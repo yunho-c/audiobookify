@@ -6,12 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:audiobookify_app5/core/providers.dart';
-import 'package:audiobookify_app5/objectbox.g.dart';
-import 'package:audiobookify_app5/screens/book_detail_screen.dart';
-import 'package:audiobookify_app5/services/book_service.dart';
-import 'package:audiobookify_app5/services/epub_service.dart';
-import 'package:audiobookify_app5/src/rust/api/epub.dart';
+import 'package:audiobookify/core/providers.dart';
+import 'package:audiobookify/objectbox.g.dart';
+import 'package:audiobookify/screens/book_detail_screen.dart';
+import 'package:audiobookify/services/book_service.dart';
+import 'package:audiobookify/services/epub_service.dart';
+import 'package:audiobookify/src/rust/api/epub.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
