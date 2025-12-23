@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
-bool _crashReportingEnabled = true;
+bool _crashReportingEnabled = false;
 
 bool get isCrashReportingEnabled => _crashReportingEnabled;
 

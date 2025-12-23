@@ -26,11 +26,18 @@ import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  setCrashReportingEnabled(
+    prefs.getBool(crashReportingPrefsKey) ?? crashReportingDefaultEnabled,
+  );
+
   final dsn = const String.fromEnvironment('SENTRY_DSN');
   if (dsn.isEmpty) {
-    await _runApp();
+    await _runApp(prefs);
     return;
   }
+
   await SentryFlutter.init(
     (options) {
       options.dsn = dsn;
@@ -43,7 +50,10 @@ Future<void> main() async {
       if (release.isNotEmpty) {
         options.release = release;
       }
-      options.tracesSampleRate = 0.1;
+      final crashReportingEnabled = isCrashReportingEnabled;
+      options.tracesSampleRate = crashReportingEnabled ? 0.1 : 0.0;
+      options.enableAutoSessionTracking = crashReportingEnabled;
+      options.enableAutoPerformanceTracing = crashReportingEnabled;
       options.beforeSend = (event, hint) {
         return isCrashReportingEnabled ? event : null;
       };
@@ -51,19 +61,14 @@ Future<void> main() async {
         return isCrashReportingEnabled ? transaction : null;
       };
     },
-    appRunner: _runApp,
+    appRunner: () => _runApp(prefs),
   );
 }
 
-Future<void> _runApp() async {
+Future<void> _runApp(SharedPreferences prefs) async {
   return runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
-      final prefs = await SharedPreferences.getInstance();
-      setCrashReportingEnabled(
-        prefs.getBool(crashReportingPrefsKey) ??
-            crashReportingDefaultEnabled,
-      );
       _initErrorHandling();
       await _startApp(prefs);
     },
