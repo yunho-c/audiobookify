@@ -88,7 +88,11 @@ class BookCard extends StatelessWidget {
               // Cover image (if available)
               if (coverImage != null)
                 Positioned.fill(
-                  child: Image.memory(coverImage!, fit: BoxFit.cover),
+                  child: Image.memory(
+                    coverImage!,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                  ),
                 ),
               // Gradient overlay for text readability
               Positioned.fill(

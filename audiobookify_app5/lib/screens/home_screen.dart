@@ -444,7 +444,11 @@ class _CoverThumb extends StatelessWidget {
               color: colorScheme.onSurfaceVariant,
               size: 24,
             )
-          : Image.memory(coverImage!, fit: BoxFit.cover),
+          : Image.memory(
+              coverImage!,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+            ),
     );
   }
 }
