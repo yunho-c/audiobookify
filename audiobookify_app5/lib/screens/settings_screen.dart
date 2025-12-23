@@ -286,13 +286,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'System matches your device settings.',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                    if (themePreference == AppThemePreference.system) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'System matches your device settings.',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
