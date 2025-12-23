@@ -48,7 +48,10 @@ void main() {
       return http.Response(responseBody, 200);
     });
 
-    final service = OpenLibraryService(client: client);
+    final service = OpenLibraryService(
+      client: client,
+      networkChecker: () async => true,
+    );
     final results = await service.searchPublicDomain(query: 'classics');
 
     expect(results.length, 2);
@@ -101,7 +104,11 @@ void main() {
       return http.Response(json.encode({'docs': []}), 200);
     });
 
-    final service = OpenLibraryService(client: client, userAgent: userAgent);
+    final service = OpenLibraryService(
+      client: client,
+      userAgent: userAgent,
+      networkChecker: () async => true,
+    );
     final results = await service.searchPublicDomain(
       query: 'Sherlock Holmes',
       page: 2,
@@ -119,7 +126,10 @@ void main() {
       return http.Response(json.encode({'docs': []}), 200);
     });
 
-    final service = OpenLibraryService(client: client);
+    final service = OpenLibraryService(
+      client: client,
+      networkChecker: () async => true,
+    );
     final results = await service.searchPublicDomain(query: '   ');
 
     expect(results, isEmpty);
@@ -145,7 +155,10 @@ void main() {
       return http.Response(responseBody, 200);
     });
 
-    final service = OpenLibraryService(client: client);
+    final service = OpenLibraryService(
+      client: client,
+      networkChecker: () async => true,
+    );
     final first = await service.searchPublicDomain(query: 'cached');
     final second = await service.searchPublicDomain(query: 'cached');
 
@@ -166,7 +179,10 @@ void main() {
       return http.Response(responseBody, 200);
     });
 
-    final service = OpenLibraryService(client: client);
+    final service = OpenLibraryService(
+      client: client,
+      networkChecker: () async => true,
+    );
     final work = await service.fetchWorkDetails('/works/OL42W');
 
     expect(work, isNotNull);
@@ -181,7 +197,10 @@ void main() {
       return http.Response('Not found', 404);
     });
 
-    final service = OpenLibraryService(client: client);
+    final service = OpenLibraryService(
+      client: client,
+      networkChecker: () async => true,
+    );
     final work = await service.fetchWorkDetails('/works/OL404W');
 
     expect(work, isNull);

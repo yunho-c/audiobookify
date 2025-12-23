@@ -44,7 +44,8 @@ final booksProvider = StreamProvider((ref) {
 
 /// Open Library service provider.
 final openLibraryServiceProvider = Provider<OpenLibraryService>((ref) {
-  final service = OpenLibraryService();
+  final prefs = ref.read(sharedPreferencesProvider);
+  final service = OpenLibraryService(preferences: prefs);
   ref.onDispose(service.dispose);
   return service;
 });

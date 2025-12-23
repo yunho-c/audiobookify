@@ -16,6 +16,7 @@ import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../models/open_library_work.dart';
 import '../models/public_book.dart';
+import '../services/open_library_service.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/shared/pressable.dart';
 
@@ -101,6 +102,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   static const Duration _requestTimeout = Duration(seconds: 12);
   static const Duration _downloadIdleTimeout = Duration(seconds: 20);
+  static const Duration _networkCheckTimeout = Duration(seconds: 3);
 
   static const List<String> _exploreSuggestions = [
     'Sherlock Holmes',
@@ -354,7 +356,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       reportError(error, stackTrace, context: 'create_screen.download');
       scaffoldMessenger.showSnackBar(
         SnackBar(
-          content: Text('Download failed: $error'),
+          content: Text(_downloadErrorMessage(error)),
           backgroundColor: colorScheme.error,
         ),
       );
@@ -398,6 +400,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     final client = http.Client();
     controller.client = client;
     try {
+      final hasNetwork = await _hasNetworkConnection();
+      if (!hasNetwork) {
+        throw const SocketException('No internet connection');
+      }
       final downloadDir = await _bookStorageDirectory();
 
       final fileName = _sanitizeFileName('${book.title}-${book.iaId}.epub');
@@ -418,29 +424,52 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           if (controller.isCanceled) {
             throw const _DownloadCanceled();
           }
-          final response = await client
-              .send(http.Request('GET', uri))
-              .timeout(_requestTimeout);
-          if (response.statusCode != 200) {
-            throw Exception('HTTP ${response.statusCode}');
+          final existingLength = await file.exists() ? await file.length() : 0;
+          final headers = <String, String>{};
+          if (existingLength > 0) {
+            headers['Range'] = 'bytes=$existingLength-';
           }
 
-          final contentLength = response.contentLength ?? 0;
-          final sink = file.openWrite();
+          final request = http.Request('GET', uri)..headers.addAll(headers);
+          final response = await client.send(request).timeout(_requestTimeout);
+          if (response.statusCode == 416) {
+            await _deleteIfExists(file);
+            continue;
+          }
+          if (response.statusCode != 200 && response.statusCode != 206) {
+            throw Exception('HTTP ${response.statusCode}');
+          }
+          if (existingLength > 0 && response.statusCode == 200) {
+            await _deleteIfExists(file);
+          }
+
+          final startOffset =
+              (response.statusCode == 206 && existingLength > 0)
+                  ? existingLength
+                  : 0;
+          final rawLength = response.contentLength ?? 0;
+          final contentLength =
+              rawLength > 0 ? rawLength + startOffset : rawLength;
+          final sink = file.openWrite(
+            mode: startOffset > 0 ? FileMode.append : FileMode.write,
+          );
           final completer = Completer<File>();
           Timer? idleTimer;
-          var received = 0;
+          var received = startOffset;
 
           Future<void> completeWithError(
             Object error, [
             StackTrace? stackTrace,
+            bool keepFile = false,
           ]) async {
             if (completer.isCompleted) return;
             idleTimer?.cancel();
             try {
               await sink.close();
             } catch (_) {}
-            await _deleteIfExists(file);
+            if (!keepFile) {
+              await _deleteIfExists(file);
+            }
             if (!completer.isCompleted) {
               completer.completeError(error, stackTrace);
             }
@@ -453,6 +482,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               unawaited(
                 completeWithError(
                   TimeoutException('Download stalled.'),
+                  null,
+                  true,
                 ),
               );
             });
@@ -481,7 +512,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 await completeWithError(const _DownloadCanceled());
                 return;
               }
-              await completeWithError(error, stackTrace);
+              final keepFile = error is SocketException ||
+                  error is TimeoutException ||
+                  error is HttpException;
+              await completeWithError(error, stackTrace, keepFile);
             },
             onDone: () async {
               if (controller.isCanceled) {
@@ -509,7 +543,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           await _deleteIfExists(file);
           rethrow;
         } on TimeoutException catch (error) {
-          await _deleteIfExists(file);
+          if (attempt == maxAttempts - 1) {
+            throw error;
+          }
+        } on SocketException catch (error) {
           if (attempt == maxAttempts - 1) {
             throw error;
           }
@@ -598,6 +635,45 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     if (trimmed.isEmpty) return 'untitled.epub';
     final sanitized = trimmed.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
     return sanitized.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  Future<bool> _hasNetworkConnection() async {
+    try {
+      final result = await InternetAddress.lookup('one.one.one.one')
+          .timeout(_networkCheckTimeout);
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String _downloadErrorMessage(Object error) {
+    if (error is SocketException) {
+      return 'No internet connection. Check your network and retry.';
+    }
+    if (error is TimeoutException) {
+      return 'Network timeout. Please try again.';
+    }
+    if (error is HttpException) {
+      return 'Network error. Please try again later.';
+    }
+    if (error is FileSystemException) {
+      return 'Could not save the file. Please check storage.';
+    }
+    return 'Download failed. Please try again.';
+  }
+
+  String _searchErrorMessage(Object error) {
+    if (error is OpenLibraryException) {
+      return error.message;
+    }
+    if (error is SocketException) {
+      return 'No internet connection. Please try again.';
+    }
+    if (error is TimeoutException) {
+      return 'Search timed out. Please retry.';
+    }
+    return 'Something went wrong while searching.';
   }
 
   void _openBookDetails(PublicBook book) {
@@ -956,6 +1032,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     required TextTheme textTheme,
     required ColorScheme colorScheme,
   }) {
+    final message = _searchErrorMessage(error);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -972,7 +1049,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            error.toString(),
+            message,
             style: textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
