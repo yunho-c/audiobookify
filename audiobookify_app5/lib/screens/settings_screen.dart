@@ -242,6 +242,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ),
               ),
               const SizedBox(height: 24),
+              _SettingsCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    _MenuItem(
+                      icon: LucideIcons.smile,
+                      label: 'About Audiobookify',
+                      showDivider: false,
+                      onTap: () {
+                        showAboutDialog(
+                          context: context,
+                          applicationName: 'Audiobookify',
+                          applicationVersion: _versionLabel().replaceFirst(
+                            'Version ',
+                            '',
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
               // Menu items group 1
               _SettingsCard(
                 padding: EdgeInsets.zero,
@@ -370,28 +393,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         color: colorScheme.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Share bugs or feature requests on GitHub Issues.',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _openIssues(context),
-                        icon: const Icon(Icons.open_in_new, size: 18),
-                        label: const Text('Open GitHub Issues'),
-                      ),
-                    ),
                     const SizedBox(height: 12),
                     Text(
                       'Leave a review',
                       style: textTheme.labelLarge?.copyWith(
+                        fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      "Please freely share what you like/don't like about Audiobookify!",
+                      style: textTheme.labelLarge?.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w300,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -406,7 +422,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                             failureMessage: 'Unable to open App Store.',
                           ),
                           icon: const Icon(Icons.store, size: 18),
-                          label: const Text('App Store'),
+                          label: const Text('Apple App Store'),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => _openExternalUrl(
@@ -426,9 +442,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           icon: const Icon(Icons.window, size: 18),
                           label: const Text('Microsoft Store'),
                         ),
+                        OutlinedButton.icon(
+                          onPressed: () => _openExternalUrl(
+                            context,
+                            SettingsScreen._microsoftStoreUrl,
+                            failureMessage: 'Unable to open Snap Store.',
+                          ),
+                          icon: const Icon(Icons.window, size: 18),
+                          label: const Text('Snap Store'),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
+                    Text(
+                      'Talk to developer',
+                      style: textTheme.labelLarge?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: _feedbackController,
                       minLines: 3,
@@ -481,6 +515,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Share bugs or feature requests',
+                      style: textTheme.labelLarge?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      'on GitHub',
+                      style: textTheme.labelLarge?.copyWith(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openIssues(context),
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        label: const Text('Open GitHub Issues'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _SettingsCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    _MenuItem(
+                      icon: LucideIcons.fileText,
+                      label: 'Open-source licenses',
+                      showDivider: false,
+                      onTap: () {
+                        showLicensePage(
+                          context: context,
+                          applicationName: 'Audiobookify',
+                          applicationVersion: _versionLabel().replaceFirst(
+                            'Version ',
+                            '',
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -569,52 +651,62 @@ class _MenuItem extends StatelessWidget {
   final String label;
   final bool showDivider;
   final bool isDestructive;
+  final VoidCallback? onTap;
 
   const _MenuItem({
     required this.icon,
     required this.label,
     required this.showDivider,
     this.isDestructive = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 20,
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: isDestructive
+                ? colorScheme.error
+                : colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
                 color: isDestructive
                     ? colorScheme.error
-                    : colorScheme.onSurfaceVariant,
+                    : colorScheme.onSurface,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: isDestructive
-                        ? colorScheme.error
-                        : colorScheme.onSurface,
-                  ),
-                ),
-              ),
-              if (!isDestructive)
-                Icon(
-                  LucideIcons.chevronRight,
-                  size: 18,
-                  color: colorScheme.outline,
-                ),
-            ],
+            ),
           ),
-        ),
+          if (!isDestructive)
+            Icon(
+              LucideIcons.chevronRight,
+              size: 18,
+              color: colorScheme.outline,
+            ),
+        ],
+      ),
+    );
+    return Column(
+      children: [
+        if (onTap == null)
+          row
+        else
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: row,
+          ),
         if (showDivider) const Divider(height: 1, indent: 16, endIndent: 16),
       ],
     );
