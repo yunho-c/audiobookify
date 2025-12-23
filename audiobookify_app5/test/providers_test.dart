@@ -63,4 +63,24 @@ void main() {
     expect(prefs.getString('player_voice_name'), 'Test Voice');
     expect(prefs.getString('player_voice_locale'), 'en-US');
   });
+
+  test('CrashReportingNotifier defaults to opt-in and persists', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    expect(container.read(crashReportingProvider), isFalse);
+
+    await container
+        .read(crashReportingProvider.notifier)
+        .setEnabled(true);
+
+    expect(container.read(crashReportingProvider), isTrue);
+    expect(prefs.getBool(crashReportingPrefsKey), isTrue);
+  });
 }
