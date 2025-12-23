@@ -301,12 +301,82 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       actionLabel:
                           _notificationActionLabel(_notificationStatus),
                       onAction: () => _handleNotificationAction(context),
+                      showDivider: false,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _SettingsCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Privacy & Security',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Manage disclosures, permissions, and local data.',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    const _InfoRow(
+                      icon: LucideIcons.fileText,
+                      title: 'Privacy Policy',
+                      subtitle: 'What we collect and why',
+                      trailingLabel: 'Coming soon',
                       showDivider: true,
                     ),
-                    _MenuItem(
-                      icon: LucideIcons.shield,
-                      label: 'Privacy & Security',
+                    const _InfoRow(
+                      icon: LucideIcons.activity,
+                      title: 'Crash Reporting Details',
+                      subtitle: 'Diagnostics included in reports',
+                      trailingLabel: 'Coming soon',
+                      showDivider: true,
+                    ),
+                    const _InfoRow(
+                      icon: LucideIcons.database,
+                      title: 'Data Stored on Device',
+                      subtitle: 'Books, progress, and preferences',
+                      trailingLabel: 'Coming soon',
+                      showDivider: true,
+                    ),
+                    const _InfoRow(
+                      icon: LucideIcons.key,
+                      title: 'Permissions',
+                      subtitle: 'Notifications and storage access',
+                      trailingLabel: 'Coming soon',
+                      showDivider: true,
+                    ),
+                    const _InfoRow(
+                      icon: LucideIcons.link,
+                      title: 'Third-Party Services',
+                      subtitle: 'Open Library, Archive.org, Sentry',
+                      trailingLabel: 'Coming soon',
+                      showDivider: true,
+                    ),
+                    const _InfoRow(
+                      icon: LucideIcons.trash2,
+                      title: 'Clear App Data',
+                      subtitle: 'Remove downloads and history',
+                      trailingLabel: 'Not available yet',
                       showDivider: false,
+                      isDestructive: true,
                     ),
                   ],
                 ),
@@ -517,6 +587,79 @@ class _MenuItem extends StatelessWidget {
                   size: 18,
                   color: colorScheme.outline,
                 ),
+            ],
+          ),
+        ),
+        if (showDivider)
+          const Divider(height: 1, indent: 16, endIndent: 16),
+      ],
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String trailingLabel;
+  final bool showDivider;
+  final bool isDestructive;
+
+  const _InfoRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.trailingLabel,
+    required this.showDivider,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final titleColor =
+        isDestructive ? colorScheme.error : colorScheme.onSurface;
+    final iconColor =
+        isDestructive ? colorScheme.error : colorScheme.onSurfaceVariant;
+    final trailingColor =
+        isDestructive ? colorScheme.error : colorScheme.outline;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: iconColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                trailingLabel,
+                style: textTheme.labelSmall?.copyWith(
+                  color: trailingColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
