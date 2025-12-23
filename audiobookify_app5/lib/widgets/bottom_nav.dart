@@ -25,6 +25,13 @@ class BottomNav extends StatelessWidget {
     const navHeight = 68.0;
     const highlightSize = 44.0;
     final highlightColor = colorScheme.primary.withAlpha(18);
+    int scaledAlpha(double factor) {
+      final value = (glassBackground.alpha * factor).round();
+      if (value < 0) return 0;
+      if (value > 255) return 255;
+      return value;
+    }
+
     return SafeArea(
       top: false,
       left: false,
@@ -55,8 +62,8 @@ class BottomNav extends StatelessWidget {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              glassBackground.withAlpha(220),
-                              glassBackground.withAlpha(185),
+                              glassBackground.withAlpha(scaledAlpha(0.9)),
+                              glassBackground.withAlpha(scaledAlpha(0.75)),
                             ],
                           ),
                           border: Border.all(color: glassBorder, width: 1),
@@ -90,58 +97,55 @@ class BottomNav extends StatelessWidget {
                     ),
                   ),
                   // Navigation items
-                  SizedBox(
-                    height: navHeight,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Center(
-                            child: _NavItem(
-                              icon: LucideIcons.home,
-                              isActive: currentIndex == 0,
-                              onTap: () => context.go(
-                                '/',
-                                extra: NavTransitionData(
-                                  fromIndex: currentIndex,
-                                  toIndex: 0,
-                                ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: _NavItem(
+                            icon: LucideIcons.home,
+                            isActive: currentIndex == 0,
+                            onTap: () => context.go(
+                              '/',
+                              extra: NavTransitionData(
+                                fromIndex: currentIndex,
+                                toIndex: 0,
                               ),
                             ),
                           ),
                         ),
-                        Expanded(
-                          child: Center(
-                            child: _NavItem(
-                              icon: LucideIcons.plus,
-                              isActive: currentIndex == 1,
-                              isPrimary: true,
-                              onTap: () => context.go(
-                                '/create',
-                                extra: NavTransitionData(
-                                  fromIndex: currentIndex,
-                                  toIndex: 1,
-                                ),
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: _NavItem(
+                            icon: LucideIcons.plus,
+                            isActive: currentIndex == 1,
+                            isPrimary: true,
+                            onTap: () => context.go(
+                              '/create',
+                              extra: NavTransitionData(
+                                fromIndex: currentIndex,
+                                toIndex: 1,
                               ),
                             ),
                           ),
                         ),
-                        Expanded(
-                          child: Center(
-                            child: _NavItem(
-                              icon: LucideIcons.settings,
-                              isActive: currentIndex == 2,
-                              onTap: () => context.go(
-                                '/settings',
-                                extra: NavTransitionData(
-                                  fromIndex: currentIndex,
-                                  toIndex: 2,
-                                ),
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: _NavItem(
+                            icon: LucideIcons.settings,
+                            isActive: currentIndex == 2,
+                            onTap: () => context.go(
+                              '/settings',
+                              extra: NavTransitionData(
+                                fromIndex: currentIndex,
+                                toIndex: 2,
                               ),
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ],
               );

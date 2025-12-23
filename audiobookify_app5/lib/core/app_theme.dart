@@ -375,7 +375,7 @@ class AppTheme {
       AppColors.blue100,
       AppColors.emerald100,
     ],
-    glassBackground: Color(0xC8FFFFFF),
+    glassBackground: Color(0xA6FFFFFF),
     glassBorder: Color(0x32FFFFFF),
     glassShadow: Color(0x19000000),
   );
@@ -401,7 +401,7 @@ class AppTheme {
       Color(0xFF1E2A3A),
       Color(0xFF1B332A),
     ],
-    glassBackground: Color(0xE01C1A17),
+    glassBackground: Color(0xB31C1A17),
     glassBorder: Color(0x1AFFFFFF),
     glassShadow: Color(0x66000000),
   );
@@ -427,7 +427,7 @@ class AppTheme {
       Color(0xFFE0D2C2),
       Color(0xFFE4D8C9),
     ],
-    glassBackground: Color(0xE6FFFBF5),
+    glassBackground: Color(0xB8FFFBF5),
     glassBorder: Color(0x33DCCBB7),
     glassShadow: Color(0x1A3B2F23),
   );
