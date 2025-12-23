@@ -6,7 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
 import '../core/nav_transition.dart';
 
-/// Bottom navigation bar with glassmorphism effect and raised create button
+/// Bottom navigation bar with glassmorphism panel and raised create button
 class BottomNav extends StatelessWidget {
   final int currentIndex;
 
@@ -22,85 +22,132 @@ class BottomNav extends StatelessWidget {
         extras?.glassBorder ?? colorScheme.onSurface.withAlpha(50);
     final glassShadow =
         extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(25);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          // Glassmorphism background
-          ClipRRect(
-            borderRadius: BorderRadius.circular(0),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                height: 64,
-                decoration: BoxDecoration(
-                  color: glassBackground,
-                  border: Border(
-                    top: BorderSide(
-                      color: glassBorder,
-                      width: 1,
+    const navHeight = 68.0;
+    const highlightSize = 44.0;
+    final highlightColor = colorScheme.primary.withAlpha(18);
+    return SafeArea(
+      top: false,
+      left: false,
+      right: false,
+      minimum: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: SizedBox(
+          height: navHeight,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth = constraints.maxWidth / 3;
+              final highlightLeft =
+                  itemWidth * currentIndex + (itemWidth - highlightSize) / 2;
+              return Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  // Glassmorphism background
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: Container(
+                        height: navHeight,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              glassBackground.withAlpha(220),
+                              glassBackground.withAlpha(185),
+                            ],
+                          ),
+                          border: Border.all(color: glassBorder, width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: glassShadow,
+                              blurRadius: 24,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: glassShadow,
-                      blurRadius: 20,
-                      offset: const Offset(0, -4),
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    left: highlightLeft,
+                    top: (navHeight - highlightSize) / 2,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 160),
+                      opacity: currentIndex == 1 ? 0 : 1,
+                      child: Container(
+                        width: highlightSize,
+                        height: highlightSize,
+                        decoration: BoxDecoration(
+                          color: highlightColor,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
+                  // Navigation items
+                  SizedBox(
+                    height: navHeight,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Center(
+                            child: _NavItem(
+                              icon: LucideIcons.home,
+                              isActive: currentIndex == 0,
+                              onTap: () => context.go(
+                                '/',
+                                extra: NavTransitionData(
+                                  fromIndex: currentIndex,
+                                  toIndex: 0,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: _NavItem(
+                              icon: LucideIcons.plus,
+                              isActive: currentIndex == 1,
+                              isPrimary: true,
+                              onTap: () => context.go(
+                                '/create',
+                                extra: NavTransitionData(
+                                  fromIndex: currentIndex,
+                                  toIndex: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: _NavItem(
+                              icon: LucideIcons.settings,
+                              isActive: currentIndex == 2,
+                              onTap: () => context.go(
+                                '/settings',
+                                extra: NavTransitionData(
+                                  fromIndex: currentIndex,
+                                  toIndex: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-          // Navigation items
-          SizedBox(
-            height: 64,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // Home
-                _NavItem(
-                  icon: LucideIcons.home,
-                  isActive: currentIndex == 0,
-                  onTap: () => context.go(
-                    '/',
-                    extra: NavTransitionData(
-                      fromIndex: currentIndex,
-                      toIndex: 0,
-                    ),
-                  ),
-                ),
-                // Create (center) - primary accent button
-                _NavItem(
-                  icon: LucideIcons.plus,
-                  isActive: currentIndex == 1,
-                  isPrimary: true,
-                  onTap: () => context.go(
-                    '/create',
-                    extra: NavTransitionData(
-                      fromIndex: currentIndex,
-                      toIndex: 1,
-                    ),
-                  ),
-                ),
-                // Settings
-                _NavItem(
-                  icon: LucideIcons.settings,
-                  isActive: currentIndex == 2,
-                  onTap: () => context.go(
-                    '/settings',
-                    extra: NavTransitionData(
-                      fromIndex: currentIndex,
-                      toIndex: 2,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -129,20 +176,20 @@ class _NavItem extends StatelessWidget {
         isActive: isActive,
         onTap: onTap,
         child: Container(
-          width: 48,
-          height: 48,
+          width: 52,
+          height: 52,
           decoration: BoxDecoration(
             color: colorScheme.primary,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withAlpha(100),
-                blurRadius: 12,
-                offset: const Offset(0, 2),
+                color: colorScheme.primary.withAlpha(120),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
-          child: Icon(icon, size: 24, color: colorScheme.onPrimary),
+          child: Icon(icon, size: 26, color: colorScheme.onPrimary),
         ),
       );
     }

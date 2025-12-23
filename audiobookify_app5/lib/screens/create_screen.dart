@@ -671,7 +671,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                       textTheme: textTheme,
                       colorScheme: colorScheme,
                     ),
-                  const SizedBox(height: 100), // Space for bottom nav
                 ],
               ),
             ),

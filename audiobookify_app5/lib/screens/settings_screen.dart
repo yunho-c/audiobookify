@@ -462,7 +462,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   ),
                 ),
               ),
-              const SizedBox(height: 100), // Space for bottom nav
             ],
           ),
         ),
