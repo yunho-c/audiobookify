@@ -13,11 +13,69 @@ import '../widgets/shared/state_scaffolds.dart';
 import '../models/book.dart';
 
 /// Home screen with book grid from ObjectBox database
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _didPromptCrashReporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybePromptCrashReporting();
+    });
+  }
+
+  Future<void> _maybePromptCrashReporting() async {
+    if (_didPromptCrashReporting || !mounted) return;
+    const dsn = String.fromEnvironment('SENTRY_DSN');
+    if (dsn.isEmpty) return;
+
+    final prefs = ref.read(sharedPreferencesProvider);
+    final hasPrompted = prefs.getBool(crashReportingPromptedKey) ?? false;
+    if (hasPrompted) return;
+
+    _didPromptCrashReporting = true;
+
+    final enable = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Help improve Audiobookify'),
+          content: const Text(
+            'Share anonymous crash reports to help us fix issues faster. '
+            'You can change this anytime in Settings.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Not Now'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Share Reports'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    await prefs.setBool(crashReportingPromptedKey, true);
+    await ref
+        .read(crashReportingProvider.notifier)
+        .setEnabled(enable ?? false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final booksAsync = ref.watch(booksProvider);
     return booksAsync.when(
       loading: () => const LoadingScaffold(),
@@ -91,7 +149,7 @@ class HomeScreen extends ConsumerWidget {
                           ),
                           SliverPadding(
                             padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                            sliver: _buildBookGrid(context, ref, books),
+                            sliver: _buildBookGrid(context, books),
                           ),
                         ],
                       ),
@@ -158,11 +216,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBookGrid(
-    BuildContext context,
-    WidgetRef ref,
-    List<Book> books,
-  ) {
+  Widget _buildBookGrid(BuildContext context, List<Book> books) {
     final width = MediaQuery.sizeOf(context).width - 48;
     final crossAxisCount = _getCrossAxisCount(width);
     return SliverGrid(
@@ -178,7 +232,7 @@ class HomeScreen extends ConsumerWidget {
             final book = books[index];
             return BookCard.fromBook(
               book,
-              onLongPress: () => _showBookActions(context, ref, book),
+              onLongPress: () => _showBookActions(context, book),
               longPressHaptic: PressableHaptic.medium,
             );
           }
@@ -215,7 +269,7 @@ class HomeScreen extends ConsumerWidget {
     return estimated.clamp(1, book.chapterCount).ceil();
   }
 
-  void _showBookActions(BuildContext context, WidgetRef ref, Book book) {
+  void _showBookActions(BuildContext context, Book book) {
     final title = (book.title?.trim().isNotEmpty ?? false)
         ? book.title!.trim()
         : 'Untitled';

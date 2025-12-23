@@ -537,6 +537,7 @@ final debugModeProvider =
 
 const crashReportingPrefsKey = 'crash_reporting_enabled';
 const crashReportingDefaultEnabled = false;
+const crashReportingPromptedKey = 'crash_reporting_prompted_v1';
 
 class CrashReportingNotifier extends Notifier<bool> {
   @override
