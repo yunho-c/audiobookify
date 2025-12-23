@@ -667,6 +667,11 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
   @override
   Map<int, BookResumePosition> build() {
     _prefs = ref.read(sharedPreferencesProvider);
+    ref.onDispose(() {
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      unawaited(_saveToPrefs(state));
+    });
     return _loadFromPrefs();
   }
 
@@ -736,13 +741,6 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
     _saveToPrefs(state);
   }
 
-  @override
-  void dispose() {
-    _saveTimer?.cancel();
-    _saveTimer = null;
-    unawaited(_saveToPrefs(state));
-    super.dispose();
-  }
 }
 
 final bookResumeProvider =

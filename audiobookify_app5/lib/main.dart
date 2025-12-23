@@ -26,51 +26,47 @@ import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  setCrashReportingEnabled(
-    prefs.getBool(crashReportingPrefsKey) ?? crashReportingDefaultEnabled,
-  );
-
-  final dsn = const String.fromEnvironment('SENTRY_DSN');
-  if (dsn.isEmpty) {
-    await _runApp(prefs);
-    return;
-  }
-
-  await SentryFlutter.init(
-    (options) {
-      options.dsn = dsn;
-      final environment = const String.fromEnvironment('APP_ENV');
-      options.environment =
-          environment.isNotEmpty
-              ? environment
-              : (kReleaseMode ? 'production' : 'development');
-      final release = const String.fromEnvironment('APP_RELEASE');
-      if (release.isNotEmpty) {
-        options.release = release;
-      }
-      final crashReportingEnabled = isCrashReportingEnabled;
-      options.tracesSampleRate = crashReportingEnabled ? 0.1 : 0.0;
-      options.enableAutoSessionTracking = crashReportingEnabled;
-      options.enableAutoPerformanceTracing = crashReportingEnabled;
-      options.beforeSend = (event, hint) {
-        return isCrashReportingEnabled ? event : null;
-      };
-      options.beforeSendTransaction = (transaction, hint) {
-        return isCrashReportingEnabled ? transaction : null;
-      };
-    },
-    appRunner: () => _runApp(prefs),
-  );
-}
-
-Future<void> _runApp(SharedPreferences prefs) async {
   return runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       _initErrorHandling();
-      await _startApp(prefs);
+
+      final prefs = await SharedPreferences.getInstance();
+      setCrashReportingEnabled(
+        prefs.getBool(crashReportingPrefsKey) ?? crashReportingDefaultEnabled,
+      );
+
+      final dsn = const String.fromEnvironment('SENTRY_DSN');
+      if (dsn.isEmpty) {
+        await _startApp(prefs);
+        return;
+      }
+
+      await SentryFlutter.init(
+        (options) {
+          options.dsn = dsn;
+          final environment = const String.fromEnvironment('APP_ENV');
+          options.environment =
+              environment.isNotEmpty
+                  ? environment
+                  : (kReleaseMode ? 'production' : 'development');
+          final release = const String.fromEnvironment('APP_RELEASE');
+          if (release.isNotEmpty) {
+            options.release = release;
+          }
+          final crashReportingEnabled = isCrashReportingEnabled;
+          options.tracesSampleRate = crashReportingEnabled ? 0.1 : 0.0;
+          options.enableAutoSessionTracking = crashReportingEnabled;
+          options.enableAutoPerformanceTracing = crashReportingEnabled;
+          options.beforeSend = (event, hint) {
+            return isCrashReportingEnabled ? event : null;
+          };
+          options.beforeSendTransaction = (transaction, hint) {
+            return isCrashReportingEnabled ? transaction : null;
+          };
+        },
+        appRunner: () => _startApp(prefs),
+      );
     },
     (error, stackTrace) {
       reportError(error, stackTrace, context: 'zone');
