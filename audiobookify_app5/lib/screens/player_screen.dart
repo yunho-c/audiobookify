@@ -366,6 +366,95 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _bookService.updateProgress(_book!.id, progress);
   }
 
+  double _calculateProgress(TtsPlaybackState ttsState) {
+    if (_paragraphs.isEmpty) return 0.0;
+    final sentences = ttsState.sentencesPerParagraph;
+    if (sentences.isEmpty) {
+      if (_paragraphs.length <= 1) return 0.0;
+      return (ttsState.paragraphIndex / (_paragraphs.length - 1))
+          .clamp(0.0, 1.0);
+    }
+
+    var totalSentences = 0;
+    for (final paragraphSentences in sentences) {
+      totalSentences += paragraphSentences.length;
+    }
+    if (totalSentences <= 1) return 0.0;
+
+    var sentencesBefore = 0;
+    final currentParagraph =
+        ttsState.paragraphIndex.clamp(0, sentences.length - 1).toInt();
+    for (var i = 0; i < currentParagraph; i++) {
+      sentencesBefore += sentences[i].length;
+    }
+    final currentParagraphSentences = sentences[currentParagraph].length;
+    final currentSentence = currentParagraphSentences == 0
+        ? 0
+        : ttsState.sentenceIndex
+            .clamp(0, currentParagraphSentences - 1)
+            .toInt();
+    final globalSentenceIndex = sentencesBefore + currentSentence;
+    return (globalSentenceIndex / (totalSentences - 1)).clamp(0.0, 1.0);
+  }
+
+  Future<void> _scrubToProgress(
+    double progress,
+    TtsPlaybackState ttsState,
+  ) async {
+    if (_paragraphs.isEmpty) return;
+    final normalized = progress.clamp(0.0, 1.0);
+    final sentences = ttsState.sentencesPerParagraph;
+    if (sentences.isEmpty) {
+      final targetParagraph = _paragraphs.length <= 1
+          ? 0
+          : (normalized * (_paragraphs.length - 1)).round();
+      await _ttsService.jumpToParagraph(targetParagraph);
+      if (mounted) {
+        _scrollToParagraph(targetParagraph);
+      }
+      return;
+    }
+
+    var totalSentences = 0;
+    for (final paragraphSentences in sentences) {
+      totalSentences += paragraphSentences.length;
+    }
+    if (totalSentences <= 0) {
+      final targetParagraph = _paragraphs.length <= 1
+          ? 0
+          : (normalized * (_paragraphs.length - 1)).round();
+      await _ttsService.jumpToParagraph(targetParagraph);
+      if (mounted) {
+        _scrollToParagraph(targetParagraph);
+      }
+      return;
+    }
+
+    final targetSentence = totalSentences == 1
+        ? 0
+        : (normalized * (totalSentences - 1)).round();
+    var remaining = targetSentence;
+    var targetParagraph = 0;
+    var targetSentenceIndex = 0;
+    for (var i = 0; i < sentences.length; i++) {
+      final count = sentences[i].length;
+      if (count == 0) continue;
+      if (remaining < count) {
+        targetParagraph = i;
+        targetSentenceIndex = remaining;
+        break;
+      }
+      remaining -= count;
+      targetParagraph = i;
+      targetSentenceIndex = count - 1;
+    }
+
+    await _ttsService.jumpToSentence(targetParagraph, targetSentenceIndex);
+    if (mounted) {
+      _scrollToParagraph(targetParagraph);
+    }
+  }
+
   void _persistResumePosition(TtsPlaybackState ttsState) {
     final book = _book;
     if (book == null || _epubBook == null || _paragraphs.isEmpty) return;
@@ -806,9 +895,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 Uint8List(bucketCount)
             : null;
 
-    final progress = _paragraphs.isEmpty
-        ? 0.0
-        : (currentParagraphIndex + 1) / _paragraphs.length;
+    final progress = _calculateProgress(ttsState);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1055,6 +1142,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onPlayPause: _togglePlayPause,
               onPrevious: _previousChapter,
               onNext: _nextChapter,
+              onScrub: (value) => _scrubToProgress(value, ttsState),
               canGoPrevious: _currentChapterIndex > 0,
               canGoNext:
                   _epubBook != null &&
@@ -1089,6 +1177,7 @@ class _PlayerControlsEnhanced extends StatelessWidget {
   final VoidCallback onPlayPause;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final ValueChanged<double> onScrub;
   final bool canGoPrevious;
   final bool canGoNext;
 
@@ -1106,9 +1195,43 @@ class _PlayerControlsEnhanced extends StatelessWidget {
     required this.onPlayPause,
     required this.onPrevious,
     required this.onNext,
+    required this.onScrub,
     required this.canGoPrevious,
     required this.canGoNext,
   });
+
+  Widget _buildScrubbableProgress({
+    required Widget child,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double positionToProgress(Offset localPosition) {
+          final width = constraints.maxWidth;
+          if (width <= 0) return 0.0;
+          return (localPosition.dx / width).clamp(0.0, 1.0);
+        }
+
+        void handleScrub(Offset localPosition) {
+          onScrub(positionToProgress(localPosition));
+        }
+
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTapDown: (details) => handleScrub(details.localPosition),
+          onHorizontalDragStart: (details) => handleScrub(details.localPosition),
+          onHorizontalDragUpdate: (details) =>
+              handleScrub(details.localPosition),
+          child: SizedBox(
+            height: 20,
+            child: Align(
+              alignment: Alignment.center,
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1148,25 +1271,27 @@ class _PlayerControlsEnhanced extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (debugEnabled)
-                  _PlayerBucketProgressBar(
-                    buckets: debugBuckets ?? Uint8List(0),
-                    activeColor: colorScheme.primary,
-                    inactiveColor: colorScheme.surfaceVariant,
-                    height: 6,
-                    gap: -2,
-                    activeOverlap: 3,
-                  )
-                else
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: progress.clamp(0.0, 1.0),
-                      backgroundColor: colorScheme.surfaceVariant,
-                      valueColor: AlwaysStoppedAnimation(colorScheme.primary),
-                      minHeight: 6,
-                    ),
-                  ),
+                _buildScrubbableProgress(
+                  child: debugEnabled
+                      ? _PlayerBucketProgressBar(
+                          buckets: debugBuckets ?? Uint8List(0),
+                          activeColor: colorScheme.primary,
+                          inactiveColor: colorScheme.surfaceVariant,
+                          height: 6,
+                          gap: -2,
+                          activeOverlap: 3,
+                        )
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: progress.clamp(0.0, 1.0),
+                            backgroundColor: colorScheme.surfaceVariant,
+                            valueColor:
+                                AlwaysStoppedAnimation(colorScheme.primary),
+                            minHeight: 6,
+                          ),
+                        ),
+                ),
                 if (debugEnabled) ...[
                   const SizedBox(height: 8),
                   Row(
