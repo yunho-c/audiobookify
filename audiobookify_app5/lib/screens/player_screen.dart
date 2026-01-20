@@ -1202,11 +1202,21 @@ class _PlayerControlsEnhanced extends StatelessWidget {
 
   Widget _buildScrubbableProgress({
     required Widget child,
+    required double progress,
+    required ColorScheme colorScheme,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final clampedProgress = progress.clamp(0.0, 1.0);
+        const handleSize = 16.0;
+        final width = constraints.maxWidth;
+        final handleLeft = width <= 0
+            ? 0.0
+            : (width * clampedProgress - handleSize / 2)
+                .clamp(0.0, width - handleSize)
+                .toDouble();
+
         double positionToProgress(Offset localPosition) {
-          final width = constraints.maxWidth;
           if (width <= 0) return 0.0;
           return (localPosition.dx / width).clamp(0.0, 1.0);
         }
@@ -1222,10 +1232,55 @@ class _PlayerControlsEnhanced extends StatelessWidget {
           onHorizontalDragUpdate: (details) =>
               handleScrub(details.localPosition),
           child: SizedBox(
-            height: 20,
-            child: Align(
-              alignment: Alignment.center,
-              child: child,
+            height: 22,
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              clipBehavior: Clip.none,
+              children: [
+                Align(
+                  alignment: Alignment.center,
+                  child: child,
+                ),
+                Positioned(
+                  left: handleLeft,
+                  child: Container(
+                    width: handleSize,
+                    height: handleSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          colorScheme.primary.withOpacity(0.95),
+                          colorScheme.primary.withOpacity(0.7),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: colorScheme.surface.withOpacity(0.75),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.shadow.withOpacity(0.2),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colorScheme.onPrimary.withOpacity(0.85),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -1272,6 +1327,8 @@ class _PlayerControlsEnhanced extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _buildScrubbableProgress(
+                  progress: progress,
+                  colorScheme: colorScheme,
                   child: debugEnabled
                       ? _PlayerBucketProgressBar(
                           buckets: debugBuckets ?? Uint8List(0),
