@@ -15,8 +15,22 @@ class BookService {
       : _bookBox = store.box<Book>(),
         _progressBox = store.box<BookProgressBucket>();
 
-  /// Save an imported EPUB book to the database
-  Book saveBook(EpubBook epubBook, String filePath) {
+  /// Save an imported EPUB book to the database.
+  /// Returns an existing book if the import looks like a duplicate.
+  BookSaveResult saveBook(
+    EpubBook epubBook,
+    String filePath, {
+    bool allowLooseMatch = true,
+  }) {
+    final existing = _findDuplicate(
+      epubBook,
+      filePath,
+      allowLooseMatch: allowLooseMatch,
+    );
+    if (existing != null) {
+      return BookSaveResult(book: existing, isDuplicate: true);
+    }
+
     final book = Book(
       title: epubBook.metadata.title,
       author: epubBook.metadata.creator,
@@ -31,7 +45,58 @@ class BookService {
     );
 
     book.id = _bookBox.put(book);
-    return book;
+    return BookSaveResult(book: book, isDuplicate: false);
+  }
+
+  Book? _findDuplicate(
+    EpubBook epubBook,
+    String filePath, {
+    required bool allowLooseMatch,
+  }) {
+    final normalizedPath = filePath.trim();
+    if (normalizedPath.isNotEmpty) {
+      final query =
+          _bookBox.query(Book_.filePath.equals(normalizedPath));
+      final handle = query.build();
+      try {
+        final match = handle.findFirst();
+        if (match != null) return match;
+      } finally {
+        handle.close();
+      }
+    }
+
+    if (!allowLooseMatch) return null;
+
+    final title = epubBook.metadata.title?.trim();
+    final author = epubBook.metadata.creator?.trim();
+    if (title == null || title.isEmpty) return null;
+
+    final normalizedTitle = title.toLowerCase();
+    final normalizedAuthor = author?.toLowerCase() ?? '';
+    final chapterCount = epubBook.chapters.length;
+
+    final query = _bookBox.query(
+      Book_.chapterCount.equals(chapterCount),
+    );
+    final handle = query.build();
+    try {
+      final candidates = handle.find();
+      for (final candidate in candidates) {
+        final candidateTitle = candidate.title?.trim().toLowerCase() ?? '';
+        if (candidateTitle != normalizedTitle) continue;
+        final candidateAuthor = candidate.author?.trim().toLowerCase() ?? '';
+        if (normalizedAuthor.isNotEmpty) {
+          if (candidateAuthor == normalizedAuthor) return candidate;
+        } else if (candidateAuthor.isEmpty) {
+          return candidate;
+        }
+      }
+    } finally {
+      handle.close();
+    }
+
+    return null;
   }
 
   /// Get all books sorted by most recently added
@@ -229,4 +294,14 @@ class BookService {
 
     return controller.stream;
   }
+}
+
+class BookSaveResult {
+  final Book book;
+  final bool isDuplicate;
+
+  const BookSaveResult({
+    required this.book,
+    required this.isDuplicate,
+  });
 }

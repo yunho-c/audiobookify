@@ -318,15 +318,30 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       }
       final epub = await openEpub(path: downloadedFile.path);
       if (!mounted) return;
-      final savedBook =
-          ref.read(bookServiceProvider).saveBook(epub, downloadedFile.path);
+      final saveResult = ref.read(bookServiceProvider).saveBook(
+            epub,
+            downloadedFile.path,
+            allowLooseMatch: false,
+          );
 
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('Added "${savedBook.title}" to library'),
-          backgroundColor: successColor,
-        ),
-      );
+      final title = (saveResult.book.title?.trim().isNotEmpty ?? false)
+          ? saveResult.book.title!.trim()
+          : 'Untitled';
+      if (saveResult.isDuplicate) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('"$title" is already in library'),
+            backgroundColor: colorScheme.surface,
+          ),
+        );
+      } else {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Added "$title" to library'),
+            backgroundColor: successColor,
+          ),
+        );
+      }
 
       if (mounted) {
         context.go('/');
@@ -1378,16 +1393,33 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                                 title: _loadedBook!.metadata.title ?? 'Book',
                               );
                               if (!mounted) return;
-                              final savedBook = ref
-                                  .read(bookServiceProvider)
-                                  .saveBook(_loadedBook!, storedFile.path);
+                              final saveResult =
+                                  ref.read(bookServiceProvider).saveBook(
+                                        _loadedBook!,
+                                        storedFile.path,
+                                      );
 
+                              if (saveResult.isDuplicate &&
+                                  saveResult.book.filePath !=
+                                      storedFile.path) {
+                                await _deleteIfExists(storedFile);
+                              }
+
+                              final title =
+                                  (saveResult.book.title?.trim().isNotEmpty ??
+                                          false)
+                                      ? saveResult.book.title!.trim()
+                                      : 'Untitled';
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    'Added "${savedBook.title}" to library',
+                                    saveResult.isDuplicate
+                                        ? '"$title" is already in library'
+                                        : 'Added "$title" to library',
                                   ),
-                                  backgroundColor: successColor,
+                                  backgroundColor: saveResult.isDuplicate
+                                      ? colorScheme.surface
+                                      : successColor,
                                 ),
                               );
 
