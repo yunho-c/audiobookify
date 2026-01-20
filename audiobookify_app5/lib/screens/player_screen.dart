@@ -1201,20 +1201,17 @@ class _PlayerControlsEnhanced extends StatelessWidget {
   });
 
   Widget _buildScrubbableProgress({
-    required Widget child,
     required double progress,
     required ColorScheme colorScheme,
+    required Widget Function(double progress) barBuilder,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final clampedProgress = progress.clamp(0.0, 1.0);
+        const trackHeight = 22.0;
         const handleSize = 16.0;
+        const handleAnimDuration = Duration(milliseconds: 160);
         final width = constraints.maxWidth;
-        final handleLeft = width <= 0
-            ? 0.0
-            : (width * clampedProgress - handleSize / 2)
-                .clamp(0.0, width - handleSize)
-                .toDouble();
+        final handleTop = (trackHeight - handleSize) / 2;
 
         double positionToProgress(Offset localPosition) {
           if (width <= 0) return 0.0;
@@ -1225,64 +1222,79 @@ class _PlayerControlsEnhanced extends StatelessWidget {
           onScrub(positionToProgress(localPosition));
         }
 
-        return GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTapDown: (details) => handleScrub(details.localPosition),
-          onHorizontalDragStart: (details) => handleScrub(details.localPosition),
-          onHorizontalDragUpdate: (details) =>
-              handleScrub(details.localPosition),
-          child: SizedBox(
-            height: 22,
-            child: Stack(
-              alignment: Alignment.centerLeft,
-              clipBehavior: Clip.none,
-              children: [
-                Align(
-                  alignment: Alignment.center,
-                  child: child,
-                ),
-                Positioned(
-                  left: handleLeft,
-                  child: Container(
-                    width: handleSize,
-                    height: handleSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          colorScheme.primary.withOpacity(0.95),
-                          colorScheme.primary.withOpacity(0.7),
-                        ],
-                      ),
-                      border: Border.all(
-                        color: colorScheme.surface.withOpacity(0.75),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: colorScheme.shadow.withOpacity(0.2),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+          duration: handleAnimDuration,
+          curve: Curves.easeOutCubic,
+          builder: (context, animatedProgress, _) {
+            final handleLeft = width <= 0
+                ? 0.0
+                : (width * animatedProgress - handleSize / 2)
+                    .clamp(0.0, width - handleSize)
+                    .toDouble();
+
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapDown: (details) => handleScrub(details.localPosition),
+              onHorizontalDragStart: (details) =>
+                  handleScrub(details.localPosition),
+              onHorizontalDragUpdate: (details) =>
+                  handleScrub(details.localPosition),
+              child: SizedBox(
+                height: trackHeight,
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Align(
+                      alignment: Alignment.center,
+                      child: barBuilder(animatedProgress),
                     ),
-                    child: Center(
+                    Positioned(
+                      left: handleLeft,
+                      top: handleTop,
                       child: Container(
-                        width: 6,
-                        height: 6,
+                        width: handleSize,
+                        height: handleSize,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: colorScheme.onPrimary.withOpacity(0.85),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              colorScheme.primary.withOpacity(0.95),
+                              colorScheme.primary.withOpacity(0.7),
+                            ],
+                          ),
+                          border: Border.all(
+                            color: colorScheme.surface.withOpacity(0.75),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.shadow.withOpacity(0.2),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: colorScheme.onPrimary.withOpacity(0.85),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -1329,7 +1341,7 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                 _buildScrubbableProgress(
                   progress: progress,
                   colorScheme: colorScheme,
-                  child: debugEnabled
+                  barBuilder: (animatedProgress) => debugEnabled
                       ? _PlayerBucketProgressBar(
                           buckets: debugBuckets ?? Uint8List(0),
                           activeColor: colorScheme.primary,
@@ -1341,7 +1353,7 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(6),
                           child: LinearProgressIndicator(
-                            value: progress.clamp(0.0, 1.0),
+                            value: animatedProgress.clamp(0.0, 1.0),
                             backgroundColor: colorScheme.surfaceVariant,
                             valueColor:
                                 AlwaysStoppedAnimation(colorScheme.primary),
