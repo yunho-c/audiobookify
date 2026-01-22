@@ -72,6 +72,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Data
   Book? _book;
   EpubBook? _epubBook;
+  Map<String, String> _tocTitleByHref = {};
   List<String> _paragraphs = [];
   late final BookService _bookService;
   late final TtsService _ttsService;
@@ -195,6 +196,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() {
         _book = book;
         _epubBook = epub;
+        _tocTitleByHref = _buildTocTitleByHref(epub.toc);
       });
 
       // Get chapter and resume position from query params or stored resume.
@@ -513,14 +515,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return _chapterTitleFor(_currentChapterIndex);
   }
 
+  Map<String, String> _buildTocTitleByHref(List<TocEntry> toc) {
+    final tocTitleByHref = <String, String>{};
+    for (final entry in toc) {
+      final key = _normalizeHref(entry.href);
+      final title = entry.title.trim();
+      if (key.isNotEmpty && title.isNotEmpty) {
+        tocTitleByHref[key] = title;
+      }
+    }
+    return tocTitleByHref;
+  }
+
   String _chapterTitleFor(int index) {
-    if (_epubBook == null || _epubBook!.toc.isEmpty) {
+    final book = _epubBook;
+    if (book == null) return 'Chapter ${index + 1}';
+    if (index < 0 || index >= book.chapters.length) {
       return 'Chapter ${index + 1}';
     }
-    if (index < _epubBook!.toc.length) {
-      return _epubBook!.toc[index].title;
+
+    final chapter = book.chapters[index];
+    final tocTitle = _tocTitleByHref[_normalizeHref(chapter.href)];
+    if (tocTitle != null && tocTitle.trim().isNotEmpty) {
+      return tocTitle.trim();
     }
+
+    final fallback = chapter.id.trim();
+    if (fallback.isNotEmpty) return fallback;
     return 'Chapter ${index + 1}';
+  }
+
+  String _normalizeHref(String href) {
+    final trimmed = href.trim();
+    if (trimmed.isEmpty) return '';
+    final withoutFragment = trimmed.split('#').first;
+    if (withoutFragment.startsWith('./')) {
+      return withoutFragment.substring(2);
+    }
+    return withoutFragment;
   }
 
   void _updateNowPlaying() {

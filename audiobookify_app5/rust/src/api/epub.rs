@@ -133,29 +133,10 @@ fn load_epub_data(epub: &Epub) -> Result<EpubBook, EpubError> {
         }
     }
     
-    // Extract table of contents - iterate over EpubToc (returns tuples)
+    // Extract table of contents - flatten all descendants for better coverage.
     let mut toc = Vec::new();
     for (_kind, entry) in epub.toc().into_iter() {
-        // Use label() for title, and unwrap Option<Href> for href
-        let href_str = entry.href()
-            .map(|h| h.to_string())
-            .unwrap_or_default();
-        
-        toc.push(TocEntry {
-            title: entry.label().to_string(),
-            href: href_str.clone(),
-        });
-        
-        // Also add children (one level deep for simplicity)
-        for child in entry.children() {
-            let child_href = child.href()
-                .map(|h| h.to_string())
-                .unwrap_or_default();
-            toc.push(TocEntry {
-                title: format!("  {}", child.label()),
-                href: child_href,
-            });
-        }
+        push_toc_entries(&mut toc, entry, 0);
     }
     
     Ok(EpubBook {
@@ -165,6 +146,24 @@ fn load_epub_data(epub: &Epub) -> Result<EpubBook, EpubError> {
         cover_image,
         chapter_contents,
     })
+}
+
+fn push_toc_entries(toc: &mut Vec<TocEntry>, entry: RbookTocEntry, depth: usize) {
+    let href_str = entry
+        .href()
+        .map(|h| h.to_string())
+        .unwrap_or_default();
+    let indent = "  ".repeat(depth);
+    let title = if indent.is_empty() {
+        entry.label().to_string()
+    } else {
+        format!("{}{}", indent, entry.label())
+    };
+    toc.push(TocEntry { title, href: href_str });
+
+    for child in entry.children() {
+        push_toc_entries(toc, child, depth + 1);
+    }
 }
 
 /// Read a specific chapter by index
