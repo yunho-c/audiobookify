@@ -15,6 +15,7 @@ import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../core/route_observer.dart';
 import '../services/book_service.dart';
+import '../services/epub_title_resolver.dart';
 import '../services/tts_audio_handler.dart';
 import '../services/tts_service.dart';
 import '../models/book.dart';
@@ -196,7 +197,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() {
         _book = book;
         _epubBook = epub;
-        _tocTitleByHref = _buildTocTitleByHref(epub.toc);
+        _tocTitleByHref = buildTocTitleByHref(epub.toc);
       });
 
       // Get chapter and resume position from query params or stored resume.
@@ -515,44 +516,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return _chapterTitleFor(_currentChapterIndex);
   }
 
-  Map<String, String> _buildTocTitleByHref(List<TocEntry> toc) {
-    final tocTitleByHref = <String, String>{};
-    for (final entry in toc) {
-      final key = _normalizeHref(entry.href);
-      final title = entry.title.trim();
-      if (key.isNotEmpty && title.isNotEmpty) {
-        tocTitleByHref[key] = title;
-      }
-    }
-    return tocTitleByHref;
-  }
-
   String _chapterTitleFor(int index) {
     final book = _epubBook;
     if (book == null) return 'Chapter ${index + 1}';
     if (index < 0 || index >= book.chapters.length) {
       return 'Chapter ${index + 1}';
     }
-
-    final chapter = book.chapters[index];
-    final tocTitle = _tocTitleByHref[_normalizeHref(chapter.href)];
-    if (tocTitle != null && tocTitle.trim().isNotEmpty) {
-      return tocTitle.trim();
-    }
-
-    final fallback = chapter.id.trim();
-    if (fallback.isNotEmpty) return fallback;
-    return 'Chapter ${index + 1}';
-  }
-
-  String _normalizeHref(String href) {
-    final trimmed = href.trim();
-    if (trimmed.isEmpty) return '';
-    final withoutFragment = trimmed.split('#').first;
-    if (withoutFragment.startsWith('./')) {
-      return withoutFragment.substring(2);
-    }
-    return withoutFragment;
+    return resolveChapterTitle(
+      chapter: book.chapters[index],
+      chapterIndex: index,
+      displayIndex: index + 1,
+      tocTitleByHref: _tocTitleByHref,
+      chapterContents: book.chapterContents,
+    );
   }
 
   void _updateNowPlaying() {

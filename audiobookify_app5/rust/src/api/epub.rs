@@ -5,7 +5,8 @@
 
 use rbook::{Epub, Ebook};
 use rbook::prelude::*;
-use rbook::ebook::toc::TocEntry as RbookTocEntry;  // Import trait for children() method
+use rbook::ebook::toc::TocEntry as RbookTocEntryTrait;
+use rbook::ebook::epub::toc::EpubTocEntry;
 use std::io::Cursor;
 
 /// Metadata extracted from an EPUB file
@@ -148,7 +149,11 @@ fn load_epub_data(epub: &Epub) -> Result<EpubBook, EpubError> {
     })
 }
 
-fn push_toc_entries(toc: &mut Vec<TocEntry>, entry: RbookTocEntry, depth: usize) {
+fn push_toc_entries<'ebook>(
+    toc: &mut Vec<TocEntry>,
+    entry: EpubTocEntry<'ebook>,
+    depth: usize,
+) {
     let href_str = entry
         .href()
         .map(|h| h.to_string())

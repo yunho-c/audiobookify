@@ -10,6 +10,7 @@ import '../core/app_theme.dart';
 import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../models/book.dart';
+import '../services/epub_title_resolver.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/book_actions_sheet.dart';
 import '../widgets/shared/glass_icon_button.dart';
@@ -372,6 +373,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                         bookId: book.id,
                         toc: _epubBook?.toc ?? [],
                         chapters: _epubBook?.chapters ?? [],
+                        chapterContents: _epubBook?.chapterContents ?? [],
                         progress: book.progress,
                       ),
                       const SizedBox(height: 48),
@@ -581,35 +583,37 @@ class _ChapterList extends ConsumerWidget {
   final int bookId;
   final List<TocEntry> toc;
   final List<ChapterInfo> chapters;
+  final List<String> chapterContents;
   final int progress;
 
   static const bool kPreferTocTitles = true;
+  static const bool kHideUnmatchedWhenTocCoverageHigh = false;
+  static const double kTocCoverageThreshold = 0.85;
 
   const _ChapterList({
     required this.bookId,
     required this.toc,
     required this.chapters,
+    required this.chapterContents,
     required this.progress,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const bucketCount = 64;
-    final filteredToc = toc
-        .where(
-          (entry) =>
-              entry.title.trim().isNotEmpty && entry.href.trim().isNotEmpty,
-        )
-        .toList();
-    final tocTitleByHref = <String, String>{};
-    if (kPreferTocTitles) {
-      for (final entry in filteredToc) {
-        final key = _normalizeHref(entry.href);
-        if (key.isNotEmpty) {
-          tocTitleByHref[key] = entry.title.trim();
-        }
-      }
-    }
+    final tocTitleByHref =
+        kPreferTocTitles ? buildTocTitleByHref(toc) : <String, String>{};
+    final matchedCount = kPreferTocTitles
+        ? chapters
+            .where(
+              (chapter) =>
+                  tocTitleByHref.containsKey(normalizeHref(chapter.href)),
+            )
+            .length
+        : 0;
+    final tocCoverage = chapters.isEmpty ? 0.0 : matchedCount / chapters.length;
+    final shouldFilter = kHideUnmatchedWhenTocCoverageHigh &&
+        tocCoverage >= kTocCoverageThreshold;
     final hasChapters = chapters.isNotEmpty;
 
     if (!hasChapters) {
@@ -669,7 +673,16 @@ class _ChapterList extends ConsumerWidget {
                 ),
           ),
           const SizedBox(height: 16),
-          ...chapters.asMap().entries.map(
+          ...chapters
+              .asMap()
+              .entries
+              .where(
+                (entry) =>
+                    !shouldFilter ||
+                    tocTitleByHref
+                        .containsKey(normalizeHref(entry.value.href)),
+              )
+              .map(
             (entry) {
               final index = entry.key + 1;
               return _TocItem(
@@ -678,6 +691,8 @@ class _ChapterList extends ConsumerWidget {
                   entry.value,
                   index,
                   tocTitleByHref,
+                  chapterContents,
+                  entry.key,
                 ),
                 bookId: bookId,
                 status: _chapterStatus(
@@ -701,26 +716,17 @@ String _chapterTitleFor(
   ChapterInfo chapter,
   int index,
   Map<String, String> tocTitleByHref,
+  List<String> chapterContents,
+  int chapterIndex,
 ) {
-  if (_ChapterList.kPreferTocTitles) {
-    final tocTitle = tocTitleByHref[_normalizeHref(chapter.href)];
-    if (tocTitle != null && tocTitle.trim().isNotEmpty) {
-      return tocTitle.trim();
-    }
-  }
-  final fallback = chapter.id.trim();
-  if (fallback.isNotEmpty) return fallback;
-  return 'Chapter $index';
-}
-
-String _normalizeHref(String href) {
-  final trimmed = href.trim();
-  if (trimmed.isEmpty) return '';
-  final withoutFragment = trimmed.split('#').first;
-  if (withoutFragment.startsWith('./')) {
-    return withoutFragment.substring(2);
-  }
-  return withoutFragment;
+  return resolveChapterTitle(
+    chapter: chapter,
+    chapterIndex: chapterIndex,
+    displayIndex: index,
+    tocTitleByHref: tocTitleByHref,
+    chapterContents: chapterContents,
+    preferTocTitle: _ChapterList.kPreferTocTitles,
+  );
 }
 
 _ChapterStatus _chapterStatus(int index, int total, int progress) {
