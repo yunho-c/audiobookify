@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "1:4231649898290285961",
-      "lastPropertyId": "11:539036788110333090",
+      "lastPropertyId": "14:8220009161933163607",
       "name": "Book",
       "properties": [
         {
@@ -63,6 +63,21 @@
           "id": "11:539036788110333090",
           "name": "progress",
           "type": 6
+        },
+        {
+          "id": "12:2218994062454415514",
+          "name": "chapterIndexCacheVersion",
+          "type": 6
+        },
+        {
+          "id": "13:1992048292252389973",
+          "name": "chapterIndexFileSizeBytes",
+          "type": 6
+        },
+        {
+          "id": "14:8220009161933163607",
+          "name": "chapterIndexFileModifiedAt",
+          "type": 10
         }
       ],
       "relations": []
@@ -109,10 +124,73 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "3:3915742353754275273",
+      "lastPropertyId": "10:668529812131926163",
+      "name": "BookChapterIndex",
+      "properties": [
+        {
+          "id": "1:3761712447409493685",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:6778942827432637604",
+          "name": "bookId",
+          "indexId": "3:8260524788803661396",
+          "type": 6,
+          "flags": 8
+        },
+        {
+          "id": "3:3230251440684257969",
+          "name": "chapterIndex",
+          "indexId": "4:3704202087554818036",
+          "type": 6,
+          "flags": 8
+        },
+        {
+          "id": "4:6537800222146629824",
+          "name": "title",
+          "type": 9
+        },
+        {
+          "id": "5:4417177441278190072",
+          "name": "startHref",
+          "type": 9
+        },
+        {
+          "id": "6:4454419227702520532",
+          "name": "startFragment",
+          "type": 9
+        },
+        {
+          "id": "7:7517797794136612455",
+          "name": "endHref",
+          "type": 9
+        },
+        {
+          "id": "8:4258103203686838290",
+          "name": "endFragment",
+          "type": 9
+        },
+        {
+          "id": "9:912999928614405977",
+          "name": "spineStart",
+          "type": 6
+        },
+        {
+          "id": "10:668529812131926163",
+          "name": "spineEnd",
+          "type": 6
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "2:4944664329475420838",
-  "lastIndexId": "2:1749288359301555385",
+  "lastEntityId": "3:3915742353754275273",
+  "lastIndexId": "4:3704202087554818036",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,

@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +10,7 @@ import '../core/app_theme.dart';
 import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../models/book.dart';
-import '../src/rust/api/epub.dart';
+import '../models/book_chapter_index.dart';
 import '../widgets/book_actions_sheet.dart';
 import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
@@ -28,7 +28,7 @@ class BookDetailScreen extends ConsumerStatefulWidget {
 
 class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   Book? _book;
-  ParsedEpubBook? _epubBook;
+  List<BookChapterSummary> _chapterSummaries = const [];
   bool _isLoading = true;
   String? _error;
   String? _epubLoadError;
@@ -51,7 +51,8 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
       }
 
       // Load book from ObjectBox
-      final book = ref.read(bookServiceProvider).getBook(bookId);
+      final bookService = ref.read(bookServiceProvider);
+      final book = bookService.getBook(bookId);
       if (book == null) {
         setState(() {
           _error = 'Book not found';
@@ -60,35 +61,64 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         return;
       }
 
+      final cacheCurrent = bookService.isChapterIndexCurrent(book);
+      final fileExists = _bookFileExists(book.filePath);
+      final cachedSummaries = (cacheCurrent || fileExists)
+          ? bookService.getChapterIndex(book.id)
+          : const <BookChapterSummary>[];
+
       setState(() {
         _book = book;
+        _chapterSummaries = cachedSummaries;
         _epubLoadError = null;
+        _isLoading = !cacheCurrent && cachedSummaries.isEmpty;
       });
 
-      // Load EPUB to get TOC and chapters
-      try {
-        final epub =
-            await ref.read(epubServiceProvider).openEpub(book.filePath);
-        if (!mounted) return;
-        setState(() {
-          _epubBook = epub;
-          _isLoading = false;
-        });
-      } catch (e, stackTrace) {
-        reportError(e, stackTrace, context: 'book_detail.loadEpub');
-        // EPUB file might be gone, but we still have metadata
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          _epubLoadError = e.toString();
-        });
-      }
+      if (cacheCurrent) return;
+
+      await _refreshChapterIndex(book);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _refreshChapterIndex(Book book) async {
+    try {
+      final epub = await ref.read(epubServiceProvider).openEpub(book.filePath);
+      if (!mounted) return;
+      final updatedBook = ref
+          .read(bookServiceProvider)
+          .refreshChapterIndex(book, epub);
+      final chapters = ref.read(bookServiceProvider).getChapterIndex(book.id);
+      if (!mounted) return;
+      setState(() {
+        _book = updatedBook;
+        _chapterSummaries = chapters;
+        _epubLoadError = null;
+        _isLoading = false;
+      });
+    } catch (e, stackTrace) {
+      reportError(e, stackTrace, context: 'book_detail.loadEpub');
+      if (!mounted) return;
+      setState(() {
+        _chapterSummaries = const [];
+        _isLoading = false;
+        _epubLoadError = e.toString();
+      });
+    }
+  }
+
+  bool _bookFileExists(String path) {
+    final normalized = path.trim();
+    if (normalized.isEmpty) return false;
+    try {
+      return File(normalized).existsSync();
+    } catch (_) {
+      return false;
     }
   }
 
@@ -126,7 +156,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         final removed = await ref
             .read(bookServiceProvider)
             .deleteBookAndAssets(book.id);
-        if (!mounted) return;
+        if (!context.mounted) return;
         if (removed) {
           ref.read(bookResumeProvider.notifier).clearPosition(book.id);
           messenger.showSnackBar(
@@ -370,7 +400,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                       const SizedBox(height: 24),
                       _ChapterList(
                         bookId: book.id,
-                        sections: _epubBook?.sections ?? [],
+                        chapters: _chapterSummaries,
                         progress: book.progress,
                       ),
                       const SizedBox(height: 48),
@@ -578,19 +608,19 @@ class _StatItem extends StatelessWidget {
 
 class _ChapterList extends ConsumerWidget {
   final int bookId;
-  final List<Section> sections;
+  final List<BookChapterSummary> chapters;
   final int progress;
 
   const _ChapterList({
     required this.bookId,
-    required this.sections,
+    required this.chapters,
     required this.progress,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const bucketCount = 64;
-    final hasChapters = sections.isNotEmpty;
+    final hasChapters = chapters.isNotEmpty;
 
     if (!hasChapters) {
       return Container(
@@ -649,7 +679,7 @@ class _ChapterList extends ConsumerWidget {
                 ),
           ),
           const SizedBox(height: 16),
-          ...sections
+          ...chapters
               .asMap()
               .entries
               .map(
@@ -662,7 +692,7 @@ class _ChapterList extends ConsumerWidget {
                 bookId: bookId,
                 status: _chapterStatus(
                   index,
-                  sections.length,
+                  chapters.length,
                   progress,
                 ),
                 bucketCount: bucketCount,

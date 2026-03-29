@@ -2,17 +2,24 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import '../models/book.dart';
+import '../models/book_chapter_index.dart';
 import '../models/book_progress_bucket.dart';
 import '../objectbox.g.dart';
 import '../src/rust/api/epub.dart';
 
 /// Service for managing Book persistence with ObjectBox
 class BookService {
+  static const int chapterIndexCacheVersion = 1;
+
+  final Store _store;
   final Box<Book> _bookBox;
+  final Box<BookChapterIndex> _chapterIndexBox;
   final Box<BookProgressBucket> _progressBox;
 
   BookService(Store store)
-      : _bookBox = store.box<Book>(),
+      : _store = store,
+        _bookBox = store.box<Book>(),
+        _chapterIndexBox = store.box<BookChapterIndex>(),
         _progressBox = store.box<BookProgressBucket>();
 
   /// Save an imported EPUB book to the database.
@@ -45,6 +52,7 @@ class BookService {
     );
 
     book.id = _bookBox.put(book);
+    refreshChapterIndex(book, epubBook);
     return BookSaveResult(book: book, isDuplicate: false);
   }
 
@@ -114,6 +122,76 @@ class BookService {
   /// Get a single book by ID
   Book? getBook(int id) {
     return _bookBox.get(id);
+  }
+
+  /// Get the cached chapter index for a book.
+  List<BookChapterSummary> getChapterIndex(int bookId) {
+    final query = _chapterIndexBox.query(BookChapterIndex_.bookId.equals(bookId))
+      ..order(BookChapterIndex_.chapterIndex);
+    final handle = query.build();
+    try {
+      return handle
+          .find()
+          .map(
+            (row) => BookChapterSummary(
+              chapterIndex: row.chapterIndex,
+              title: row.title,
+              startHref: row.startHref,
+              startFragment: row.startFragment,
+              endHref: row.endHref,
+              endFragment: row.endFragment,
+              spineStart: row.spineStart,
+              spineEnd: row.spineEnd,
+            ),
+          )
+          .toList();
+    } finally {
+      handle.close();
+    }
+  }
+
+  /// Returns whether the persisted chapter index matches the current EPUB file.
+  bool isChapterIndexCurrent(Book book) {
+    if (book.chapterIndexCacheVersion != chapterIndexCacheVersion) {
+      return false;
+    }
+    final stat = _statForPath(book.filePath);
+    if (stat == null) {
+      return false;
+    }
+    return book.chapterIndexFileSizeBytes == stat.size &&
+        _sameInstant(book.chapterIndexFileModifiedAt, stat.modified);
+  }
+
+  /// Refresh the cached chapter index from the parsed EPUB.
+  Book refreshChapterIndex(Book book, ParsedEpubBook epubBook) {
+    final stat = _statForPath(book.filePath);
+    _store.runInTransaction(TxMode.write, () {
+      _removeChapterIndexRows(book.id);
+      final rows = epubBook.sections.asMap().entries.map((entry) {
+        final section = entry.value;
+        return BookChapterIndex(
+          bookId: book.id,
+          chapterIndex: entry.key,
+          title: section.title,
+          startHref: section.startHref,
+          startFragment: section.startFragment,
+          endHref: section.endHref,
+          endFragment: section.endFragment,
+          spineStart: section.spineStart,
+          spineEnd: section.spineEnd,
+        );
+      }).toList();
+      if (rows.isNotEmpty) {
+        _chapterIndexBox.putMany(rows);
+      }
+      book.chapterCount = epubBook.sections.length;
+      book.chapterIndexCacheVersion = chapterIndexCacheVersion;
+      book.chapterIndexFileSizeBytes = stat?.size ?? 0;
+      book.chapterIndexFileModifiedAt = stat?.modified;
+      _bookBox.put(book);
+    });
+    return book;
   }
 
   /// Update reading progress
@@ -222,6 +300,8 @@ class BookService {
     final book = _bookBox.get(id);
     if (book == null) return false;
 
+    _removeChapterIndexRows(id);
+
     final progressQuery = _progressBox.query(
       BookProgressBucket_.bookId.equals(id),
     );
@@ -293,6 +373,35 @@ class BookService {
     };
 
     return controller.stream;
+  }
+
+  void _removeChapterIndexRows(int bookId) {
+    final query = _chapterIndexBox.query(BookChapterIndex_.bookId.equals(bookId));
+    final handle = query.build();
+    try {
+      handle.remove();
+    } finally {
+      handle.close();
+    }
+  }
+
+  FileStat? _statForPath(String filePath) {
+    final normalizedPath = filePath.trim();
+    if (normalizedPath.isEmpty) return null;
+    try {
+      final stat = FileStat.statSync(normalizedPath);
+      if (stat.type == FileSystemEntityType.notFound) {
+        return null;
+      }
+      return stat;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _sameInstant(DateTime? left, DateTime right) {
+    if (left == null) return false;
+    return left.millisecondsSinceEpoch == right.millisecondsSinceEpoch;
   }
 }
 

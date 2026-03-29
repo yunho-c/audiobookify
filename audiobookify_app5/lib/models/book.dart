@@ -23,6 +23,16 @@ class Book {
   /// Path to the original EPUB file
   String filePath;
 
+  /// Chapter-index cache version to invalidate persisted section summaries.
+  int chapterIndexCacheVersion;
+
+  /// File size used to validate the cached chapter index.
+  int chapterIndexFileSizeBytes;
+
+  /// File modified time used to validate the cached chapter index.
+  @Property(type: PropertyType.date)
+  DateTime? chapterIndexFileModifiedAt;
+
   /// When the book was added to the library
   @Property(type: PropertyType.date)
   DateTime addedAt;
@@ -40,6 +50,9 @@ class Book {
     this.coverImage,
     this.chapterCount = 0,
     required this.filePath,
+    this.chapterIndexCacheVersion = 0,
+    this.chapterIndexFileSizeBytes = 0,
+    this.chapterIndexFileModifiedAt,
     DateTime? addedAt,
     this.progress = 0,
   }) : addedAt = addedAt ?? DateTime.now();

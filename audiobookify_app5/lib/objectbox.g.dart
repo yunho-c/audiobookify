@@ -15,6 +15,7 @@ import 'package:objectbox/objectbox.dart' as obx;
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'models/book.dart';
+import 'models/book_chapter_index.dart';
 import 'models/book_progress_bucket.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
@@ -23,7 +24,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(1, 4231649898290285961),
     name: 'Book',
-    lastPropertyId: const obx_int.IdUid(11, 539036788110333090),
+    lastPropertyId: const obx_int.IdUid(14, 8220009161933163607),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -92,6 +93,24 @@ final _entities = <obx_int.ModelEntity>[
         type: 6,
         flags: 0,
       ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(12, 2218994062454415514),
+        name: 'chapterIndexCacheVersion',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(13, 1992048292252389973),
+        name: 'chapterIndexFileSizeBytes',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(14, 8220009161933163607),
+        name: 'chapterIndexFileModifiedAt',
+        type: 10,
+        flags: 0,
+      ),
     ],
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
@@ -144,6 +163,78 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(3, 3915742353754275273),
+    name: 'BookChapterIndex',
+    lastPropertyId: const obx_int.IdUid(10, 668529812131926163),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 3761712447409493685),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 6778942827432637604),
+        name: 'bookId',
+        type: 6,
+        flags: 8,
+        indexId: const obx_int.IdUid(3, 8260524788803661396),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 3230251440684257969),
+        name: 'chapterIndex',
+        type: 6,
+        flags: 8,
+        indexId: const obx_int.IdUid(4, 3704202087554818036),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 6537800222146629824),
+        name: 'title',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 4417177441278190072),
+        name: 'startHref',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 4454419227702520532),
+        name: 'startFragment',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 7517797794136612455),
+        name: 'endHref',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 4258103203686838290),
+        name: 'endFragment',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(9, 912999928614405977),
+        name: 'spineStart',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(10, 668529812131926163),
+        name: 'spineEnd',
+        type: 6,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -189,8 +280,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(2, 4944664329475420838),
-    lastIndexId: const obx_int.IdUid(2, 1749288359301555385),
+    lastEntityId: const obx_int.IdUid(3, 3915742353754275273),
+    lastIndexId: const obx_int.IdUid(4, 3704202087554818036),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -231,7 +322,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
             ? null
             : fbb.writeListInt8(object.coverImage!);
         final filePathOffset = fbb.writeString(object.filePath);
-        fbb.startTable(12);
+        fbb.startTable(15);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, titleOffset);
         fbb.addOffset(2, authorOffset);
@@ -243,12 +334,20 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(8, filePathOffset);
         fbb.addInt64(9, object.addedAt.millisecondsSinceEpoch);
         fbb.addInt64(10, object.progress);
+        fbb.addInt64(11, object.chapterIndexCacheVersion);
+        fbb.addInt64(12, object.chapterIndexFileSizeBytes);
+        fbb.addInt64(
+          13,
+          object.chapterIndexFileModifiedAt?.millisecondsSinceEpoch,
+        );
         fbb.finish(fbb.endTable());
         return object.id;
       },
       objectFromFB: (obx.Store store, ByteData fbData) {
         final buffer = fb.BufferContext(fbData);
         final rootOffset = buffer.derefObject(0);
+        final chapterIndexFileModifiedAtValue = const fb.Int64Reader()
+            .vTableGetNullable(buffer, rootOffset, 30);
         final idParam = const fb.Int64Reader().vTableGet(
           buffer,
           rootOffset,
@@ -284,6 +383,24 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final filePathParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 20, '');
+        final chapterIndexCacheVersionParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          26,
+          0,
+        );
+        final chapterIndexFileSizeBytesParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          28,
+          0,
+        );
+        final chapterIndexFileModifiedAtParam =
+            chapterIndexFileModifiedAtValue == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(
+                chapterIndexFileModifiedAtValue,
+              );
         final addedAtParam = DateTime.fromMillisecondsSinceEpoch(
           const fb.Int64Reader().vTableGet(buffer, rootOffset, 22, 0),
         );
@@ -303,6 +420,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
           coverImage: coverImageParam,
           chapterCount: chapterCountParam,
           filePath: filePathParam,
+          chapterIndexCacheVersion: chapterIndexCacheVersionParam,
+          chapterIndexFileSizeBytes: chapterIndexFileSizeBytesParam,
+          chapterIndexFileModifiedAt: chapterIndexFileModifiedAtParam,
           addedAt: addedAtParam,
           progress: progressParam,
         );
@@ -377,6 +497,104 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    BookChapterIndex: obx_int.EntityDefinition<BookChapterIndex>(
+      model: _entities[2],
+      toOneRelations: (BookChapterIndex object) => [],
+      toManyRelations: (BookChapterIndex object) => {},
+      getId: (BookChapterIndex object) => object.id,
+      setId: (BookChapterIndex object, int id) {
+        object.id = id;
+      },
+      objectToFB: (BookChapterIndex object, fb.Builder fbb) {
+        final titleOffset = fbb.writeString(object.title);
+        final startHrefOffset = fbb.writeString(object.startHref);
+        final startFragmentOffset = object.startFragment == null
+            ? null
+            : fbb.writeString(object.startFragment!);
+        final endHrefOffset = object.endHref == null
+            ? null
+            : fbb.writeString(object.endHref!);
+        final endFragmentOffset = object.endFragment == null
+            ? null
+            : fbb.writeString(object.endFragment!);
+        fbb.startTable(11);
+        fbb.addInt64(0, object.id);
+        fbb.addInt64(1, object.bookId);
+        fbb.addInt64(2, object.chapterIndex);
+        fbb.addOffset(3, titleOffset);
+        fbb.addOffset(4, startHrefOffset);
+        fbb.addOffset(5, startFragmentOffset);
+        fbb.addOffset(6, endHrefOffset);
+        fbb.addOffset(7, endFragmentOffset);
+        fbb.addInt64(8, object.spineStart);
+        fbb.addInt64(9, object.spineEnd);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final bookIdParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          6,
+          0,
+        );
+        final chapterIndexParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          8,
+          0,
+        );
+        final titleParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 10, '');
+        final startHrefParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 12, '');
+        final startFragmentParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 14);
+        final endHrefParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 16);
+        final endFragmentParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 18);
+        final spineStartParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          20,
+          0,
+        );
+        final spineEndParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          22,
+          0,
+        );
+        final object = BookChapterIndex(
+          id: idParam,
+          bookId: bookIdParam,
+          chapterIndex: chapterIndexParam,
+          title: titleParam,
+          startHref: startHrefParam,
+          startFragment: startFragmentParam,
+          endHref: endHrefParam,
+          endFragment: endFragmentParam,
+          spineStart: spineStartParam,
+          spineEnd: spineEndParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -436,6 +654,21 @@ class Book_ {
   static final progress = obx.QueryIntegerProperty<Book>(
     _entities[0].properties[10],
   );
+
+  /// See [Book.chapterIndexCacheVersion].
+  static final chapterIndexCacheVersion = obx.QueryIntegerProperty<Book>(
+    _entities[0].properties[11],
+  );
+
+  /// See [Book.chapterIndexFileSizeBytes].
+  static final chapterIndexFileSizeBytes = obx.QueryIntegerProperty<Book>(
+    _entities[0].properties[12],
+  );
+
+  /// See [Book.chapterIndexFileModifiedAt].
+  static final chapterIndexFileModifiedAt = obx.QueryDateProperty<Book>(
+    _entities[0].properties[13],
+  );
 }
 
 /// [BookProgressBucket] entity fields to define ObjectBox queries.
@@ -468,5 +701,58 @@ class BookProgressBucket_ {
   /// See [BookProgressBucket.updatedAt].
   static final updatedAt = obx.QueryDateProperty<BookProgressBucket>(
     _entities[1].properties[5],
+  );
+}
+
+/// [BookChapterIndex] entity fields to define ObjectBox queries.
+class BookChapterIndex_ {
+  /// See [BookChapterIndex.id].
+  static final id = obx.QueryIntegerProperty<BookChapterIndex>(
+    _entities[2].properties[0],
+  );
+
+  /// See [BookChapterIndex.bookId].
+  static final bookId = obx.QueryIntegerProperty<BookChapterIndex>(
+    _entities[2].properties[1],
+  );
+
+  /// See [BookChapterIndex.chapterIndex].
+  static final chapterIndex = obx.QueryIntegerProperty<BookChapterIndex>(
+    _entities[2].properties[2],
+  );
+
+  /// See [BookChapterIndex.title].
+  static final title = obx.QueryStringProperty<BookChapterIndex>(
+    _entities[2].properties[3],
+  );
+
+  /// See [BookChapterIndex.startHref].
+  static final startHref = obx.QueryStringProperty<BookChapterIndex>(
+    _entities[2].properties[4],
+  );
+
+  /// See [BookChapterIndex.startFragment].
+  static final startFragment = obx.QueryStringProperty<BookChapterIndex>(
+    _entities[2].properties[5],
+  );
+
+  /// See [BookChapterIndex.endHref].
+  static final endHref = obx.QueryStringProperty<BookChapterIndex>(
+    _entities[2].properties[6],
+  );
+
+  /// See [BookChapterIndex.endFragment].
+  static final endFragment = obx.QueryStringProperty<BookChapterIndex>(
+    _entities[2].properties[7],
+  );
+
+  /// See [BookChapterIndex.spineStart].
+  static final spineStart = obx.QueryIntegerProperty<BookChapterIndex>(
+    _entities[2].properties[8],
+  );
+
+  /// See [BookChapterIndex.spineEnd].
+  static final spineEnd = obx.QueryIntegerProperty<BookChapterIndex>(
+    _entities[2].properties[9],
   );
 }
