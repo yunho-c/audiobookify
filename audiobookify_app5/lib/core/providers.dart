@@ -32,7 +32,7 @@ final bookServiceProvider = Provider<BookService>((ref) {
 });
 
 final epubServiceProvider = Provider<EpubService>((ref) {
-  return const EpubService();
+  return EpubService();
 });
 
 /// Reactive stream of all books
