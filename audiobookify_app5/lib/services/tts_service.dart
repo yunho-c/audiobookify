@@ -80,10 +80,14 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
   }
 
   /// Load content for playback
-  void loadContent(List<String> paragraphs) {
-    final sentencesPerParagraph = paragraphs
-        .map((p) => _splitIntoSentences(p))
-        .toList();
+  void loadContent(
+    List<String> paragraphs, {
+    List<List<String>>? sentences,
+  }) {
+    final sentencesPerParagraph =
+        sentences != null && sentences.length == paragraphs.length
+            ? sentences
+            : paragraphs.map((p) => _splitIntoSentences(p)).toList();
 
     state = TtsPlaybackState(
       paragraphs: paragraphs,

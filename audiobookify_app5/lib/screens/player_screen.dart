@@ -247,7 +247,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Load content into TTS provider
     final wasPlaying = _ttsService.state.status == TtsStatus.playing;
     final paragraphTexts = _ttsParagraphs.map((p) => p.plainText).toList();
-    _ttsService.loadContent(paragraphTexts);
+    final sentenceData = _ttsParagraphs.map((p) => p.sentences).toList();
+    _ttsService.loadContent(paragraphTexts, sentences: sentenceData);
 
     if (resumeParagraphIndex != null && _ttsParagraphs.isNotEmpty) {
       final targetParagraph = resumeParagraphIndex
