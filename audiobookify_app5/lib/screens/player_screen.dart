@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -8,8 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../reader/epub_resource_resolver.dart';
 import '../reader/reader_dto_adapter.dart';
+import '../reader/reader_ir.dart';
 import '../reader/reader_renderer.dart';
 import '../reader/reader_segmentation.dart';
 import '../core/app_theme.dart';
@@ -43,6 +44,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   final ScrollController _scrollController = ScrollController();
   List<GlobalKey> _blockKeys = [];
   final List<List<TapGestureRecognizer>> _sentenceRecognizers = [];
+  final Map<String, TapGestureRecognizer> _linkRecognizers = {};
   late final AnimationController _sentenceHighlightController;
   late final Animation<double> _sentenceHighlightCurve;
 
@@ -218,6 +220,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     int index, {
     int? resumeParagraphIndex,
     int? resumeSentenceIndex,
+    String? navigateFragment,
   }) async {
     if (_epubBook == null || !mounted) return;
 
@@ -261,6 +264,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final blockIndex = _blockIndexForTts(targetParagraph);
         _scrollToBlock(blockIndex);
         _lastScrolledToTtsIndex = targetParagraph;
+      });
+    } else if (navigateFragment != null && navigateFragment.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollToFragment(navigateFragment);
       });
     }
 
@@ -585,6 +593,106 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
     _sentenceRecognizers.clear();
+    for (final recognizer in _linkRecognizers.values) {
+      recognizer.dispose();
+    }
+    _linkRecognizers.clear();
+  }
+
+  String _linkKey(ReaderLinkTarget target) {
+    return '${target.kind.name}|${target.href}|${target.sectionId ?? ''}|'
+        '${target.sectionIndex ?? -1}|${target.fragment ?? ''}';
+  }
+
+  TapGestureRecognizer _linkRecognizerFor(ReaderLinkTarget target) {
+    final key = _linkKey(target);
+    final existing = _linkRecognizers[key];
+    if (existing != null) {
+      existing.onTap = () => _handleLinkTap(target);
+      return existing;
+    }
+    final recognizer = TapGestureRecognizer()
+      ..onTap = () => _handleLinkTap(target);
+    _linkRecognizers[key] = recognizer;
+    return recognizer;
+  }
+
+  Future<void> _handleLinkTap(ReaderLinkTarget target) async {
+    if (target.isInternal && target.sectionIndex != null) {
+      final sectionIndex = target.sectionIndex!;
+      if (sectionIndex < 0 || _epubBook == null) return;
+      if (sectionIndex >= _epubBook!.sections.length) return;
+      if (sectionIndex != _currentChapterIndex) {
+        await _loadChapter(
+          sectionIndex,
+          resumeParagraphIndex: 0,
+          resumeSentenceIndex: 0,
+          navigateFragment: target.fragment,
+        );
+      } else if (target.fragment != null && target.fragment!.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _scrollToFragment(target.fragment!);
+        });
+      }
+      return;
+    }
+
+    if (target.isUnresolved) {
+      final resolved = _resolveUnresolvedTarget(target);
+      if (resolved != null) {
+        await _handleLinkTap(resolved);
+        return;
+      }
+    }
+
+    final uri = Uri.tryParse(target.href);
+    if (uri == null) return;
+    if (uri.scheme == 'http' || uri.scheme == 'https') {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  ReaderLinkTarget? _resolveUnresolvedTarget(ReaderLinkTarget target) {
+    final book = _epubBook;
+    if (book == null) return null;
+    final href = target.href.trim();
+    if (href.isEmpty) return null;
+    final parts = href.split('#');
+    final hrefPath = parts.first;
+    final fragment = parts.length > 1 ? parts[1] : target.fragment;
+    for (var i = 0; i < book.sections.length; i++) {
+      final section = book.sections[i];
+      if (section.startHref == hrefPath) {
+        return ReaderLinkTarget(
+          kind: ReaderLinkTargetKind.internal,
+          href: hrefPath,
+          sectionId: section.id,
+          sectionIndex: i,
+          fragment: fragment,
+        );
+      }
+    }
+    return null;
+  }
+
+  int _blockIndexForFragment(String fragment) {
+    final trimmed = fragment.trim();
+    if (trimmed.isEmpty) return -1;
+    for (var i = 0; i < _renderBlocks.length; i++) {
+      final source = _renderBlocks[i].block.source;
+      if (source?.fragment == trimmed) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  void _scrollToFragment(String fragment) {
+    final blockIndex = _blockIndexForFragment(fragment);
+    if (blockIndex >= 0) {
+      _scrollToBlock(blockIndex);
+    }
   }
 
 
@@ -844,6 +952,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                         sentenceIndex,
                                       )
                                   : null,
+                              linkRecognizer: (target) =>
+                                  _linkRecognizerFor(target),
                               onTapParagraph: ttsIndex != null
                                   ? () => ref
                                       .read(ttsProvider.notifier)

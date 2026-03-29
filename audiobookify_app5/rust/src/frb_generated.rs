@@ -199,11 +199,12 @@ fn wire__crate__api__epub__read_book_resource_bytes_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_path = <String>::sse_decode(&mut deserializer);
-            let api_href = <String>::sse_decode(&mut deserializer);
+            let api_resource = <crate::api::epub::ResourceRef>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, crate::api::epub::EpubError>((move || {
-                    let output_ok = crate::api::epub::read_book_resource_bytes(api_path, api_href)?;
+                    let output_ok =
+                        crate::api::epub::read_book_resource_bytes(api_path, api_resource)?;
                     Ok(output_ok)
                 })())
             }
@@ -265,6 +266,37 @@ impl SseDecode for i32 {
     }
 }
 
+impl SseDecode for crate::api::epub::LinkTarget {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kind = <crate::api::epub::LinkTargetKind>::sse_decode(deserializer);
+        let mut var_href = <String>::sse_decode(deserializer);
+        let mut var_sectionId = <Option<String>>::sse_decode(deserializer);
+        let mut var_sectionIndex = <Option<i32>>::sse_decode(deserializer);
+        let mut var_fragment = <Option<String>>::sse_decode(deserializer);
+        return crate::api::epub::LinkTarget {
+            kind: var_kind,
+            href: var_href,
+            section_id: var_sectionId,
+            section_index: var_sectionIndex,
+            fragment: var_fragment,
+        };
+    }
+}
+
+impl SseDecode for crate::api::epub::LinkTargetKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::epub::LinkTargetKind::Internal,
+            1 => crate::api::epub::LinkTargetKind::External,
+            2 => crate::api::epub::LinkTargetKind::Unresolved,
+            _ => unreachable!("Invalid variant for LinkTargetKind: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -281,7 +313,11 @@ impl SseDecode for crate::api::epub::ListItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_blocks = <Vec<crate::api::epub::ReaderBlock>>::sse_decode(deserializer);
-        return crate::api::epub::ListItem { blocks: var_blocks };
+        let mut var_source = <crate::api::epub::SourceMap>::sse_decode(deserializer);
+        return crate::api::epub::ListItem {
+            blocks: var_blocks,
+            source: var_source,
+        };
     }
 }
 
@@ -292,6 +328,18 @@ impl SseDecode for Vec<crate::api::epub::ListItem> {
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
             ans_.push(<crate::api::epub::ListItem>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<i32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<i32>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -392,6 +440,39 @@ impl SseDecode for Option<String> {
     }
 }
 
+impl SseDecode for Option<i32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<i32>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::epub::LinkTarget> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::epub::LinkTarget>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::epub::ResourceRef> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::epub::ResourceRef>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -426,10 +507,12 @@ impl SseDecode for crate::api::epub::ReaderBlock {
         let mut var_inlines = <Vec<crate::api::epub::ReaderInline>>::sse_decode(deserializer);
         let mut var_blocks = <Vec<crate::api::epub::ReaderBlock>>::sse_decode(deserializer);
         let mut var_items = <Vec<crate::api::epub::ListItem>>::sse_decode(deserializer);
-        let mut var_src = <Option<String>>::sse_decode(deserializer);
+        let mut var_resource = <Option<crate::api::epub::ResourceRef>>::sse_decode(deserializer);
         let mut var_alt = <Option<String>>::sse_decode(deserializer);
         let mut var_caption = <Option<String>>::sse_decode(deserializer);
         let mut var_rows = <Vec<crate::api::epub::TableRow>>::sse_decode(deserializer);
+        let mut var_codeText = <Option<String>>::sse_decode(deserializer);
+        let mut var_source = <crate::api::epub::SourceMap>::sse_decode(deserializer);
         return crate::api::epub::ReaderBlock {
             kind: var_kind,
             level: var_level,
@@ -437,10 +520,12 @@ impl SseDecode for crate::api::epub::ReaderBlock {
             inlines: var_inlines,
             blocks: var_blocks,
             items: var_items,
-            src: var_src,
+            resource: var_resource,
             alt: var_alt,
             caption: var_caption,
             rows: var_rows,
+            code_text: var_codeText,
+            source: var_source,
         };
     }
 }
@@ -458,6 +543,7 @@ impl SseDecode for crate::api::epub::ReaderBlockKind {
             5 => crate::api::epub::ReaderBlockKind::Image,
             6 => crate::api::epub::ReaderBlockKind::Table,
             7 => crate::api::epub::ReaderBlockKind::HorizontalRule,
+            8 => crate::api::epub::ReaderBlockKind::Code,
             _ => unreachable!("Invalid variant for ReaderBlockKind: {}", inner),
         };
     }
@@ -480,15 +566,21 @@ impl SseDecode for crate::api::epub::ReaderInline {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_kind = <crate::api::epub::ReaderInlineKind>::sse_decode(deserializer);
         let mut var_text = <Option<String>>::sse_decode(deserializer);
-        let mut var_href = <Option<String>>::sse_decode(deserializer);
+        let mut var_target = <Option<crate::api::epub::LinkTarget>>::sse_decode(deserializer);
+        let mut var_resource = <Option<crate::api::epub::ResourceRef>>::sse_decode(deserializer);
+        let mut var_alt = <Option<String>>::sse_decode(deserializer);
         let mut var_styleHints = <Vec<crate::api::epub::SpanStyleHint>>::sse_decode(deserializer);
         let mut var_children = <Vec<crate::api::epub::ReaderInline>>::sse_decode(deserializer);
+        let mut var_source = <crate::api::epub::SourceMap>::sse_decode(deserializer);
         return crate::api::epub::ReaderInline {
             kind: var_kind,
             text: var_text,
-            href: var_href,
+            target: var_target,
+            resource: var_resource,
+            alt: var_alt,
             style_hints: var_styleHints,
             children: var_children,
+            source: var_source,
         };
     }
 }
@@ -499,14 +591,39 @@ impl SseDecode for crate::api::epub::ReaderInlineKind {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
             0 => crate::api::epub::ReaderInlineKind::Text,
-            1 => crate::api::epub::ReaderInlineKind::Emphasis,
-            2 => crate::api::epub::ReaderInlineKind::Strong,
-            3 => crate::api::epub::ReaderInlineKind::Sup,
-            4 => crate::api::epub::ReaderInlineKind::Sub,
-            5 => crate::api::epub::ReaderInlineKind::Link,
-            6 => crate::api::epub::ReaderInlineKind::LineBreak,
-            7 => crate::api::epub::ReaderInlineKind::Span,
+            1 => crate::api::epub::ReaderInlineKind::Span,
+            2 => crate::api::epub::ReaderInlineKind::Link,
+            3 => crate::api::epub::ReaderInlineKind::Image,
+            4 => crate::api::epub::ReaderInlineKind::LineBreak,
             _ => unreachable!("Invalid variant for ReaderInlineKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::epub::ResourceKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::epub::ResourceKind::Image,
+            1 => crate::api::epub::ResourceKind::Stylesheet,
+            2 => crate::api::epub::ResourceKind::Cover,
+            3 => crate::api::epub::ResourceKind::Other,
+            _ => unreachable!("Invalid variant for ResourceKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::epub::ResourceRef {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_href = <String>::sse_decode(deserializer);
+        let mut var_mediaType = <Option<String>>::sse_decode(deserializer);
+        let mut var_kind = <crate::api::epub::ResourceKind>::sse_decode(deserializer);
+        return crate::api::epub::ResourceRef {
+            href: var_href,
+            media_type: var_mediaType,
+            kind: var_kind,
         };
     }
 }
@@ -520,8 +637,8 @@ impl SseDecode for crate::api::epub::Section {
         let mut var_startFragment = <Option<String>>::sse_decode(deserializer);
         let mut var_endHref = <Option<String>>::sse_decode(deserializer);
         let mut var_endFragment = <Option<String>>::sse_decode(deserializer);
-        let mut var_spineStart = <usize>::sse_decode(deserializer);
-        let mut var_spineEnd = <usize>::sse_decode(deserializer);
+        let mut var_spineStart = <i32>::sse_decode(deserializer);
+        let mut var_spineEnd = <i32>::sse_decode(deserializer);
         let mut var_anchors = <Vec<String>>::sse_decode(deserializer);
         let mut var_document = <crate::api::epub::ReaderDocument>::sse_decode(deserializer);
         return crate::api::epub::Section {
@@ -539,6 +656,22 @@ impl SseDecode for crate::api::epub::Section {
     }
 }
 
+impl SseDecode for crate::api::epub::SourceMap {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_spineIndex = <i32>::sse_decode(deserializer);
+        let mut var_href = <String>::sse_decode(deserializer);
+        let mut var_fragment = <Option<String>>::sse_decode(deserializer);
+        let mut var_nodePath = <Vec<i32>>::sse_decode(deserializer);
+        return crate::api::epub::SourceMap {
+            spine_index: var_spineIndex,
+            href: var_href,
+            fragment: var_fragment,
+            node_path: var_nodePath,
+        };
+    }
+}
+
 impl SseDecode for crate::api::epub::SpanStyleHint {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -547,6 +680,9 @@ impl SseDecode for crate::api::epub::SpanStyleHint {
             0 => crate::api::epub::SpanStyleHint::Italic,
             1 => crate::api::epub::SpanStyleHint::Bold,
             2 => crate::api::epub::SpanStyleHint::Underline,
+            3 => crate::api::epub::SpanStyleHint::Superscript,
+            4 => crate::api::epub::SpanStyleHint::Subscript,
+            5 => crate::api::epub::SpanStyleHint::Code,
             _ => unreachable!("Invalid variant for SpanStyleHint: {}", inner),
         };
     }
@@ -557,9 +693,11 @@ impl SseDecode for crate::api::epub::TableCell {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_isHeader = <bool>::sse_decode(deserializer);
         let mut var_inlines = <Vec<crate::api::epub::ReaderInline>>::sse_decode(deserializer);
+        let mut var_source = <crate::api::epub::SourceMap>::sse_decode(deserializer);
         return crate::api::epub::TableCell {
             is_header: var_isHeader,
             inlines: var_inlines,
+            source: var_source,
         };
     }
 }
@@ -568,7 +706,11 @@ impl SseDecode for crate::api::epub::TableRow {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_cells = <Vec<crate::api::epub::TableCell>>::sse_decode(deserializer);
-        return crate::api::epub::TableRow { cells: var_cells };
+        let mut var_source = <crate::api::epub::SourceMap>::sse_decode(deserializer);
+        return crate::api::epub::TableRow {
+            cells: var_cells,
+            source: var_source,
+        };
     }
 }
 
@@ -582,13 +724,6 @@ impl SseDecode for u8 {
 impl SseDecode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
-}
-
-impl SseDecode for usize {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        deserializer.cursor.read_u64::<NativeEndian>().unwrap() as _
-    }
 }
 
 fn pde_ffi_dispatcher_primary_impl(
@@ -665,9 +800,56 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::EpubMetadata>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::epub::LinkTarget {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.kind.into_into_dart().into_dart(),
+            self.href.into_into_dart().into_dart(),
+            self.section_id.into_into_dart().into_dart(),
+            self.section_index.into_into_dart().into_dart(),
+            self.fragment.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::epub::LinkTarget {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::LinkTarget>
+    for crate::api::epub::LinkTarget
+{
+    fn into_into_dart(self) -> crate::api::epub::LinkTarget {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::epub::LinkTargetKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Internal => 0.into_dart(),
+            Self::External => 1.into_dart(),
+            Self::Unresolved => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::epub::LinkTargetKind
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::LinkTargetKind>
+    for crate::api::epub::LinkTargetKind
+{
+    fn into_into_dart(self) -> crate::api::epub::LinkTargetKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::epub::ListItem {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.blocks.into_into_dart().into_dart()].into_dart()
+        [
+            self.blocks.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
+        ]
+        .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::epub::ListItem {}
@@ -708,10 +890,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::epub::ReaderBlock {
             self.inlines.into_into_dart().into_dart(),
             self.blocks.into_into_dart().into_dart(),
             self.items.into_into_dart().into_dart(),
-            self.src.into_into_dart().into_dart(),
+            self.resource.into_into_dart().into_dart(),
             self.alt.into_into_dart().into_dart(),
             self.caption.into_into_dart().into_dart(),
             self.rows.into_into_dart().into_dart(),
+            self.code_text.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -736,6 +920,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::epub::ReaderBlockKind {
             Self::Image => 5.into_dart(),
             Self::Table => 6.into_dart(),
             Self::HorizontalRule => 7.into_dart(),
+            Self::Code => 8.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -778,9 +963,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::epub::ReaderInline {
         [
             self.kind.into_into_dart().into_dart(),
             self.text.into_into_dart().into_dart(),
-            self.href.into_into_dart().into_dart(),
+            self.target.into_into_dart().into_dart(),
+            self.resource.into_into_dart().into_dart(),
+            self.alt.into_into_dart().into_dart(),
             self.style_hints.into_into_dart().into_dart(),
             self.children.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -801,13 +989,10 @@ impl flutter_rust_bridge::IntoDart for crate::api::epub::ReaderInlineKind {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Text => 0.into_dart(),
-            Self::Emphasis => 1.into_dart(),
-            Self::Strong => 2.into_dart(),
-            Self::Sup => 3.into_dart(),
-            Self::Sub => 4.into_dart(),
-            Self::Link => 5.into_dart(),
-            Self::LineBreak => 6.into_dart(),
-            Self::Span => 7.into_dart(),
+            Self::Span => 1.into_dart(),
+            Self::Link => 2.into_dart(),
+            Self::Image => 3.into_dart(),
+            Self::LineBreak => 4.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -820,6 +1005,48 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::ReaderInlineKind>
     for crate::api::epub::ReaderInlineKind
 {
     fn into_into_dart(self) -> crate::api::epub::ReaderInlineKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::epub::ResourceKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Image => 0.into_dart(),
+            Self::Stylesheet => 1.into_dart(),
+            Self::Cover => 2.into_dart(),
+            Self::Other => 3.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::epub::ResourceKind
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::ResourceKind>
+    for crate::api::epub::ResourceKind
+{
+    fn into_into_dart(self) -> crate::api::epub::ResourceKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::epub::ResourceRef {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.href.into_into_dart().into_dart(),
+            self.media_type.into_into_dart().into_dart(),
+            self.kind.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::epub::ResourceRef {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::ResourceRef>
+    for crate::api::epub::ResourceRef
+{
+    fn into_into_dart(self) -> crate::api::epub::ResourceRef {
         self
     }
 }
@@ -848,12 +1075,35 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::Section> for crate::api
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::epub::SourceMap {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.spine_index.into_into_dart().into_dart(),
+            self.href.into_into_dart().into_dart(),
+            self.fragment.into_into_dart().into_dart(),
+            self.node_path.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::epub::SourceMap {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::SourceMap>
+    for crate::api::epub::SourceMap
+{
+    fn into_into_dart(self) -> crate::api::epub::SourceMap {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::epub::SpanStyleHint {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Italic => 0.into_dart(),
             Self::Bold => 1.into_dart(),
             Self::Underline => 2.into_dart(),
+            Self::Superscript => 3.into_dart(),
+            Self::Subscript => 4.into_dart(),
+            Self::Code => 5.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -875,6 +1125,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::epub::TableCell {
         [
             self.is_header.into_into_dart().into_dart(),
             self.inlines.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -890,7 +1141,11 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::TableCell>
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::epub::TableRow {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.cells.into_into_dart().into_dart()].into_dart()
+        [
+            self.cells.into_into_dart().into_dart(),
+            self.source.into_into_dart().into_dart(),
+        ]
+        .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::epub::TableRow {}
@@ -940,6 +1195,34 @@ impl SseEncode for i32 {
     }
 }
 
+impl SseEncode for crate::api::epub::LinkTarget {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::epub::LinkTargetKind>::sse_encode(self.kind, serializer);
+        <String>::sse_encode(self.href, serializer);
+        <Option<String>>::sse_encode(self.section_id, serializer);
+        <Option<i32>>::sse_encode(self.section_index, serializer);
+        <Option<String>>::sse_encode(self.fragment, serializer);
+    }
+}
+
+impl SseEncode for crate::api::epub::LinkTargetKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::epub::LinkTargetKind::Internal => 0,
+                crate::api::epub::LinkTargetKind::External => 1,
+                crate::api::epub::LinkTargetKind::Unresolved => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -954,6 +1237,7 @@ impl SseEncode for crate::api::epub::ListItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::api::epub::ReaderBlock>>::sse_encode(self.blocks, serializer);
+        <crate::api::epub::SourceMap>::sse_encode(self.source, serializer);
     }
 }
 
@@ -963,6 +1247,16 @@ impl SseEncode for Vec<crate::api::epub::ListItem> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::epub::ListItem>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<i32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <i32>::sse_encode(item, serializer);
         }
     }
 }
@@ -1047,6 +1341,36 @@ impl SseEncode for Option<String> {
     }
 }
 
+impl SseEncode for Option<i32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <i32>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::epub::LinkTarget> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::epub::LinkTarget>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::epub::ResourceRef> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::epub::ResourceRef>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1075,10 +1399,12 @@ impl SseEncode for crate::api::epub::ReaderBlock {
         <Vec<crate::api::epub::ReaderInline>>::sse_encode(self.inlines, serializer);
         <Vec<crate::api::epub::ReaderBlock>>::sse_encode(self.blocks, serializer);
         <Vec<crate::api::epub::ListItem>>::sse_encode(self.items, serializer);
-        <Option<String>>::sse_encode(self.src, serializer);
+        <Option<crate::api::epub::ResourceRef>>::sse_encode(self.resource, serializer);
         <Option<String>>::sse_encode(self.alt, serializer);
         <Option<String>>::sse_encode(self.caption, serializer);
         <Vec<crate::api::epub::TableRow>>::sse_encode(self.rows, serializer);
+        <Option<String>>::sse_encode(self.code_text, serializer);
+        <crate::api::epub::SourceMap>::sse_encode(self.source, serializer);
     }
 }
 
@@ -1095,6 +1421,7 @@ impl SseEncode for crate::api::epub::ReaderBlockKind {
                 crate::api::epub::ReaderBlockKind::Image => 5,
                 crate::api::epub::ReaderBlockKind::Table => 6,
                 crate::api::epub::ReaderBlockKind::HorizontalRule => 7,
+                crate::api::epub::ReaderBlockKind::Code => 8,
                 _ => {
                     unimplemented!("");
                 }
@@ -1117,9 +1444,12 @@ impl SseEncode for crate::api::epub::ReaderInline {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::epub::ReaderInlineKind>::sse_encode(self.kind, serializer);
         <Option<String>>::sse_encode(self.text, serializer);
-        <Option<String>>::sse_encode(self.href, serializer);
+        <Option<crate::api::epub::LinkTarget>>::sse_encode(self.target, serializer);
+        <Option<crate::api::epub::ResourceRef>>::sse_encode(self.resource, serializer);
+        <Option<String>>::sse_encode(self.alt, serializer);
         <Vec<crate::api::epub::SpanStyleHint>>::sse_encode(self.style_hints, serializer);
         <Vec<crate::api::epub::ReaderInline>>::sse_encode(self.children, serializer);
+        <crate::api::epub::SourceMap>::sse_encode(self.source, serializer);
     }
 }
 
@@ -1129,19 +1459,43 @@ impl SseEncode for crate::api::epub::ReaderInlineKind {
         <i32>::sse_encode(
             match self {
                 crate::api::epub::ReaderInlineKind::Text => 0,
-                crate::api::epub::ReaderInlineKind::Emphasis => 1,
-                crate::api::epub::ReaderInlineKind::Strong => 2,
-                crate::api::epub::ReaderInlineKind::Sup => 3,
-                crate::api::epub::ReaderInlineKind::Sub => 4,
-                crate::api::epub::ReaderInlineKind::Link => 5,
-                crate::api::epub::ReaderInlineKind::LineBreak => 6,
-                crate::api::epub::ReaderInlineKind::Span => 7,
+                crate::api::epub::ReaderInlineKind::Span => 1,
+                crate::api::epub::ReaderInlineKind::Link => 2,
+                crate::api::epub::ReaderInlineKind::Image => 3,
+                crate::api::epub::ReaderInlineKind::LineBreak => 4,
                 _ => {
                     unimplemented!("");
                 }
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::epub::ResourceKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::epub::ResourceKind::Image => 0,
+                crate::api::epub::ResourceKind::Stylesheet => 1,
+                crate::api::epub::ResourceKind::Cover => 2,
+                crate::api::epub::ResourceKind::Other => 3,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::epub::ResourceRef {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.href, serializer);
+        <Option<String>>::sse_encode(self.media_type, serializer);
+        <crate::api::epub::ResourceKind>::sse_encode(self.kind, serializer);
     }
 }
 
@@ -1154,10 +1508,20 @@ impl SseEncode for crate::api::epub::Section {
         <Option<String>>::sse_encode(self.start_fragment, serializer);
         <Option<String>>::sse_encode(self.end_href, serializer);
         <Option<String>>::sse_encode(self.end_fragment, serializer);
-        <usize>::sse_encode(self.spine_start, serializer);
-        <usize>::sse_encode(self.spine_end, serializer);
+        <i32>::sse_encode(self.spine_start, serializer);
+        <i32>::sse_encode(self.spine_end, serializer);
         <Vec<String>>::sse_encode(self.anchors, serializer);
         <crate::api::epub::ReaderDocument>::sse_encode(self.document, serializer);
+    }
+}
+
+impl SseEncode for crate::api::epub::SourceMap {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.spine_index, serializer);
+        <String>::sse_encode(self.href, serializer);
+        <Option<String>>::sse_encode(self.fragment, serializer);
+        <Vec<i32>>::sse_encode(self.node_path, serializer);
     }
 }
 
@@ -1169,6 +1533,9 @@ impl SseEncode for crate::api::epub::SpanStyleHint {
                 crate::api::epub::SpanStyleHint::Italic => 0,
                 crate::api::epub::SpanStyleHint::Bold => 1,
                 crate::api::epub::SpanStyleHint::Underline => 2,
+                crate::api::epub::SpanStyleHint::Superscript => 3,
+                crate::api::epub::SpanStyleHint::Subscript => 4,
+                crate::api::epub::SpanStyleHint::Code => 5,
                 _ => {
                     unimplemented!("");
                 }
@@ -1183,6 +1550,7 @@ impl SseEncode for crate::api::epub::TableCell {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_header, serializer);
         <Vec<crate::api::epub::ReaderInline>>::sse_encode(self.inlines, serializer);
+        <crate::api::epub::SourceMap>::sse_encode(self.source, serializer);
     }
 }
 
@@ -1190,6 +1558,7 @@ impl SseEncode for crate::api::epub::TableRow {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::api::epub::TableCell>>::sse_encode(self.cells, serializer);
+        <crate::api::epub::SourceMap>::sse_encode(self.source, serializer);
     }
 }
 
@@ -1203,16 +1572,6 @@ impl SseEncode for u8 {
 impl SseEncode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
-}
-
-impl SseEncode for usize {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        serializer
-            .cursor
-            .write_u64::<NativeEndian>(self as _)
-            .unwrap();
-    }
 }
 
 #[cfg(not(target_family = "wasm"))]

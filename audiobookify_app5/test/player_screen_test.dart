@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -78,10 +79,10 @@ void main() {
           id: 'section-1',
           title: 'Chapter 1',
           startHref: 'chapter1.xhtml',
-          spineStart: BigInt.zero,
-          spineEnd: BigInt.zero,
+          spineStart: 0,
+          spineEnd: 0,
           anchors: const [],
-          document: const ReaderDocument(
+          document: ReaderDocument(
             chapterHref: 'chapter1.xhtml',
             blocks: [
               ReaderBlock(
@@ -94,11 +95,13 @@ void main() {
                     text: 'Hello world.',
                     styleHints: [],
                     children: [],
+                    source: _source('chapter1.xhtml'),
                   ),
                 ],
                 blocks: [],
                 items: [],
                 rows: [],
+                source: _source('chapter1.xhtml'),
               ),
               ReaderBlock(
                 kind: ReaderBlockKind.paragraph,
@@ -110,11 +113,13 @@ void main() {
                     text: 'Second paragraph.',
                     styleHints: [],
                     children: [],
+                    source: _source('chapter1.xhtml', fragment: 'p2'),
                   ),
                 ],
                 blocks: [],
                 items: [],
                 rows: [],
+                source: _source('chapter1.xhtml', fragment: 'p2'),
               ),
             ],
           ),
@@ -181,6 +186,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(ttsService.state.paragraphIndex, 1);
   }, skip: true); // Hanging in test runner; revisit with async/ticker control.
+}
+
+SourceMap _source(
+  String href, {
+  String? fragment,
+}) {
+  return SourceMap(
+    spineIndex: 0,
+    href: href,
+    fragment: fragment,
+    nodePath: Int32List(0),
+  );
 }
 
 class _FakeEpubService extends EpubService {

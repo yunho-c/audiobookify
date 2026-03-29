@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `map_runtime_error`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `from_render_model`, `map_runtime_error`, `to_i32`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// Open an EPUB file from path and parse runtime reader sections.
 Future<ParsedEpubBook> openEpub({required String path}) =>
@@ -16,10 +16,10 @@ Future<ParsedEpubBook> openEpub({required String path}) =>
 /// Lazily read a book resource from the EPUB archive.
 Future<Uint8List?> readBookResourceBytes({
   required String path,
-  required String href,
+  required ResourceRef resource,
 }) => RustLib.instance.api.crateApiEpubReadBookResourceBytes(
   path: path,
-  href: href,
+  resource: resource,
 );
 
 /// Error type for EPUB operations.
@@ -79,20 +79,59 @@ class EpubMetadata {
           description == other.description;
 }
 
-class ListItem {
-  final List<ReaderBlock> blocks;
+class LinkTarget {
+  final LinkTargetKind kind;
+  final String href;
+  final String? sectionId;
+  final int? sectionIndex;
+  final String? fragment;
 
-  const ListItem({required this.blocks});
+  const LinkTarget({
+    required this.kind,
+    required this.href,
+    this.sectionId,
+    this.sectionIndex,
+    this.fragment,
+  });
 
   @override
-  int get hashCode => blocks.hashCode;
+  int get hashCode =>
+      kind.hashCode ^
+      href.hashCode ^
+      sectionId.hashCode ^
+      sectionIndex.hashCode ^
+      fragment.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LinkTarget &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          href == other.href &&
+          sectionId == other.sectionId &&
+          sectionIndex == other.sectionIndex &&
+          fragment == other.fragment;
+}
+
+enum LinkTargetKind { internal, external_, unresolved }
+
+class ListItem {
+  final List<ReaderBlock> blocks;
+  final SourceMap source;
+
+  const ListItem({required this.blocks, required this.source});
+
+  @override
+  int get hashCode => blocks.hashCode ^ source.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ListItem &&
           runtimeType == other.runtimeType &&
-          blocks == other.blocks;
+          blocks == other.blocks &&
+          source == other.source;
 }
 
 /// Fully parsed runtime book data.
@@ -128,10 +167,12 @@ class ReaderBlock {
   final List<ReaderInline> inlines;
   final List<ReaderBlock> blocks;
   final List<ListItem> items;
-  final String? src;
+  final ResourceRef? resource;
   final String? alt;
   final String? caption;
   final List<TableRow> rows;
+  final String? codeText;
+  final SourceMap source;
 
   const ReaderBlock({
     required this.kind,
@@ -140,10 +181,12 @@ class ReaderBlock {
     required this.inlines,
     required this.blocks,
     required this.items,
-    this.src,
+    this.resource,
     this.alt,
     this.caption,
     required this.rows,
+    this.codeText,
+    required this.source,
   });
 
   @override
@@ -154,10 +197,12 @@ class ReaderBlock {
       inlines.hashCode ^
       blocks.hashCode ^
       items.hashCode ^
-      src.hashCode ^
+      resource.hashCode ^
       alt.hashCode ^
       caption.hashCode ^
-      rows.hashCode;
+      rows.hashCode ^
+      codeText.hashCode ^
+      source.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -170,10 +215,12 @@ class ReaderBlock {
           inlines == other.inlines &&
           blocks == other.blocks &&
           items == other.items &&
-          src == other.src &&
+          resource == other.resource &&
           alt == other.alt &&
           caption == other.caption &&
-          rows == other.rows;
+          rows == other.rows &&
+          codeText == other.codeText &&
+          source == other.source;
 }
 
 enum ReaderBlockKind {
@@ -185,6 +232,7 @@ enum ReaderBlockKind {
   image,
   table,
   horizontalRule,
+  code,
 }
 
 class ReaderDocument {
@@ -208,25 +256,34 @@ class ReaderDocument {
 class ReaderInline {
   final ReaderInlineKind kind;
   final String? text;
-  final String? href;
+  final LinkTarget? target;
+  final ResourceRef? resource;
+  final String? alt;
   final List<SpanStyleHint> styleHints;
   final List<ReaderInline> children;
+  final SourceMap source;
 
   const ReaderInline({
     required this.kind,
     this.text,
-    this.href,
+    this.target,
+    this.resource,
+    this.alt,
     required this.styleHints,
     required this.children,
+    required this.source,
   });
 
   @override
   int get hashCode =>
       kind.hashCode ^
       text.hashCode ^
-      href.hashCode ^
+      target.hashCode ^
+      resource.hashCode ^
+      alt.hashCode ^
       styleHints.hashCode ^
-      children.hashCode;
+      children.hashCode ^
+      source.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -235,20 +292,36 @@ class ReaderInline {
           runtimeType == other.runtimeType &&
           kind == other.kind &&
           text == other.text &&
-          href == other.href &&
+          target == other.target &&
+          resource == other.resource &&
+          alt == other.alt &&
           styleHints == other.styleHints &&
-          children == other.children;
+          children == other.children &&
+          source == other.source;
 }
 
-enum ReaderInlineKind {
-  text,
-  emphasis,
-  strong,
-  sup,
-  sub,
-  link,
-  lineBreak,
-  span,
+enum ReaderInlineKind { text, span, link, image, lineBreak }
+
+enum ResourceKind { image, stylesheet, cover, other }
+
+class ResourceRef {
+  final String href;
+  final String? mediaType;
+  final ResourceKind kind;
+
+  const ResourceRef({required this.href, this.mediaType, required this.kind});
+
+  @override
+  int get hashCode => href.hashCode ^ mediaType.hashCode ^ kind.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ResourceRef &&
+          runtimeType == other.runtimeType &&
+          href == other.href &&
+          mediaType == other.mediaType &&
+          kind == other.kind;
 }
 
 class Section {
@@ -258,8 +331,8 @@ class Section {
   final String? startFragment;
   final String? endHref;
   final String? endFragment;
-  final BigInt spineStart;
-  final BigInt spineEnd;
+  final int spineStart;
+  final int spineEnd;
   final List<String> anchors;
   final ReaderDocument document;
 
@@ -306,16 +379,52 @@ class Section {
           document == other.document;
 }
 
-enum SpanStyleHint { italic, bold, underline }
+class SourceMap {
+  final int spineIndex;
+  final String href;
+  final String? fragment;
+  final Int32List nodePath;
+
+  const SourceMap({
+    required this.spineIndex,
+    required this.href,
+    this.fragment,
+    required this.nodePath,
+  });
+
+  @override
+  int get hashCode =>
+      spineIndex.hashCode ^
+      href.hashCode ^
+      fragment.hashCode ^
+      nodePath.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SourceMap &&
+          runtimeType == other.runtimeType &&
+          spineIndex == other.spineIndex &&
+          href == other.href &&
+          fragment == other.fragment &&
+          nodePath == other.nodePath;
+}
+
+enum SpanStyleHint { italic, bold, underline, superscript, subscript, code }
 
 class TableCell {
   final bool isHeader;
   final List<ReaderInline> inlines;
+  final SourceMap source;
 
-  const TableCell({required this.isHeader, required this.inlines});
+  const TableCell({
+    required this.isHeader,
+    required this.inlines,
+    required this.source,
+  });
 
   @override
-  int get hashCode => isHeader.hashCode ^ inlines.hashCode;
+  int get hashCode => isHeader.hashCode ^ inlines.hashCode ^ source.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -323,21 +432,24 @@ class TableCell {
       other is TableCell &&
           runtimeType == other.runtimeType &&
           isHeader == other.isHeader &&
-          inlines == other.inlines;
+          inlines == other.inlines &&
+          source == other.source;
 }
 
 class TableRow {
   final List<TableCell> cells;
+  final SourceMap source;
 
-  const TableRow({required this.cells});
+  const TableRow({required this.cells, required this.source});
 
   @override
-  int get hashCode => cells.hashCode;
+  int get hashCode => cells.hashCode ^ source.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is TableRow &&
           runtimeType == other.runtimeType &&
-          cells == other.cells;
+          cells == other.cells &&
+          source == other.source;
 }

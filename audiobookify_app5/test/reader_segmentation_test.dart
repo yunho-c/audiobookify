@@ -10,7 +10,10 @@ void main() {
       blocks: [
         ParagraphBlock([
           const TextInline('Hello '),
-          const StrongInline([TextInline('world')]),
+          const SpanInline(
+            styleHints: {SpanStyleHint.bold},
+            children: [TextInline('world')],
+          ),
           const TextInline('. Second sentence.'),
         ]),
       ],
@@ -36,7 +39,10 @@ void main() {
       blocks: [
         ParagraphBlock([
           const TextInline('H'),
-          const SubInline([TextInline('2')]),
+          const SpanInline(
+            styleHints: {SpanStyleHint.subscript},
+            children: [TextInline('2')],
+          ),
           const TextInline('O is water.'),
         ]),
       ],

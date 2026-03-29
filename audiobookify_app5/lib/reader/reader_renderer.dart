@@ -46,6 +46,8 @@ class ReaderBlockRenderer {
     required double transitionValue,
     required TapGestureRecognizer? Function(int sentenceIndex)?
         sentenceRecognizer,
+    required TapGestureRecognizer? Function(ReaderLinkTarget target)?
+        linkRecognizer,
     required VoidCallback? onTapParagraph,
     ReaderTtsParagraph? ttsData,
   }) {
@@ -59,17 +61,22 @@ class ReaderBlockRenderer {
     if (block is HorizontalRuleBlock) {
       return _buildDivider(theme, renderBlock.style);
     }
+    if (block is CodeBlock) {
+      return _buildCodeBlock(block, theme, renderBlock.style);
+    }
     if (block is ParagraphBlock) {
       return _buildTextBlock(
         inlines: block.inlines,
         headingLevel: null,
         renderBlock: renderBlock,
         theme: theme,
+        resolver: resolver,
         isActiveParagraph: isActiveParagraph,
         activeSentenceIndex: activeSentenceIndex,
         previousSentenceIndex: previousSentenceIndex,
         transitionValue: transitionValue,
         sentenceRecognizer: sentenceRecognizer,
+        linkRecognizer: linkRecognizer,
         onTapParagraph: onTapParagraph,
         ttsData: ttsData,
       );
@@ -80,11 +87,13 @@ class ReaderBlockRenderer {
         headingLevel: block.level,
         renderBlock: renderBlock,
         theme: theme,
+        resolver: resolver,
         isActiveParagraph: isActiveParagraph,
         activeSentenceIndex: activeSentenceIndex,
         previousSentenceIndex: previousSentenceIndex,
         transitionValue: transitionValue,
         sentenceRecognizer: sentenceRecognizer,
+        linkRecognizer: linkRecognizer,
         onTapParagraph: onTapParagraph,
         ttsData: ttsData,
       );
@@ -212,6 +221,7 @@ class ReaderBlockRenderer {
                       theme,
                       theme.colorScheme.onSurface,
                       baseStyle: baseStyle,
+                      linkRecognizer: null,
                     );
                     return Padding(
                       padding: const EdgeInsets.all(8),
@@ -233,12 +243,15 @@ class ReaderBlockRenderer {
     required int? headingLevel,
     required ReaderRenderBlock renderBlock,
     required ReaderRenderTheme theme,
+    required EpubResourceResolver resolver,
     required bool isActiveParagraph,
     required int activeSentenceIndex,
     required int previousSentenceIndex,
     required double transitionValue,
     required TapGestureRecognizer? Function(int sentenceIndex)?
         sentenceRecognizer,
+    required TapGestureRecognizer? Function(ReaderLinkTarget target)?
+        linkRecognizer,
     required VoidCallback? onTapParagraph,
     required ReaderTtsParagraph? ttsData,
   }) {
@@ -270,12 +283,16 @@ class ReaderBlockRenderer {
       overrideWeight: headingLevel != null ? FontWeight.w700 : null,
     );
 
-    final spans = ttsData == null
-        ? _buildInlineSpans(
-            flattenInlines(inlines),
+    final containsInlineImages = _containsInlineImages(inlines);
+    final containsInteractiveLinks = _containsInteractiveLinks(inlines);
+    final spans = ttsData == null || containsInlineImages
+        ? _buildInlineSpansFromInlines(
+            inlines,
             theme,
             textColor,
+            resolver: resolver,
             baseStyle: contentStyle,
+            linkRecognizer: linkRecognizer,
           )
         : _buildSentenceSpans(
             ttsData.sentenceRuns,
@@ -286,6 +303,7 @@ class ReaderBlockRenderer {
             previousSentenceIndex: previousSentenceIndex,
             transitionValue: transitionValue,
             sentenceRecognizer: sentenceRecognizer,
+            linkRecognizer: linkRecognizer,
           );
 
     final indent = _indentForStyle(theme, style);
@@ -331,7 +349,9 @@ class ReaderBlockRenderer {
         (theme.activeParagraphOpacity * 0.9).clamp(0.08, 0.3);
 
     final effectiveOnTap =
-        sentenceRecognizer != null ? null : onTapParagraph;
+        sentenceRecognizer != null || containsInteractiveLinks
+            ? null
+            : onTapParagraph;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -432,7 +452,7 @@ class ReaderBlockRenderer {
     );
   }
 
-  static List<TextSpan> _buildSentenceSpans(
+  static List<InlineSpan> _buildSentenceSpans(
     List<List<TextRun>> sentences,
     ReaderRenderTheme theme, {
     required TextStyle baseStyle,
@@ -442,8 +462,10 @@ class ReaderBlockRenderer {
     required double transitionValue,
     required TapGestureRecognizer? Function(int sentenceIndex)?
         sentenceRecognizer,
+    required TapGestureRecognizer? Function(ReaderLinkTarget target)?
+        linkRecognizer,
   }) {
-    final spans = <TextSpan>[];
+    final spans = <InlineSpan>[];
     for (var sentenceIdx = 0; sentenceIdx < sentences.length; sentenceIdx++) {
       final isCurrentSentence =
           isActiveParagraph && sentenceIdx == activeSentenceIndex;
@@ -474,7 +496,10 @@ class ReaderBlockRenderer {
             sentenceColor,
             highlightColor: highlightColor,
             highlightStyle: theme.sentenceHighlightStyle,
-            recognizer: recognizer,
+            recognizer:
+                run.style.linkTarget != null && linkRecognizer != null
+                    ? linkRecognizer(run.style.linkTarget!)
+                    : recognizer,
           ),
         );
       }
@@ -485,11 +510,12 @@ class ReaderBlockRenderer {
     return spans;
   }
 
-  static List<TextSpan> _buildInlineSpans(
+  static List<InlineSpan> _buildInlineSpans(
     List<TextRun> runs,
     ReaderRenderTheme theme,
     Color baseColor, {
     TextStyle? baseStyle,
+    TapGestureRecognizer? Function(ReaderLinkTarget target)? linkRecognizer,
   }) {
     final resolvedBase = baseStyle ??
         _buildReaderTextStyle(
@@ -504,12 +530,130 @@ class ReaderBlockRenderer {
             resolvedBase,
             theme,
             baseColor,
+            recognizer:
+                run.style.linkTarget != null && linkRecognizer != null
+                    ? linkRecognizer(run.style.linkTarget!)
+                    : null,
           ),
         )
         .toList();
   }
 
-  static TextSpan _runToSpan(
+  static List<InlineSpan> _buildInlineSpansFromInlines(
+    List<ReaderInline> inlines,
+    ReaderRenderTheme theme,
+    Color baseColor, {
+    required TextStyle baseStyle,
+    required TapGestureRecognizer? Function(ReaderLinkTarget target)?
+        linkRecognizer,
+    required EpubResourceResolver? resolver,
+  }) {
+    return inlines
+        .map(
+          (inline) => _inlineToSpan(
+            inline,
+            theme,
+            baseColor,
+            baseStyle: baseStyle,
+            linkRecognizer: linkRecognizer,
+            resolver: resolver,
+          ),
+        )
+        .toList();
+  }
+
+  static InlineSpan _inlineToSpan(
+    ReaderInline inline,
+    ReaderRenderTheme theme,
+    Color baseColor, {
+    required TextStyle baseStyle,
+    required TapGestureRecognizer? Function(ReaderLinkTarget target)?
+        linkRecognizer,
+    required EpubResourceResolver? resolver,
+  }) {
+    if (inline is TextInline) {
+      return TextSpan(text: inline.text, style: baseStyle);
+    }
+    if (inline is LineBreakInline) {
+      return TextSpan(text: '\n', style: baseStyle);
+    }
+    if (inline is InlineImage) {
+      if (resolver == null) {
+        return TextSpan(text: inline.alt ?? '', style: baseStyle);
+      }
+      return WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: _InlineImageWidget(
+          resource: inline.resource,
+          alt: inline.alt,
+          resolver: resolver,
+          colorScheme: theme.colorScheme,
+        ),
+      );
+    }
+    if (inline is LinkInline) {
+      return TextSpan(
+        style: _applyRunStyle(
+          baseStyle,
+          TextRunStyle(linkTarget: inline.target, underline: true),
+          baseStyle.color ?? baseColor,
+          null,
+          PlayerThemeSentenceHighlightStyle.background,
+        ),
+        recognizer:
+            linkRecognizer != null ? linkRecognizer(inline.target) : null,
+        children: _buildInlineSpansFromInlines(
+          inline.children,
+          theme,
+          baseColor,
+          baseStyle: baseStyle,
+          linkRecognizer: linkRecognizer,
+          resolver: resolver,
+        ),
+      );
+    }
+    if (inline is SpanInline) {
+      var spanStyle = TextRunStyle();
+      if (inline.styleHints.contains(SpanStyleHint.italic)) {
+        spanStyle = spanStyle.copyWith(italic: true);
+      }
+      if (inline.styleHints.contains(SpanStyleHint.bold)) {
+        spanStyle = spanStyle.copyWith(bold: true);
+      }
+      if (inline.styleHints.contains(SpanStyleHint.underline)) {
+        spanStyle = spanStyle.copyWith(underline: true);
+      }
+      if (inline.styleHints.contains(SpanStyleHint.superscript)) {
+        spanStyle = spanStyle.copyWith(sup: true);
+      }
+      if (inline.styleHints.contains(SpanStyleHint.subscript)) {
+        spanStyle = spanStyle.copyWith(sub: true);
+      }
+      if (inline.styleHints.contains(SpanStyleHint.code)) {
+        spanStyle = spanStyle.copyWith(code: true);
+      }
+      return TextSpan(
+        style: _applyRunStyle(
+          baseStyle,
+          spanStyle,
+          baseStyle.color ?? baseColor,
+          null,
+          PlayerThemeSentenceHighlightStyle.background,
+        ),
+        children: _buildInlineSpansFromInlines(
+          inline.children,
+          theme,
+          baseColor,
+          baseStyle: baseStyle,
+          linkRecognizer: linkRecognizer,
+          resolver: resolver,
+        ),
+      );
+    }
+    return const TextSpan(text: '');
+  }
+
+  static InlineSpan _runToSpan(
     TextRun run,
     TextStyle baseStyle,
     ReaderRenderTheme theme,
@@ -566,8 +710,17 @@ class ReaderBlockRenderer {
     if (runStyle.underline) {
       style = style.copyWith(decoration: TextDecoration.underline);
     }
-    if (runStyle.linkHref != null && runStyle.linkHref!.isNotEmpty) {
+    if (runStyle.linkTarget != null) {
       style = style.copyWith(color: baseStyle.color ?? baseColor);
+    }
+    if (runStyle.code) {
+      style = style.copyWith(
+        fontFamily: 'monospace',
+        backgroundColor:
+            highlightColor == null || highlightColor.opacity == 0
+                ? baseColor.withOpacity(0.08)
+                : highlightColor,
+      );
     }
     if (highlightColor != null && highlightColor.opacity > 0) {
       if (highlightStyle == PlayerThemeSentenceHighlightStyle.underline) {
@@ -647,5 +800,106 @@ class ReaderBlockRenderer {
       return isActive ? base : base.withOpacity(0.78);
     }
     return isActive ? colorScheme.onSurface : colorScheme.onSurfaceVariant;
+  }
+
+  static Widget _buildCodeBlock(
+    CodeBlock block,
+    ReaderRenderTheme theme,
+    RenderBlockStyle style,
+  ) {
+    final indent = _indentForStyle(theme, style);
+    final baseStyle = _buildReaderTextStyle(
+      baseStyle: theme.textTheme.bodyMedium,
+      theme: theme.readerTheme,
+      color: theme.colorScheme.onSurface,
+    ).copyWith(
+      fontFamily: 'monospace',
+      height: 1.45,
+    );
+    return Padding(
+      padding: EdgeInsets.fromLTRB(indent, 12, 0, 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withOpacity(0.6),
+          ),
+        ),
+        child: Text(block.text, style: baseStyle),
+      ),
+    );
+  }
+
+  static bool _containsInlineImages(List<ReaderInline> inlines) {
+    for (final inline in inlines) {
+      if (inline is InlineImage) return true;
+      if (inline is SpanInline && _containsInlineImages(inline.children)) {
+        return true;
+      }
+      if (inline is LinkInline && _containsInlineImages(inline.children)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _containsInteractiveLinks(List<ReaderInline> inlines) {
+    for (final inline in inlines) {
+      if (inline is LinkInline) return true;
+      if (inline is SpanInline && _containsInteractiveLinks(inline.children)) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+class _InlineImageWidget extends StatelessWidget {
+  final ReaderResourceRef resource;
+  final String? alt;
+  final EpubResourceResolver resolver;
+  final ColorScheme colorScheme;
+
+  const _InlineImageWidget({
+    required this.resource,
+    required this.alt,
+    required this.resolver,
+    required this.colorScheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List?>(
+      future: resolver.loadResource(resource),
+      builder: (context, snapshot) {
+        final bytes = snapshot.data;
+        if (bytes == null) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Icon(
+              Icons.image_outlined,
+              size: 16,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            height: 18,
+            errorBuilder: (_, _, _) => Icon(
+              Icons.broken_image_outlined,
+              size: 16,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        );
+      },
+    );
   }
 }

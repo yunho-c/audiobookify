@@ -142,10 +142,10 @@ ParsedEpubBook _stubEpubBook() {
         id: 'section-1',
         title: 'Chapter 1',
         startHref: 'chapter1.xhtml',
-        spineStart: BigInt.zero,
-        spineEnd: BigInt.zero,
+        spineStart: 0,
+        spineEnd: 0,
         anchors: const [],
-        document: const ReaderDocument(
+        document: ReaderDocument(
           chapterHref: 'chapter1.xhtml',
           blocks: [
             ReaderBlock(
@@ -158,11 +158,13 @@ ParsedEpubBook _stubEpubBook() {
                   text: 'Hello world.',
                   styleHints: [],
                   children: [],
+                  source: _source('chapter1.xhtml'),
                 ),
               ],
               blocks: [],
               items: [],
               rows: [],
+              source: _source('chapter1.xhtml'),
             ),
           ],
         ),
@@ -184,4 +186,16 @@ Future<void> _pumpUntilFound(
     }
   }
   fail('Timed out waiting for ${finder.description}.');
+}
+
+SourceMap _source(
+  String href, {
+  String? fragment,
+}) {
+  return SourceMap(
+    spineIndex: 0,
+    href: href,
+    fragment: fragment,
+    nodePath: Int32List(0),
+  );
 }

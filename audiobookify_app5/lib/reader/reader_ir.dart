@@ -1,8 +1,63 @@
 import 'package:flutter/foundation.dart';
 
+enum ReaderResourceKind { image, stylesheet, cover, other }
+
+@immutable
+class ReaderResourceRef {
+  final String href;
+  final String? mediaType;
+  final ReaderResourceKind kind;
+
+  const ReaderResourceRef({
+    required this.href,
+    this.mediaType,
+    required this.kind,
+  });
+}
+
+enum ReaderLinkTargetKind { internal, external, unresolved }
+
+@immutable
+class ReaderLinkTarget {
+  final ReaderLinkTargetKind kind;
+  final String href;
+  final String? sectionId;
+  final int? sectionIndex;
+  final String? fragment;
+
+  const ReaderLinkTarget({
+    required this.kind,
+    required this.href,
+    this.sectionId,
+    this.sectionIndex,
+    this.fragment,
+  });
+
+  bool get isInternal => kind == ReaderLinkTargetKind.internal;
+  bool get isExternal => kind == ReaderLinkTargetKind.external;
+  bool get isUnresolved => kind == ReaderLinkTargetKind.unresolved;
+}
+
+@immutable
+class ReaderSourceMap {
+  final int spineIndex;
+  final String href;
+  final String? fragment;
+  final List<int> nodePath;
+
+  const ReaderSourceMap({
+    required this.spineIndex,
+    required this.href,
+    this.fragment,
+    this.nodePath = const [],
+  });
+}
+
 @immutable
 abstract class ReaderBlock {
-  const ReaderBlock();
+  final ReaderSourceMap? source;
+
+  const ReaderBlock({this.source});
 }
 
 @immutable
@@ -20,7 +75,10 @@ class ReaderDocument {
 class ParagraphBlock extends ReaderBlock {
   final List<ReaderInline> inlines;
 
-  const ParagraphBlock(this.inlines);
+  const ParagraphBlock(
+    this.inlines, {
+    super.source,
+  });
 }
 
 @immutable
@@ -31,6 +89,7 @@ class HeadingBlock extends ReaderBlock {
   const HeadingBlock({
     required this.level,
     required this.inlines,
+    super.source,
   });
 }
 
@@ -38,7 +97,10 @@ class HeadingBlock extends ReaderBlock {
 class BlockQuoteBlock extends ReaderBlock {
   final List<ReaderBlock> blocks;
 
-  const BlockQuoteBlock(this.blocks);
+  const BlockQuoteBlock(
+    this.blocks, {
+    super.source,
+  });
 }
 
 @immutable
@@ -49,6 +111,7 @@ class ListBlock extends ReaderBlock {
   const ListBlock({
     required this.ordered,
     required this.items,
+    super.source,
   });
 }
 
@@ -56,106 +119,102 @@ class ListBlock extends ReaderBlock {
 class ListItemBlock extends ReaderBlock {
   final List<ReaderBlock> blocks;
 
-  const ListItemBlock(this.blocks);
+  const ListItemBlock(
+    this.blocks, {
+    super.source,
+  });
 }
 
 @immutable
 class ImageBlock extends ReaderBlock {
-  final String src;
+  final ReaderResourceRef resource;
   final String? alt;
   final String? caption;
 
   const ImageBlock({
-    required this.src,
+    required this.resource,
     this.alt,
     this.caption,
+    super.source,
   });
+
+  String get src => resource.href;
 }
 
 @immutable
 class TableBlock extends ReaderBlock {
   final List<TableRowBlock> rows;
 
-  const TableBlock({required this.rows});
+  const TableBlock({
+    required this.rows,
+    super.source,
+  });
 }
 
 @immutable
 class TableRowBlock {
   final List<TableCellBlock> cells;
+  final ReaderSourceMap? source;
 
-  const TableRowBlock({required this.cells});
+  const TableRowBlock({
+    required this.cells,
+    this.source,
+  });
 }
 
 @immutable
 class TableCellBlock {
   final bool isHeader;
   final List<ReaderInline> inlines;
+  final ReaderSourceMap? source;
 
   const TableCellBlock({
     required this.isHeader,
     required this.inlines,
+    this.source,
   });
 }
 
 @immutable
 class HorizontalRuleBlock extends ReaderBlock {
-  const HorizontalRuleBlock();
+  const HorizontalRuleBlock({super.source});
+}
+
+@immutable
+class CodeBlock extends ReaderBlock {
+  final String text;
+
+  const CodeBlock({
+    required this.text,
+    super.source,
+  });
 }
 
 @immutable
 abstract class ReaderInline {
-  const ReaderInline();
+  final ReaderSourceMap? source;
+
+  const ReaderInline({this.source});
 }
 
 @immutable
 class TextInline extends ReaderInline {
   final String text;
 
-  const TextInline(this.text);
+  const TextInline(
+    this.text, {
+    super.source,
+  });
 }
 
-@immutable
-class EmphasisInline extends ReaderInline {
-  final List<ReaderInline> children;
-
-  const EmphasisInline(this.children);
+enum SpanStyleHint {
+  italic,
+  bold,
+  underline,
+  superscript,
+  subscript,
+  code,
 }
-
-@immutable
-class StrongInline extends ReaderInline {
-  final List<ReaderInline> children;
-
-  const StrongInline(this.children);
-}
-
-@immutable
-class SupInline extends ReaderInline {
-  final List<ReaderInline> children;
-
-  const SupInline(this.children);
-}
-
-@immutable
-class SubInline extends ReaderInline {
-  final List<ReaderInline> children;
-
-  const SubInline(this.children);
-}
-
-@immutable
-class LinkInline extends ReaderInline {
-  final String href;
-  final List<ReaderInline> children;
-
-  const LinkInline({required this.href, required this.children});
-}
-
-@immutable
-class LineBreakInline extends ReaderInline {
-  const LineBreakInline();
-}
-
-enum SpanStyleHint { italic, bold, underline }
 
 @immutable
 class SpanInline extends ReaderInline {
@@ -165,5 +224,37 @@ class SpanInline extends ReaderInline {
   const SpanInline({
     required this.styleHints,
     required this.children,
+    super.source,
   });
+}
+
+@immutable
+class LinkInline extends ReaderInline {
+  final ReaderLinkTarget target;
+  final List<ReaderInline> children;
+
+  const LinkInline({
+    required this.target,
+    required this.children,
+    super.source,
+  });
+
+  String get href => target.href;
+}
+
+@immutable
+class InlineImage extends ReaderInline {
+  final ReaderResourceRef resource;
+  final String? alt;
+
+  const InlineImage({
+    required this.resource,
+    this.alt,
+    super.source,
+  });
+}
+
+@immutable
+class LineBreakInline extends ReaderInline {
+  const LineBreakInline({super.source});
 }

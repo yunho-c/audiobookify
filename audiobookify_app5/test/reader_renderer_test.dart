@@ -1,14 +1,15 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:audiobookify/models/player_theme_settings.dart';
 import 'package:audiobookify/reader/epub_resource_resolver.dart';
 import 'package:audiobookify/reader/reader_ir.dart';
 import 'package:audiobookify/reader/reader_renderer.dart';
 import 'package:audiobookify/reader/reader_segmentation.dart';
-import 'package:audiobookify/models/player_theme_settings.dart';
 
 void main() {
   testWidgets('renders text blocks with sentence spans', (tester) async {
@@ -27,31 +28,19 @@ void main() {
       ],
     );
 
-    final theme = ReaderRenderTheme(
-      readerTheme: const PlayerThemeSettings(),
-      textTheme: const TextTheme(),
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      shadowColor: Colors.black45,
-      paragraphSpacing: 4,
-      paragraphIndent: 0,
-      activeParagraphStyle: PlayerThemeActiveParagraphStyle.highlightBar,
-      activeParagraphOpacity: 0.12,
-      sentenceHighlightStyle: PlayerThemeSentenceHighlightStyle.background,
-      sentenceHighlightOpacity: 0.2,
-    );
-
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: ReaderBlockRenderer.buildBlock(
             renderBlock: renderBlock,
-            theme: theme,
+            theme: _theme(),
             resolver: EpubResourceResolver.fromMemory(const {}),
             isActiveParagraph: true,
             activeSentenceIndex: 0,
             previousSentenceIndex: -1,
             transitionValue: 1.0,
             sentenceRecognizer: null,
+            linkRecognizer: null,
             onTapParagraph: null,
             ttsData: ttsData,
           ),
@@ -59,7 +48,10 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('Hello world', findRichText: true), findsOneWidget);
+    expect(
+      find.textContaining('Hello world', findRichText: true),
+      findsOneWidget,
+    );
   });
 
   testWidgets('renders image blocks from resolver', (tester) async {
@@ -72,24 +64,15 @@ void main() {
 
     final renderBlock = ReaderRenderBlock(
       block: const ImageBlock(
-        src: 'images/pic.png',
+        resource: ReaderResourceRef(
+          href: 'images/pic.png',
+          mediaType: 'image/png',
+          kind: ReaderResourceKind.image,
+        ),
         caption: 'Caption',
       ),
       style: const RenderBlockStyle(),
       ttsIndex: null,
-    );
-
-    final theme = ReaderRenderTheme(
-      readerTheme: const PlayerThemeSettings(),
-      textTheme: const TextTheme(),
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-      shadowColor: Colors.black45,
-      paragraphSpacing: 4,
-      paragraphIndent: 0,
-      activeParagraphStyle: PlayerThemeActiveParagraphStyle.highlightBar,
-      activeParagraphOpacity: 0.12,
-      sentenceHighlightStyle: PlayerThemeSentenceHighlightStyle.background,
-      sentenceHighlightOpacity: 0.2,
     );
 
     await tester.pumpWidget(
@@ -97,13 +80,14 @@ void main() {
         home: Scaffold(
           body: ReaderBlockRenderer.buildBlock(
             renderBlock: renderBlock,
-            theme: theme,
+            theme: _theme(),
             resolver: resolver,
             isActiveParagraph: false,
             activeSentenceIndex: -1,
             previousSentenceIndex: -1,
             transitionValue: 0.0,
             sentenceRecognizer: null,
+            linkRecognizer: null,
             onTapParagraph: null,
           ),
         ),
@@ -114,4 +98,89 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
     expect(find.text('Caption'), findsOneWidget);
   });
+
+  testWidgets('renders inline images and interactive links', (tester) async {
+    final bytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAp4XfQAAAABJRU5ErkJggg==',
+    );
+    final resolver = EpubResourceResolver.fromMemory({
+      'images/pic.png': Uint8List.fromList(bytes),
+    });
+    final recognizers = <TapGestureRecognizer>[];
+
+    final renderBlock = ReaderRenderBlock(
+      block: ParagraphBlock([
+        const LinkInline(
+          target: ReaderLinkTarget(
+            kind: ReaderLinkTargetKind.internal,
+            href: 'chapter2.xhtml#frag',
+            sectionId: 'section-2',
+            sectionIndex: 1,
+            fragment: 'frag',
+          ),
+          children: [TextInline('Next')],
+        ),
+        const TextInline(' '),
+        const InlineImage(
+          resource: ReaderResourceRef(
+            href: 'images/pic.png',
+            mediaType: 'image/png',
+            kind: ReaderResourceKind.image,
+          ),
+          alt: 'Inline pic',
+        ),
+      ]),
+      style: const RenderBlockStyle(),
+      ttsIndex: null,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReaderBlockRenderer.buildBlock(
+            renderBlock: renderBlock,
+            theme: _theme(),
+            resolver: resolver,
+            isActiveParagraph: false,
+            activeSentenceIndex: -1,
+            previousSentenceIndex: -1,
+            transitionValue: 0.0,
+            sentenceRecognizer: null,
+            linkRecognizer: (target) {
+              expect(target.href, 'chapter2.xhtml#frag');
+              final recognizer = TapGestureRecognizer();
+              recognizers.add(recognizer);
+              return recognizer;
+            },
+            onTapParagraph: null,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    final linkFinder = find.textContaining('Next', findRichText: true);
+    expect(linkFinder, findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
+    expect(recognizers, isNotEmpty);
+
+    for (final recognizer in recognizers) {
+      recognizer.dispose();
+    }
+  });
+}
+
+ReaderRenderTheme _theme() {
+  return ReaderRenderTheme(
+    readerTheme: const PlayerThemeSettings(),
+    textTheme: const TextTheme(),
+    colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+    shadowColor: Colors.black45,
+    paragraphSpacing: 4,
+    paragraphIndent: 0,
+    activeParagraphStyle: PlayerThemeActiveParagraphStyle.highlightBar,
+    activeParagraphOpacity: 0.12,
+    sentenceHighlightStyle: PlayerThemeSentenceHighlightStyle.background,
+    sentenceHighlightOpacity: 0.2,
+  );
 }

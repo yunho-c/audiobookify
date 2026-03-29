@@ -6,7 +6,8 @@ class TextRunStyle {
   final bool underline;
   final bool sup;
   final bool sub;
-  final String? linkHref;
+  final bool code;
+  final ReaderLinkTarget? linkTarget;
 
   const TextRunStyle({
     this.bold = false,
@@ -14,7 +15,8 @@ class TextRunStyle {
     this.underline = false,
     this.sup = false,
     this.sub = false,
-    this.linkHref,
+    this.code = false,
+    this.linkTarget,
   });
 
   TextRunStyle copyWith({
@@ -23,7 +25,8 @@ class TextRunStyle {
     bool? underline,
     bool? sup,
     bool? sub,
-    String? linkHref,
+    bool? code,
+    ReaderLinkTarget? linkTarget,
   }) {
     return TextRunStyle(
       bold: bold ?? this.bold,
@@ -31,7 +34,8 @@ class TextRunStyle {
       underline: underline ?? this.underline,
       sup: sup ?? this.sup,
       sub: sub ?? this.sub,
-      linkHref: linkHref ?? this.linkHref,
+      code: code ?? this.code,
+      linkTarget: linkTarget ?? this.linkTarget,
     );
   }
 }
@@ -136,7 +140,7 @@ ReaderSegmentedDocument segmentReaderDocument(ReaderDocument document) {
     );
   }
 
-  void _visitListItem(
+  void visitListItem(
     ListItemBlock item,
     RenderBlockStyle style,
     String marker,
@@ -175,6 +179,7 @@ ReaderSegmentedDocument segmentReaderDocument(ReaderDocument document) {
       case ImageBlock():
       case TableBlock():
       case HorizontalRuleBlock():
+      case CodeBlock():
         renderBlocks.add(
           ReaderRenderBlock(block: block, style: style, ttsIndex: null),
         );
@@ -191,11 +196,11 @@ ReaderSegmentedDocument segmentReaderDocument(ReaderDocument document) {
         for (var i = 0; i < block.items.length; i++) {
           final item = block.items[i];
           final marker = block.ordered ? '${i + 1}.' : '\u2022';
-          _visitListItem(item, style, marker);
+          visitListItem(item, style, marker);
         }
         break;
       case ListItemBlock():
-        _visitListItem(block, style, '\u2022');
+        visitListItem(block, style, '\u2022');
         break;
       default:
         renderBlocks.add(
@@ -232,52 +237,19 @@ List<TextRun> flattenInlines(
       runs.add(TextRun('\n', style));
       continue;
     }
-    if (inline is EmphasisInline) {
-      runs.addAll(
-        flattenInlines(
-          inline.children,
-          style: style.copyWith(italic: true),
-        ),
-      );
-      continue;
-    }
-    if (inline is StrongInline) {
-      runs.addAll(
-        flattenInlines(
-          inline.children,
-          style: style.copyWith(bold: true),
-        ),
-      );
-      continue;
-    }
-    if (inline is SupInline) {
-      runs.addAll(
-        flattenInlines(
-          inline.children,
-          style: style.copyWith(sup: true, sub: false),
-        ),
-      );
-      continue;
-    }
-    if (inline is SubInline) {
-      runs.addAll(
-        flattenInlines(
-          inline.children,
-          style: style.copyWith(sub: true, sup: false),
-        ),
-      );
-      continue;
-    }
     if (inline is LinkInline) {
       runs.addAll(
         flattenInlines(
           inline.children,
           style: style.copyWith(
             underline: true,
-            linkHref: inline.href,
+            linkTarget: inline.target,
           ),
         ),
       );
+      continue;
+    }
+    if (inline is InlineImage) {
       continue;
     }
     if (inline is SpanInline) {
@@ -290,6 +262,15 @@ List<TextRun> flattenInlines(
       }
       if (inline.styleHints.contains(SpanStyleHint.underline)) {
         nextStyle = nextStyle.copyWith(underline: true);
+      }
+      if (inline.styleHints.contains(SpanStyleHint.superscript)) {
+        nextStyle = nextStyle.copyWith(sup: true, sub: false);
+      }
+      if (inline.styleHints.contains(SpanStyleHint.subscript)) {
+        nextStyle = nextStyle.copyWith(sub: true, sup: false);
+      }
+      if (inline.styleHints.contains(SpanStyleHint.code)) {
+        nextStyle = nextStyle.copyWith(code: true);
       }
       runs.addAll(flattenInlines(inline.children, style: nextStyle));
       continue;
@@ -324,7 +305,18 @@ bool _styleEquals(TextRunStyle a, TextRunStyle b) {
       a.underline == b.underline &&
       a.sup == b.sup &&
       a.sub == b.sub &&
-      a.linkHref == b.linkHref;
+      a.code == b.code &&
+      _sameLinkTarget(a.linkTarget, b.linkTarget);
+}
+
+bool _sameLinkTarget(ReaderLinkTarget? a, ReaderLinkTarget? b) {
+  if (identical(a, b)) return true;
+  if (a == null || b == null) return a == b;
+  return a.kind == b.kind &&
+      a.href == b.href &&
+      a.sectionId == b.sectionId &&
+      a.sectionIndex == b.sectionIndex &&
+      a.fragment == b.fragment;
 }
 
 class _Segment {
