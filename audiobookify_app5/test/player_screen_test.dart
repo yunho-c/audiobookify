@@ -72,7 +72,6 @@ void main() {
         publisher: 'Test Publisher',
         description: 'Test Description',
       ),
-      toc: const [TocEntry(title: 'Chapter 1', href: 'chapter1.xhtml')],
       coverImage: null,
       sections: [
         Section(

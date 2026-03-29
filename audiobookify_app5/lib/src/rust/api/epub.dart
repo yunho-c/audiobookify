@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `map_runtime_error`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// Open an EPUB file from path and parse runtime reader sections.
 Future<ParsedEpubBook> openEpub({required String path}) =>
@@ -98,23 +98,18 @@ class ListItem {
 /// Fully parsed runtime book data.
 class ParsedEpubBook {
   final EpubMetadata metadata;
-  final List<TocEntry> toc;
   final Uint8List? coverImage;
   final List<Section> sections;
 
   const ParsedEpubBook({
     required this.metadata,
-    required this.toc,
     this.coverImage,
     required this.sections,
   });
 
   @override
   int get hashCode =>
-      metadata.hashCode ^
-      toc.hashCode ^
-      coverImage.hashCode ^
-      sections.hashCode;
+      metadata.hashCode ^ coverImage.hashCode ^ sections.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -122,7 +117,6 @@ class ParsedEpubBook {
       other is ParsedEpubBook &&
           runtimeType == other.runtimeType &&
           metadata == other.metadata &&
-          toc == other.toc &&
           coverImage == other.coverImage &&
           sections == other.sections;
 }
@@ -346,23 +340,4 @@ class TableRow {
       other is TableRow &&
           runtimeType == other.runtimeType &&
           cells == other.cells;
-}
-
-/// A single entry in the table of contents.
-class TocEntry {
-  final String title;
-  final String href;
-
-  const TocEntry({required this.title, required this.href});
-
-  @override
-  int get hashCode => title.hashCode ^ href.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is TocEntry &&
-          runtimeType == other.runtimeType &&
-          title == other.title &&
-          href == other.href;
 }

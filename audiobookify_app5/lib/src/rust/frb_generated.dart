@@ -348,12 +348,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<TocEntry> dco_decode_list_toc_entry(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_toc_entry).toList();
-  }
-
-  @protected
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
@@ -369,13 +363,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ParsedEpubBook dco_decode_parsed_epub_book(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return ParsedEpubBook(
       metadata: dco_decode_epub_metadata(arr[0]),
-      toc: dco_decode_list_toc_entry(arr[1]),
-      coverImage: dco_decode_opt_list_prim_u_8_strict(arr[2]),
-      sections: dco_decode_list_section(arr[3]),
+      coverImage: dco_decode_opt_list_prim_u_8_strict(arr[1]),
+      sections: dco_decode_list_section(arr[2]),
     );
   }
 
@@ -483,18 +476,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 1)
       throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
     return TableRow(cells: dco_decode_list_table_cell(arr[0]));
-  }
-
-  @protected
-  TocEntry dco_decode_toc_entry(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return TocEntry(
-      title: dco_decode_String(arr[0]),
-      href: dco_decode_String(arr[1]),
-    );
   }
 
   @protected
@@ -675,18 +656,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<TocEntry> sse_decode_list_toc_entry(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <TocEntry>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_toc_entry(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -712,12 +681,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ParsedEpubBook sse_decode_parsed_epub_book(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_metadata = sse_decode_epub_metadata(deserializer);
-    var var_toc = sse_decode_list_toc_entry(deserializer);
     var var_coverImage = sse_decode_opt_list_prim_u_8_strict(deserializer);
     var var_sections = sse_decode_list_section(deserializer);
     return ParsedEpubBook(
       metadata: var_metadata,
-      toc: var_toc,
       coverImage: var_coverImage,
       sections: var_sections,
     );
@@ -836,14 +803,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_cells = sse_decode_list_table_cell(deserializer);
     return TableRow(cells: var_cells);
-  }
-
-  @protected
-  TocEntry sse_decode_toc_entry(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_title = sse_decode_String(deserializer);
-    var var_href = sse_decode_String(deserializer);
-    return TocEntry(title: var_title, href: var_href);
   }
 
   @protected
@@ -1005,18 +964,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_toc_entry(
-    List<TocEntry> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_toc_entry(item, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1046,7 +993,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_epub_metadata(self.metadata, serializer);
-    sse_encode_list_toc_entry(self.toc, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.coverImage, serializer);
     sse_encode_list_section(self.sections, serializer);
   }
@@ -1139,13 +1085,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_table_row(TableRow self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_table_cell(self.cells, serializer);
-  }
-
-  @protected
-  void sse_encode_toc_entry(TocEntry self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.title, serializer);
-    sse_encode_String(self.href, serializer);
   }
 
   @protected

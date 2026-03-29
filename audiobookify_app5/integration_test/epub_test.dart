@@ -39,14 +39,6 @@ Future<void> main() async {
     print('Total sections: ${book.sections.length}');
     print('');
 
-    // Print first few TOC entries
-    final toc = book.toc;
-    print('--- Table of Contents (first 5 entries) ---');
-    for (var i = 0; i < toc.length && i < 5; i++) {
-      print('  ${i + 1}. ${toc[i].title}');
-    }
-    print('');
-
     // Check cover image
     final cover = book.coverImage;
     if (cover != null) {

@@ -381,18 +381,6 @@ impl SseDecode for Vec<crate::api::epub::TableRow> {
     }
 }
 
-impl SseDecode for Vec<crate::api::epub::TocEntry> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = vec![];
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::epub::TocEntry>::sse_decode(deserializer));
-        }
-        return ans_;
-    }
-}
-
 impl SseDecode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -419,12 +407,10 @@ impl SseDecode for crate::api::epub::ParsedEpubBook {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_metadata = <crate::api::epub::EpubMetadata>::sse_decode(deserializer);
-        let mut var_toc = <Vec<crate::api::epub::TocEntry>>::sse_decode(deserializer);
         let mut var_coverImage = <Option<Vec<u8>>>::sse_decode(deserializer);
         let mut var_sections = <Vec<crate::api::epub::Section>>::sse_decode(deserializer);
         return crate::api::epub::ParsedEpubBook {
             metadata: var_metadata,
-            toc: var_toc,
             cover_image: var_coverImage,
             sections: var_sections,
         };
@@ -586,18 +572,6 @@ impl SseDecode for crate::api::epub::TableRow {
     }
 }
 
-impl SseDecode for crate::api::epub::TocEntry {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_title = <String>::sse_decode(deserializer);
-        let mut var_href = <String>::sse_decode(deserializer);
-        return crate::api::epub::TocEntry {
-            title: var_title,
-            href: var_href,
-        };
-    }
-}
-
 impl SseDecode for u8 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -707,7 +681,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::epub::ParsedEpubBook {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.metadata.into_into_dart().into_dart(),
-            self.toc.into_into_dart().into_dart(),
             self.cover_image.into_into_dart().into_dart(),
             self.sections.into_into_dart().into_dart(),
         ]
@@ -926,22 +899,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::TableRow> for crate::ap
         self
     }
 }
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::epub::TocEntry {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.title.into_into_dart().into_dart(),
-            self.href.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::epub::TocEntry {}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::epub::TocEntry> for crate::api::epub::TocEntry {
-    fn into_into_dart(self) -> crate::api::epub::TocEntry {
-        self
-    }
-}
 
 impl SseEncode for String {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -1080,16 +1037,6 @@ impl SseEncode for Vec<crate::api::epub::TableRow> {
     }
 }
 
-impl SseEncode for Vec<crate::api::epub::TocEntry> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::epub::TocEntry>::sse_encode(item, serializer);
-        }
-    }
-}
-
 impl SseEncode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1114,7 +1061,6 @@ impl SseEncode for crate::api::epub::ParsedEpubBook {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::epub::EpubMetadata>::sse_encode(self.metadata, serializer);
-        <Vec<crate::api::epub::TocEntry>>::sse_encode(self.toc, serializer);
         <Option<Vec<u8>>>::sse_encode(self.cover_image, serializer);
         <Vec<crate::api::epub::Section>>::sse_encode(self.sections, serializer);
     }
@@ -1244,14 +1190,6 @@ impl SseEncode for crate::api::epub::TableRow {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::api::epub::TableCell>>::sse_encode(self.cells, serializer);
-    }
-}
-
-impl SseEncode for crate::api::epub::TocEntry {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.title, serializer);
-        <String>::sse_encode(self.href, serializer);
     }
 }
 

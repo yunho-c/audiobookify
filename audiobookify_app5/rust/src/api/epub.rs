@@ -13,18 +13,10 @@ pub struct EpubMetadata {
     pub description: Option<String>,
 }
 
-/// A single entry in the table of contents.
-#[derive(Debug, Clone)]
-pub struct TocEntry {
-    pub title: String,
-    pub href: String,
-}
-
 /// Fully parsed runtime book data.
 #[derive(Debug, Clone)]
 pub struct ParsedEpubBook {
     pub metadata: EpubMetadata,
-    pub toc: Vec<TocEntry>,
     pub cover_image: Option<Vec<u8>>,
     pub sections: Vec<Section>,
 }
@@ -156,7 +148,6 @@ impl From<runtime_epub::RuntimeParsedEpubBook> for ParsedEpubBook {
     fn from(value: runtime_epub::RuntimeParsedEpubBook) -> Self {
         Self {
             metadata: value.metadata.into(),
-            toc: value.toc.into_iter().map(TocEntry::from).collect(),
             cover_image: value.cover_image,
             sections: value.sections.into_iter().map(Section::from).collect(),
         }
@@ -172,15 +163,6 @@ impl From<runtime_epub::RuntimeEpubMetadata> for EpubMetadata {
             identifier: value.identifier,
             publisher: value.publisher,
             description: value.description,
-        }
-    }
-}
-
-impl From<runtime_epub::RuntimeTocEntry> for TocEntry {
-    fn from(value: runtime_epub::RuntimeTocEntry) -> Self {
-        Self {
-            title: value.title,
-            href: value.href,
         }
     }
 }

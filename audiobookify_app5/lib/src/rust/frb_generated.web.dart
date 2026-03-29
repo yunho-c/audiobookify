@@ -67,9 +67,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TableRow> dco_decode_list_table_row(dynamic raw);
 
   @protected
-  List<TocEntry> dco_decode_list_toc_entry(dynamic raw);
-
-  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -104,9 +101,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TableRow dco_decode_table_row(dynamic raw);
-
-  @protected
-  TocEntry dco_decode_toc_entry(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -167,9 +161,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TableRow> sse_decode_list_table_row(SseDeserializer deserializer);
 
   @protected
-  List<TocEntry> sse_decode_list_toc_entry(SseDeserializer deserializer);
-
-  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -204,9 +195,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TableRow sse_decode_table_row(SseDeserializer deserializer);
-
-  @protected
-  TocEntry sse_decode_toc_entry(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -278,9 +266,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_table_row(List<TableRow> self, SseSerializer serializer);
 
   @protected
-  void sse_encode_list_toc_entry(List<TocEntry> self, SseSerializer serializer);
-
-  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
@@ -330,9 +315,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_table_row(TableRow self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_toc_entry(TocEntry self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
