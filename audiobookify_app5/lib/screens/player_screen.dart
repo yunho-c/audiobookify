@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../reader/epub_resource_resolver.dart';
+import '../reader/reader_debug_logging.dart';
 import '../reader/reader_dto_adapter.dart';
 import '../reader/reader_ir.dart';
 import '../reader/reader_renderer.dart';
@@ -716,6 +717,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     final readerTheme = ref.watch(playerThemeProvider);
     final debugEnabled = ref.watch(debugModeProvider);
+    final imageDebugLoggingEnabled = ref.watch(imageDebugLoggingProvider);
+    setReaderImageLogsEnabled(imageDebugLoggingEnabled);
     final backdropSettings = ref.watch(backdropSettingsProvider);
     final backdrops = ref.watch(backdropLibraryProvider);
     final isPlaying = ttsState.status == TtsStatus.playing;

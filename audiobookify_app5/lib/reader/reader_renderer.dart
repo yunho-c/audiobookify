@@ -1,11 +1,11 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/player_theme_settings.dart';
 import 'epub_resource_resolver.dart';
+import 'reader_debug_logging.dart';
 import 'reader_ir.dart';
 import 'reader_segmentation.dart';
 
@@ -123,10 +123,21 @@ class ReaderBlockRenderer {
     return Padding(
       padding: EdgeInsets.fromLTRB(indent, 12, 0, 12),
       child: FutureBuilder<Uint8List?>(
-        future: resolver.loadImage(block.src),
+        future: resolver.loadResource(block.resource),
         builder: (context, snapshot) {
+          _logImageSnapshot(
+            'block',
+            href: block.resource.href,
+            alt: block.alt,
+            connectionState: snapshot.connectionState,
+            bytes: snapshot.data?.length,
+            error: snapshot.error,
+          );
           if (snapshot.connectionState == ConnectionState.waiting) {
             return _imagePlaceholder(theme, block.caption);
+          }
+          if (snapshot.hasError) {
+            return _imagePlaceholder(theme, block.caption ?? block.alt);
           }
           final data = snapshot.data;
           if (data == null) {
@@ -141,6 +152,15 @@ class ReaderBlockRenderer {
                   data,
                   fit: BoxFit.contain,
                   width: double.infinity,
+                  errorBuilder: (context, error, stackTrace) {
+                    _logImageDecodeError(
+                      'block',
+                      href: block.resource.href,
+                      alt: block.alt,
+                      error: error,
+                    );
+                    return _imagePlaceholder(theme, block.caption ?? block.alt);
+                  },
                 ),
               ),
               if ((block.caption ?? '').trim().isNotEmpty)
@@ -875,6 +895,24 @@ class _InlineImageWidget extends StatelessWidget {
     return FutureBuilder<Uint8List?>(
       future: resolver.loadResource(resource),
       builder: (context, snapshot) {
+        _logImageSnapshot(
+          'inline',
+          href: resource.href,
+          alt: alt,
+          connectionState: snapshot.connectionState,
+          bytes: snapshot.data?.length,
+          error: snapshot.error,
+        );
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Icon(
+              Icons.broken_image_outlined,
+              size: 16,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          );
+        }
         final bytes = snapshot.data;
         if (bytes == null) {
           return Padding(
@@ -892,14 +930,55 @@ class _InlineImageWidget extends StatelessWidget {
             bytes,
             fit: BoxFit.contain,
             height: 18,
-            errorBuilder: (_, _, _) => Icon(
-              Icons.broken_image_outlined,
-              size: 16,
-              color: colorScheme.onSurfaceVariant,
-            ),
+            errorBuilder: (_, error, __) {
+              _logImageDecodeError(
+                'inline',
+                href: resource.href,
+                alt: alt,
+                error: error,
+              );
+              return Icon(
+                Icons.broken_image_outlined,
+                size: 16,
+                color: colorScheme.onSurfaceVariant,
+              );
+            },
           ),
         );
       },
     );
   }
+}
+
+final Set<String> _imageDebugStates = <String>{};
+
+void _logImageSnapshot(
+  String scope, {
+  required String href,
+  required String? alt,
+  required ConnectionState connectionState,
+  required int? bytes,
+  required Object? error,
+}) {
+  if (!kDebugMode || !ReaderDebugLogging.imageLogsEnabled) return;
+  final stateKey =
+      '$scope|$href|${alt ?? ''}|${connectionState.name}|${bytes ?? -1}|${error ?? ''}';
+  if (!_imageDebugStates.add(stateKey)) return;
+  debugPrint(
+    '[image-debug] scope=$scope href="$href" alt="${alt ?? ''}" '
+    'state=${connectionState.name} bytes=${bytes ?? 0} error=${error ?? 'none'}',
+  );
+}
+
+void _logImageDecodeError(
+  String scope, {
+  required String href,
+  required String? alt,
+  required Object error,
+}) {
+  if (!kDebugMode || !ReaderDebugLogging.imageLogsEnabled) return;
+  debugPrint(
+    '[image-debug] scope=$scope href="$href" alt="${alt ?? ''}" '
+    'decode-error=$error',
+  );
 }

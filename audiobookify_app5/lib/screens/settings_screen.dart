@@ -462,6 +462,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final textTheme = Theme.of(context).textTheme;
     final themePreference = ref.watch(themePreferenceProvider);
     final debugEnabled = ref.watch(debugModeProvider);
+    final imageDebugLoggingEnabled = ref.watch(imageDebugLoggingProvider);
     final crashReportingEnabled = ref.watch(crashReportingProvider);
     final labsEnabled = ref.watch(labsModeProvider);
     return Scaffold(
@@ -896,6 +897,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       value: debugEnabled,
                       onChanged: (value) {
                         ref.read(debugModeProvider.notifier).setEnabled(value);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    _SettingsToggleRow(
+                      icon: LucideIcons.image,
+                      title: 'Image Debug Logs',
+                      subtitle: 'Log EPUB image loading and decode details',
+                      value: imageDebugLoggingEnabled,
+                      onChanged: (value) {
+                        ref
+                            .read(imageDebugLoggingProvider.notifier)
+                            .setEnabled(value);
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),

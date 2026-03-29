@@ -534,6 +534,27 @@ class DebugModeNotifier extends Notifier<bool> {
 final debugModeProvider =
     NotifierProvider<DebugModeNotifier, bool>(DebugModeNotifier.new);
 
+class ImageDebugLoggingNotifier extends Notifier<bool> {
+  static const _imageDebugKey = 'image_debug_logging_enabled';
+
+  @override
+  bool build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    return prefs.getBool(_imageDebugKey) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(_imageDebugKey, enabled);
+  }
+}
+
+final imageDebugLoggingProvider =
+    NotifierProvider<ImageDebugLoggingNotifier, bool>(
+      ImageDebugLoggingNotifier.new,
+    );
+
 // ========================================
 // Crash Reporting
 // ========================================
