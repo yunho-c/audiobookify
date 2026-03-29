@@ -1,15 +1,8 @@
-//! EPUB loading API using rbook library
-//!
-//! This module provides functions for opening and reading EPUB files,
-//! extracting metadata, cover images, table of contents, and chapter content.
+//! Runtime EPUB parsing API backed by rbook-utils.
 
-use rbook::{Epub, Ebook};
-use rbook::prelude::*;
-use rbook::ebook::toc::TocEntry as RbookTocEntryTrait;
-use rbook::ebook::epub::toc::EpubTocEntry;
-use std::io::Cursor;
+use rbook_utils::runtime as runtime_epub;
 
-/// Metadata extracted from an EPUB file
+/// Metadata extracted from an EPUB file.
 #[derive(Debug, Clone)]
 pub struct EpubMetadata {
     pub title: Option<String>,
@@ -20,33 +13,113 @@ pub struct EpubMetadata {
     pub description: Option<String>,
 }
 
-/// A single entry in the table of contents
+/// A single entry in the table of contents.
 #[derive(Debug, Clone)]
 pub struct TocEntry {
     pub title: String,
     pub href: String,
 }
 
-/// A chapter from the EPUB spine
+/// Fully parsed runtime book data.
 #[derive(Debug, Clone)]
-pub struct ChapterInfo {
-    pub index: usize,
-    pub id: String,
-    pub href: String,
-    pub media_type: String,
-}
-
-/// EPUB book data - we load everything upfront to avoid lifetime issues with FFI
-#[derive(Debug, Clone)]
-pub struct EpubBook {
+pub struct ParsedEpubBook {
     pub metadata: EpubMetadata,
-    pub chapters: Vec<ChapterInfo>,
     pub toc: Vec<TocEntry>,
     pub cover_image: Option<Vec<u8>>,
-    pub chapter_contents: Vec<String>,
+    pub sections: Vec<Section>,
 }
 
-/// Error type for EPUB operations
+#[derive(Debug, Clone)]
+pub struct Section {
+    pub id: String,
+    pub title: String,
+    pub start_href: String,
+    pub start_fragment: Option<String>,
+    pub end_href: Option<String>,
+    pub end_fragment: Option<String>,
+    pub spine_start: usize,
+    pub spine_end: usize,
+    pub anchors: Vec<String>,
+    pub document: ReaderDocument,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReaderDocument {
+    pub chapter_href: String,
+    pub blocks: Vec<ReaderBlock>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ReaderBlockKind {
+    Paragraph,
+    Heading,
+    BlockQuote,
+    List,
+    ListItem,
+    Image,
+    Table,
+    HorizontalRule,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReaderBlock {
+    pub kind: ReaderBlockKind,
+    pub level: i32,
+    pub ordered: bool,
+    pub inlines: Vec<ReaderInline>,
+    pub blocks: Vec<ReaderBlock>,
+    pub items: Vec<ListItem>,
+    pub src: Option<String>,
+    pub alt: Option<String>,
+    pub caption: Option<String>,
+    pub rows: Vec<TableRow>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ListItem {
+    pub blocks: Vec<ReaderBlock>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TableRow {
+    pub cells: Vec<TableCell>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TableCell {
+    pub is_header: bool,
+    pub inlines: Vec<ReaderInline>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ReaderInlineKind {
+    Text,
+    Emphasis,
+    Strong,
+    Sup,
+    Sub,
+    Link,
+    LineBreak,
+    Span,
+}
+
+#[derive(Debug, Clone)]
+pub enum SpanStyleHint {
+    Italic,
+    Bold,
+    Underline,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReaderInline {
+    pub kind: ReaderInlineKind,
+    pub text: Option<String>,
+    pub href: Option<String>,
+    pub style_hints: Vec<SpanStyleHint>,
+    pub children: Vec<ReaderInline>,
+}
+
+/// Error type for EPUB operations.
 #[derive(Debug, Clone)]
 pub struct EpubError {
     pub message: String,
@@ -60,156 +133,213 @@ impl std::fmt::Display for EpubError {
 
 impl std::error::Error for EpubError {}
 
-/// Open an EPUB file from path and load all data
-pub fn open_epub(path: String) -> Result<EpubBook, EpubError> {
-    let epub = Epub::options()
-        .strict(false)
-        .open(&path)
-        .map_err(|e| EpubError {
-            message: format!("Failed to open EPUB: {}", e),
-        })?;
-    
-    load_epub_data(&epub)
+/// Open an EPUB file from path and parse runtime reader sections.
+pub fn open_epub(path: String) -> Result<ParsedEpubBook, EpubError> {
+    runtime_epub::parse_epub_runtime(std::path::Path::new(&path))
+        .map(ParsedEpubBook::from)
+        .map_err(map_runtime_error)
 }
 
-/// Open an EPUB from raw bytes and load all data
-pub fn open_epub_bytes(bytes: Vec<u8>) -> Result<EpubBook, EpubError> {
-    let cursor = Cursor::new(bytes);
-    let epub = Epub::options()
-        .strict(false)
-        .read(cursor)
-        .map_err(|e| EpubError {
-            message: format!("Failed to open EPUB from bytes: {}", e),
-        })?;
-    
-    load_epub_data(&epub)
+/// Lazily read a book resource from the EPUB archive.
+pub fn read_book_resource_bytes(path: String, href: String) -> Result<Option<Vec<u8>>, EpubError> {
+    runtime_epub::read_epub_resource_bytes(std::path::Path::new(&path), &href)
+        .map_err(map_runtime_error)
 }
 
-fn load_epub_data(epub: &Epub) -> Result<EpubBook, EpubError> {
-    // Extract metadata
-    let epub_metadata = epub.metadata();
-    let title = epub_metadata.title().map(|t| t.value().to_string());
-    let creator = epub_metadata.creators().next().map(|c| c.value().to_string());
-    let language = epub_metadata.language().map(|l| l.value().to_string());
-    let identifier = epub_metadata.identifier().map(|i| i.value().to_string());
-    let publisher = epub_metadata.publishers().next().map(|p| p.value().to_string());
-    let description = epub_metadata.description().map(|d| d.value().to_string());
-    
-    let metadata = EpubMetadata {
-        title,
-        creator,
-        language,
-        identifier,
-        publisher,
-        description,
-    };
-    
-    // Extract cover image
-    let cover_image = epub.manifest()
-        .cover_image()
-        .and_then(|cover| cover.read_bytes().ok());
-    
-    // Extract chapters from spine - iterate over EpubSpine
-    let mut chapters = Vec::new();
-    let mut chapter_contents = Vec::new();
-    
-    for (index, spine_entry) in epub.spine().into_iter().enumerate() {
-        if let Some(manifest_entry) = spine_entry.manifest_entry() {
-            chapters.push(ChapterInfo {
-                index,
-                id: manifest_entry.id().to_string(),
-                href: manifest_entry.href().to_string(),
-                media_type: manifest_entry.media_type().to_string(),
-            });
-            
-            // Read chapter content
-            let content = manifest_entry.read_str().map_err(|e| EpubError {
-                message: format!(
-                    "Failed to read chapter content ({}): {}",
-                    manifest_entry.id(),
-                    e
-                ),
-            })?;
-            chapter_contents.push(content);
+fn map_runtime_error(error: anyhow::Error) -> EpubError {
+    EpubError {
+        message: error.to_string(),
+    }
+}
+
+impl From<runtime_epub::RuntimeParsedEpubBook> for ParsedEpubBook {
+    fn from(value: runtime_epub::RuntimeParsedEpubBook) -> Self {
+        Self {
+            metadata: value.metadata.into(),
+            toc: value.toc.into_iter().map(TocEntry::from).collect(),
+            cover_image: value.cover_image,
+            sections: value.sections.into_iter().map(Section::from).collect(),
         }
     }
-    
-    // Extract table of contents - flatten all descendants for better coverage.
-    let mut toc = Vec::new();
-    for (_kind, entry) in epub.toc().into_iter() {
-        push_toc_entries(&mut toc, entry, 0);
-    }
-    
-    Ok(EpubBook {
-        metadata,
-        chapters,
-        toc,
-        cover_image,
-        chapter_contents,
-    })
 }
 
-fn push_toc_entries<'ebook>(
-    toc: &mut Vec<TocEntry>,
-    entry: EpubTocEntry<'ebook>,
-    depth: usize,
-) {
-    let href_str = entry
-        .href()
-        .map(|h| h.to_string())
-        .unwrap_or_default();
-    let indent = "  ".repeat(depth);
-    let title = if indent.is_empty() {
-        entry.label().to_string()
-    } else {
-        format!("{}{}", indent, entry.label())
-    };
-    toc.push(TocEntry { title, href: href_str });
-
-    for child in entry.children() {
-        push_toc_entries(toc, child, depth + 1);
+impl From<runtime_epub::RuntimeEpubMetadata> for EpubMetadata {
+    fn from(value: runtime_epub::RuntimeEpubMetadata) -> Self {
+        Self {
+            title: value.title,
+            creator: value.creator,
+            language: value.language,
+            identifier: value.identifier,
+            publisher: value.publisher,
+            description: value.description,
+        }
     }
 }
 
-/// Read a specific chapter by index
-pub fn read_chapter(book: &EpubBook, index: usize) -> Result<String, EpubError> {
-    book.chapter_contents.get(index).cloned().ok_or_else(|| EpubError {
-        message: format!("Chapter index {} out of range", index),
-    })
+impl From<runtime_epub::RuntimeTocEntry> for TocEntry {
+    fn from(value: runtime_epub::RuntimeTocEntry) -> Self {
+        Self {
+            title: value.title,
+            href: value.href,
+        }
+    }
 }
 
-/// Get the number of chapters in the book
-#[flutter_rust_bridge::frb(sync)]
-pub fn get_chapter_count(book: &EpubBook) -> usize {
-    book.chapters.len()
+impl From<runtime_epub::RuntimeSection> for Section {
+    fn from(value: runtime_epub::RuntimeSection) -> Self {
+        Self {
+            id: value.id,
+            title: value.title,
+            start_href: value.start_href,
+            start_fragment: value.start_fragment,
+            end_href: value.end_href,
+            end_fragment: value.end_fragment,
+            spine_start: value.spine_start,
+            spine_end: value.spine_end,
+            anchors: value.anchors,
+            document: value.document.into(),
+        }
+    }
 }
 
-/// Get metadata from the book
-#[flutter_rust_bridge::frb(sync)]
-pub fn get_metadata(book: &EpubBook) -> EpubMetadata {
-    book.metadata.clone()
+impl From<runtime_epub::RuntimeReaderDocument> for ReaderDocument {
+    fn from(value: runtime_epub::RuntimeReaderDocument) -> Self {
+        Self {
+            chapter_href: value.chapter_href,
+            blocks: value.blocks.into_iter().map(ReaderBlock::from).collect(),
+        }
+    }
 }
 
-/// Get table of contents entries
-#[flutter_rust_bridge::frb(sync)]
-pub fn get_toc(book: &EpubBook) -> Vec<TocEntry> {
-    book.toc.clone()
+impl From<runtime_epub::RuntimeReaderBlock> for ReaderBlock {
+    fn from(value: runtime_epub::RuntimeReaderBlock) -> Self {
+        Self {
+            kind: value.kind.into(),
+            level: value.level,
+            ordered: value.ordered,
+            inlines: value.inlines.into_iter().map(ReaderInline::from).collect(),
+            blocks: value.blocks.into_iter().map(ReaderBlock::from).collect(),
+            items: value.items.into_iter().map(ListItem::from).collect(),
+            src: value.src,
+            alt: value.alt,
+            caption: value.caption,
+            rows: value.rows.into_iter().map(TableRow::from).collect(),
+        }
+    }
 }
 
-/// Get chapter info list
-#[flutter_rust_bridge::frb(sync)]
-pub fn get_chapters(book: &EpubBook) -> Vec<ChapterInfo> {
-    book.chapters.clone()
+impl From<runtime_epub::RuntimeReaderBlockKind> for ReaderBlockKind {
+    fn from(value: runtime_epub::RuntimeReaderBlockKind) -> Self {
+        match value {
+            runtime_epub::RuntimeReaderBlockKind::Paragraph => Self::Paragraph,
+            runtime_epub::RuntimeReaderBlockKind::Heading => Self::Heading,
+            runtime_epub::RuntimeReaderBlockKind::BlockQuote => Self::BlockQuote,
+            runtime_epub::RuntimeReaderBlockKind::List => Self::List,
+            runtime_epub::RuntimeReaderBlockKind::ListItem => Self::ListItem,
+            runtime_epub::RuntimeReaderBlockKind::Image => Self::Image,
+            runtime_epub::RuntimeReaderBlockKind::Table => Self::Table,
+            runtime_epub::RuntimeReaderBlockKind::HorizontalRule => Self::HorizontalRule,
+        }
+    }
 }
 
-/// Get cover image bytes
-#[flutter_rust_bridge::frb(sync)]
-pub fn get_cover(book: &EpubBook) -> Option<Vec<u8>> {
-    book.cover_image.clone()
+impl From<runtime_epub::RuntimeListItem> for ListItem {
+    fn from(value: runtime_epub::RuntimeListItem) -> Self {
+        Self {
+            blocks: value.blocks.into_iter().map(ReaderBlock::from).collect(),
+        }
+    }
+}
+
+impl From<runtime_epub::RuntimeTableRow> for TableRow {
+    fn from(value: runtime_epub::RuntimeTableRow) -> Self {
+        Self {
+            cells: value.cells.into_iter().map(TableCell::from).collect(),
+        }
+    }
+}
+
+impl From<runtime_epub::RuntimeTableCell> for TableCell {
+    fn from(value: runtime_epub::RuntimeTableCell) -> Self {
+        Self {
+            is_header: value.is_header,
+            inlines: value.inlines.into_iter().map(ReaderInline::from).collect(),
+        }
+    }
+}
+
+impl From<runtime_epub::RuntimeReaderInline> for ReaderInline {
+    fn from(value: runtime_epub::RuntimeReaderInline) -> Self {
+        Self {
+            kind: value.kind.into(),
+            text: value.text,
+            href: value.href,
+            style_hints: value.style_hints.into_iter().map(SpanStyleHint::from).collect(),
+            children: value.children.into_iter().map(ReaderInline::from).collect(),
+        }
+    }
+}
+
+impl From<runtime_epub::RuntimeReaderInlineKind> for ReaderInlineKind {
+    fn from(value: runtime_epub::RuntimeReaderInlineKind) -> Self {
+        match value {
+            runtime_epub::RuntimeReaderInlineKind::Text => Self::Text,
+            runtime_epub::RuntimeReaderInlineKind::Emphasis => Self::Emphasis,
+            runtime_epub::RuntimeReaderInlineKind::Strong => Self::Strong,
+            runtime_epub::RuntimeReaderInlineKind::Sup => Self::Sup,
+            runtime_epub::RuntimeReaderInlineKind::Sub => Self::Sub,
+            runtime_epub::RuntimeReaderInlineKind::Link => Self::Link,
+            runtime_epub::RuntimeReaderInlineKind::LineBreak => Self::LineBreak,
+            runtime_epub::RuntimeReaderInlineKind::Span => Self::Span,
+        }
+    }
+}
+
+impl From<runtime_epub::RuntimeSpanStyleHint> for SpanStyleHint {
+    fn from(value: runtime_epub::RuntimeSpanStyleHint) -> Self {
+        match value {
+            runtime_epub::RuntimeSpanStyleHint::Italic => Self::Italic,
+            runtime_epub::RuntimeSpanStyleHint::Bold => Self::Bold,
+            runtime_epub::RuntimeSpanStyleHint::Underline => Self::Underline,
+        }
+    }
 }
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_epub_api() {
-    // Default utilities - feel free to customize
     flutter_rust_bridge::setup_default_user_utils();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture_path() -> String {
+        format!(
+            "{}/../test/assets/test_ebook.epub",
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
+
+    #[test]
+    fn opens_runtime_book_and_sections() {
+        let book = open_epub(fixture_path()).expect("open test epub");
+        assert!(book.metadata.title.is_some());
+        assert!(!book.sections.is_empty());
+        assert!(!book.sections[0].document.blocks.is_empty());
+    }
+
+    #[test]
+    fn reads_book_resources_without_crashing() {
+        let book = open_epub(fixture_path()).expect("open test epub");
+        let image_href = book
+            .sections
+            .iter()
+            .flat_map(|section| section.document.blocks.iter())
+            .find_map(|block| block.src.clone());
+        if let Some(href) = image_href {
+            let bytes = read_book_resource_bytes(fixture_path(), href).expect("read bytes");
+            assert!(bytes.is_some());
+        }
+    }
 }

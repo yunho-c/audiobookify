@@ -7,8 +7,9 @@ edition = "2021"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
+anyhow = "1.0"
 flutter_rust_bridge = "=2.11.1"
-rbook = "0.6.9"
+rbook-utils = { path = "../../../rbook-utils" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

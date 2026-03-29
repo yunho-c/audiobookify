@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1772849977;
+  int get rustContentHash => 356072837;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -79,29 +79,17 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  BigInt crateApiEpubGetChapterCount({required EpubBook book});
-
-  List<ChapterInfo> crateApiEpubGetChapters({required EpubBook book});
-
-  Uint8List? crateApiEpubGetCover({required EpubBook book});
-
-  EpubMetadata crateApiEpubGetMetadata({required EpubBook book});
-
-  List<TocEntry> crateApiEpubGetToc({required EpubBook book});
-
   String crateApiSimpleGreet({required String name});
 
   Future<void> crateApiSimpleInitApp();
 
   Future<void> crateApiEpubInitEpubApi();
 
-  Future<EpubBook> crateApiEpubOpenEpub({required String path});
+  Future<ParsedEpubBook> crateApiEpubOpenEpub({required String path});
 
-  Future<EpubBook> crateApiEpubOpenEpubBytes({required List<int> bytes});
-
-  Future<String> crateApiEpubReadChapter({
-    required EpubBook book,
-    required BigInt index,
+  Future<Uint8List?> crateApiEpubReadBookResourceBytes({
+    required String path,
+    required String href,
   });
 }
 
@@ -114,128 +102,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  BigInt crateApiEpubGetChapterCount({required EpubBook book}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_epub_book(book, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_usize,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiEpubGetChapterCountConstMeta,
-        argValues: [book],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiEpubGetChapterCountConstMeta =>
-      const TaskConstMeta(debugName: "get_chapter_count", argNames: ["book"]);
-
-  @override
-  List<ChapterInfo> crateApiEpubGetChapters({required EpubBook book}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_epub_book(book, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_chapter_info,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiEpubGetChaptersConstMeta,
-        argValues: [book],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiEpubGetChaptersConstMeta =>
-      const TaskConstMeta(debugName: "get_chapters", argNames: ["book"]);
-
-  @override
-  Uint8List? crateApiEpubGetCover({required EpubBook book}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_epub_book(book, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_list_prim_u_8_strict,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiEpubGetCoverConstMeta,
-        argValues: [book],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiEpubGetCoverConstMeta =>
-      const TaskConstMeta(debugName: "get_cover", argNames: ["book"]);
-
-  @override
-  EpubMetadata crateApiEpubGetMetadata({required EpubBook book}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_epub_book(book, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_epub_metadata,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiEpubGetMetadataConstMeta,
-        argValues: [book],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiEpubGetMetadataConstMeta =>
-      const TaskConstMeta(debugName: "get_metadata", argNames: ["book"]);
-
-  @override
-  List<TocEntry> crateApiEpubGetToc({required EpubBook book}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_epub_book(book, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_toc_entry,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiEpubGetTocConstMeta,
-        argValues: [book],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiEpubGetTocConstMeta =>
-      const TaskConstMeta(debugName: "get_toc", argNames: ["book"]);
-
-  @override
   String crateApiSimpleGreet({required String name}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -260,7 +133,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 2,
             port: port_,
           );
         },
@@ -287,7 +160,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 3,
             port: port_,
           );
         },
@@ -306,7 +179,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_epub_api", argNames: []);
 
   @override
-  Future<EpubBook> crateApiEpubOpenEpub({required String path}) {
+  Future<ParsedEpubBook> crateApiEpubOpenEpub({required String path}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -315,12 +188,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 4,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_epub_book,
+          decodeSuccessData: sse_decode_parsed_epub_book,
           decodeErrorData: sse_decode_epub_error,
         ),
         constMeta: kCrateApiEpubOpenEpubConstMeta,
@@ -334,66 +207,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "open_epub", argNames: ["path"]);
 
   @override
-  Future<EpubBook> crateApiEpubOpenEpubBytes({required List<int> bytes}) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_list_prim_u_8_loose(bytes, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 10,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_epub_book,
-          decodeErrorData: sse_decode_epub_error,
-        ),
-        constMeta: kCrateApiEpubOpenEpubBytesConstMeta,
-        argValues: [bytes],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiEpubOpenEpubBytesConstMeta =>
-      const TaskConstMeta(debugName: "open_epub_bytes", argNames: ["bytes"]);
-
-  @override
-  Future<String> crateApiEpubReadChapter({
-    required EpubBook book,
-    required BigInt index,
+  Future<Uint8List?> crateApiEpubReadBookResourceBytes({
+    required String path,
+    required String href,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_epub_book(book, serializer);
-          sse_encode_usize(index, serializer);
+          sse_encode_String(path, serializer);
+          sse_encode_String(href, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 5,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
+          decodeSuccessData: sse_decode_opt_list_prim_u_8_strict,
           decodeErrorData: sse_decode_epub_error,
         ),
-        constMeta: kCrateApiEpubReadChapterConstMeta,
-        argValues: [book, index],
+        constMeta: kCrateApiEpubReadBookResourceBytesConstMeta,
+        argValues: [path, href],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiEpubReadChapterConstMeta => const TaskConstMeta(
-    debugName: "read_chapter",
-    argNames: ["book", "index"],
-  );
+  TaskConstMeta get kCrateApiEpubReadBookResourceBytesConstMeta =>
+      const TaskConstMeta(
+        debugName: "read_book_resource_bytes",
+        argNames: ["path", "href"],
+      );
 
   @protected
   String dco_decode_String(dynamic raw) {
@@ -402,38 +248,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  EpubBook dco_decode_box_autoadd_epub_book(dynamic raw) {
+  bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_epub_book(raw);
-  }
-
-  @protected
-  ChapterInfo dco_decode_chapter_info(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
-    return ChapterInfo(
-      index: dco_decode_usize(arr[0]),
-      id: dco_decode_String(arr[1]),
-      href: dco_decode_String(arr[2]),
-      mediaType: dco_decode_String(arr[3]),
-    );
-  }
-
-  @protected
-  EpubBook dco_decode_epub_book(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
-    return EpubBook(
-      metadata: dco_decode_epub_metadata(arr[0]),
-      chapters: dco_decode_list_chapter_info(arr[1]),
-      toc: dco_decode_list_toc_entry(arr[2]),
-      coverImage: dco_decode_opt_list_prim_u_8_strict(arr[3]),
-      chapterContents: dco_decode_list_String(arr[4]),
-    );
+    return raw as bool;
   }
 
   @protected
@@ -462,27 +279,72 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
   }
 
   @protected
-  List<ChapterInfo> dco_decode_list_chapter_info(dynamic raw) {
+  ListItem dco_decode_list_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_chapter_info).toList();
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return ListItem(blocks: dco_decode_list_reader_block(arr[0]));
   }
 
   @protected
-  List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
+  List<ListItem> dco_decode_list_list_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw as List<int>;
+    return (raw as List<dynamic>).map(dco_decode_list_item).toList();
   }
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  List<ReaderBlock> dco_decode_list_reader_block(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_reader_block).toList();
+  }
+
+  @protected
+  List<ReaderInline> dco_decode_list_reader_inline(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_reader_inline).toList();
+  }
+
+  @protected
+  List<Section> dco_decode_list_section(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_section).toList();
+  }
+
+  @protected
+  List<SpanStyleHint> dco_decode_list_span_style_hint(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_span_style_hint).toList();
+  }
+
+  @protected
+  List<TableCell> dco_decode_list_table_cell(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_table_cell).toList();
+  }
+
+  @protected
+  List<TableRow> dco_decode_list_table_row(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_table_row).toList();
   }
 
   @protected
@@ -501,6 +363,126 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
+  }
+
+  @protected
+  ParsedEpubBook dco_decode_parsed_epub_book(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ParsedEpubBook(
+      metadata: dco_decode_epub_metadata(arr[0]),
+      toc: dco_decode_list_toc_entry(arr[1]),
+      coverImage: dco_decode_opt_list_prim_u_8_strict(arr[2]),
+      sections: dco_decode_list_section(arr[3]),
+    );
+  }
+
+  @protected
+  ReaderBlock dco_decode_reader_block(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return ReaderBlock(
+      kind: dco_decode_reader_block_kind(arr[0]),
+      level: dco_decode_i_32(arr[1]),
+      ordered: dco_decode_bool(arr[2]),
+      inlines: dco_decode_list_reader_inline(arr[3]),
+      blocks: dco_decode_list_reader_block(arr[4]),
+      items: dco_decode_list_list_item(arr[5]),
+      src: dco_decode_opt_String(arr[6]),
+      alt: dco_decode_opt_String(arr[7]),
+      caption: dco_decode_opt_String(arr[8]),
+      rows: dco_decode_list_table_row(arr[9]),
+    );
+  }
+
+  @protected
+  ReaderBlockKind dco_decode_reader_block_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ReaderBlockKind.values[raw as int];
+  }
+
+  @protected
+  ReaderDocument dco_decode_reader_document(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ReaderDocument(
+      chapterHref: dco_decode_String(arr[0]),
+      blocks: dco_decode_list_reader_block(arr[1]),
+    );
+  }
+
+  @protected
+  ReaderInline dco_decode_reader_inline(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ReaderInline(
+      kind: dco_decode_reader_inline_kind(arr[0]),
+      text: dco_decode_opt_String(arr[1]),
+      href: dco_decode_opt_String(arr[2]),
+      styleHints: dco_decode_list_span_style_hint(arr[3]),
+      children: dco_decode_list_reader_inline(arr[4]),
+    );
+  }
+
+  @protected
+  ReaderInlineKind dco_decode_reader_inline_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ReaderInlineKind.values[raw as int];
+  }
+
+  @protected
+  Section dco_decode_section(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return Section(
+      id: dco_decode_String(arr[0]),
+      title: dco_decode_String(arr[1]),
+      startHref: dco_decode_String(arr[2]),
+      startFragment: dco_decode_opt_String(arr[3]),
+      endHref: dco_decode_opt_String(arr[4]),
+      endFragment: dco_decode_opt_String(arr[5]),
+      spineStart: dco_decode_usize(arr[6]),
+      spineEnd: dco_decode_usize(arr[7]),
+      anchors: dco_decode_list_String(arr[8]),
+      document: dco_decode_reader_document(arr[9]),
+    );
+  }
+
+  @protected
+  SpanStyleHint dco_decode_span_style_hint(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SpanStyleHint.values[raw as int];
+  }
+
+  @protected
+  TableCell dco_decode_table_cell(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return TableCell(
+      isHeader: dco_decode_bool(arr[0]),
+      inlines: dco_decode_list_reader_inline(arr[1]),
+    );
+  }
+
+  @protected
+  TableRow dco_decode_table_row(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return TableRow(cells: dco_decode_list_table_cell(arr[0]));
   }
 
   @protected
@@ -541,41 +523,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  EpubBook sse_decode_box_autoadd_epub_book(SseDeserializer deserializer) {
+  bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_epub_book(deserializer));
-  }
-
-  @protected
-  ChapterInfo sse_decode_chapter_info(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_index = sse_decode_usize(deserializer);
-    var var_id = sse_decode_String(deserializer);
-    var var_href = sse_decode_String(deserializer);
-    var var_mediaType = sse_decode_String(deserializer);
-    return ChapterInfo(
-      index: var_index,
-      id: var_id,
-      href: var_href,
-      mediaType: var_mediaType,
-    );
-  }
-
-  @protected
-  EpubBook sse_decode_epub_book(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_metadata = sse_decode_epub_metadata(deserializer);
-    var var_chapters = sse_decode_list_chapter_info(deserializer);
-    var var_toc = sse_decode_list_toc_entry(deserializer);
-    var var_coverImage = sse_decode_opt_list_prim_u_8_strict(deserializer);
-    var var_chapterContents = sse_decode_list_String(deserializer);
-    return EpubBook(
-      metadata: var_metadata,
-      chapters: var_chapters,
-      toc: var_toc,
-      coverImage: var_coverImage,
-      chapterContents: var_chapterContents,
-    );
+    return deserializer.buffer.getUint8() != 0;
   }
 
   @protected
@@ -605,6 +555,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
+  }
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -617,22 +573,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<ChapterInfo> sse_decode_list_chapter_info(SseDeserializer deserializer) {
+  ListItem sse_decode_list_item(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <ChapterInfo>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_chapter_info(deserializer));
-    }
-    return ans_;
+    var var_blocks = sse_decode_list_reader_block(deserializer);
+    return ListItem(blocks: var_blocks);
   }
 
   @protected
-  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
+  List<ListItem> sse_decode_list_list_item(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+
     var len_ = sse_decode_i_32(deserializer);
-    return deserializer.buffer.getUint8List(len_);
+    var ans_ = <ListItem>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_list_item(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -640,6 +596,82 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<ReaderBlock> sse_decode_list_reader_block(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ReaderBlock>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_reader_block(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ReaderInline> sse_decode_list_reader_inline(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ReaderInline>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_reader_inline(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<Section> sse_decode_list_section(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <Section>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_section(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SpanStyleHint> sse_decode_list_span_style_hint(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SpanStyleHint>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_span_style_hint(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<TableCell> sse_decode_list_table_cell(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TableCell>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_table_cell(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<TableRow> sse_decode_list_table_row(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TableRow>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_table_row(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -677,6 +709,136 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ParsedEpubBook sse_decode_parsed_epub_book(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_metadata = sse_decode_epub_metadata(deserializer);
+    var var_toc = sse_decode_list_toc_entry(deserializer);
+    var var_coverImage = sse_decode_opt_list_prim_u_8_strict(deserializer);
+    var var_sections = sse_decode_list_section(deserializer);
+    return ParsedEpubBook(
+      metadata: var_metadata,
+      toc: var_toc,
+      coverImage: var_coverImage,
+      sections: var_sections,
+    );
+  }
+
+  @protected
+  ReaderBlock sse_decode_reader_block(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_reader_block_kind(deserializer);
+    var var_level = sse_decode_i_32(deserializer);
+    var var_ordered = sse_decode_bool(deserializer);
+    var var_inlines = sse_decode_list_reader_inline(deserializer);
+    var var_blocks = sse_decode_list_reader_block(deserializer);
+    var var_items = sse_decode_list_list_item(deserializer);
+    var var_src = sse_decode_opt_String(deserializer);
+    var var_alt = sse_decode_opt_String(deserializer);
+    var var_caption = sse_decode_opt_String(deserializer);
+    var var_rows = sse_decode_list_table_row(deserializer);
+    return ReaderBlock(
+      kind: var_kind,
+      level: var_level,
+      ordered: var_ordered,
+      inlines: var_inlines,
+      blocks: var_blocks,
+      items: var_items,
+      src: var_src,
+      alt: var_alt,
+      caption: var_caption,
+      rows: var_rows,
+    );
+  }
+
+  @protected
+  ReaderBlockKind sse_decode_reader_block_kind(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ReaderBlockKind.values[inner];
+  }
+
+  @protected
+  ReaderDocument sse_decode_reader_document(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_chapterHref = sse_decode_String(deserializer);
+    var var_blocks = sse_decode_list_reader_block(deserializer);
+    return ReaderDocument(chapterHref: var_chapterHref, blocks: var_blocks);
+  }
+
+  @protected
+  ReaderInline sse_decode_reader_inline(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_reader_inline_kind(deserializer);
+    var var_text = sse_decode_opt_String(deserializer);
+    var var_href = sse_decode_opt_String(deserializer);
+    var var_styleHints = sse_decode_list_span_style_hint(deserializer);
+    var var_children = sse_decode_list_reader_inline(deserializer);
+    return ReaderInline(
+      kind: var_kind,
+      text: var_text,
+      href: var_href,
+      styleHints: var_styleHints,
+      children: var_children,
+    );
+  }
+
+  @protected
+  ReaderInlineKind sse_decode_reader_inline_kind(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ReaderInlineKind.values[inner];
+  }
+
+  @protected
+  Section sse_decode_section(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_startHref = sse_decode_String(deserializer);
+    var var_startFragment = sse_decode_opt_String(deserializer);
+    var var_endHref = sse_decode_opt_String(deserializer);
+    var var_endFragment = sse_decode_opt_String(deserializer);
+    var var_spineStart = sse_decode_usize(deserializer);
+    var var_spineEnd = sse_decode_usize(deserializer);
+    var var_anchors = sse_decode_list_String(deserializer);
+    var var_document = sse_decode_reader_document(deserializer);
+    return Section(
+      id: var_id,
+      title: var_title,
+      startHref: var_startHref,
+      startFragment: var_startFragment,
+      endHref: var_endHref,
+      endFragment: var_endFragment,
+      spineStart: var_spineStart,
+      spineEnd: var_spineEnd,
+      anchors: var_anchors,
+      document: var_document,
+    );
+  }
+
+  @protected
+  SpanStyleHint sse_decode_span_style_hint(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return SpanStyleHint.values[inner];
+  }
+
+  @protected
+  TableCell sse_decode_table_cell(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_isHeader = sse_decode_bool(deserializer);
+    var var_inlines = sse_decode_list_reader_inline(deserializer);
+    return TableCell(isHeader: var_isHeader, inlines: var_inlines);
+  }
+
+  @protected
+  TableRow sse_decode_table_row(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_cells = sse_decode_list_table_cell(deserializer);
+    return TableRow(cells: var_cells);
+  }
+
+  @protected
   TocEntry sse_decode_toc_entry(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_title = sse_decode_String(deserializer);
@@ -702,49 +864,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
-  }
-
-  @protected
-  bool sse_decode_bool(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getUint8() != 0;
-  }
-
-  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
   }
 
   @protected
-  void sse_encode_box_autoadd_epub_book(
-    EpubBook self,
-    SseSerializer serializer,
-  ) {
+  void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_epub_book(self, serializer);
-  }
-
-  @protected
-  void sse_encode_chapter_info(ChapterInfo self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(self.index, serializer);
-    sse_encode_String(self.id, serializer);
-    sse_encode_String(self.href, serializer);
-    sse_encode_String(self.mediaType, serializer);
-  }
-
-  @protected
-  void sse_encode_epub_book(EpubBook self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_epub_metadata(self.metadata, serializer);
-    sse_encode_list_chapter_info(self.chapters, serializer);
-    sse_encode_list_toc_entry(self.toc, serializer);
-    sse_encode_opt_list_prim_u_8_strict(self.coverImage, serializer);
-    sse_encode_list_String(self.chapterContents, serializer);
+    serializer.buffer.putUint8(self ? 1 : 0);
   }
 
   @protected
@@ -765,6 +893,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
+  }
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
@@ -774,27 +908,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_chapter_info(
-    List<ChapterInfo> self,
+  void sse_encode_list_item(ListItem self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_reader_block(self.blocks, serializer);
+  }
+
+  @protected
+  void sse_encode_list_list_item(
+    List<ListItem> self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_chapter_info(item, serializer);
+      sse_encode_list_item(item, serializer);
     }
-  }
-
-  @protected
-  void sse_encode_list_prim_u_8_loose(
-    List<int> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    serializer.buffer.putUint8List(
-      self is Uint8List ? self : Uint8List.fromList(self),
-    );
   }
 
   @protected
@@ -805,6 +933,75 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
+  }
+
+  @protected
+  void sse_encode_list_reader_block(
+    List<ReaderBlock> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_reader_block(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_reader_inline(
+    List<ReaderInline> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_reader_inline(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_section(List<Section> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_section(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_span_style_hint(
+    List<SpanStyleHint> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_span_style_hint(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_table_cell(
+    List<TableCell> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_table_cell(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_table_row(
+    List<TableRow> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_table_row(item, serializer);
+    }
   }
 
   @protected
@@ -843,6 +1040,108 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_parsed_epub_book(
+    ParsedEpubBook self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_epub_metadata(self.metadata, serializer);
+    sse_encode_list_toc_entry(self.toc, serializer);
+    sse_encode_opt_list_prim_u_8_strict(self.coverImage, serializer);
+    sse_encode_list_section(self.sections, serializer);
+  }
+
+  @protected
+  void sse_encode_reader_block(ReaderBlock self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_reader_block_kind(self.kind, serializer);
+    sse_encode_i_32(self.level, serializer);
+    sse_encode_bool(self.ordered, serializer);
+    sse_encode_list_reader_inline(self.inlines, serializer);
+    sse_encode_list_reader_block(self.blocks, serializer);
+    sse_encode_list_list_item(self.items, serializer);
+    sse_encode_opt_String(self.src, serializer);
+    sse_encode_opt_String(self.alt, serializer);
+    sse_encode_opt_String(self.caption, serializer);
+    sse_encode_list_table_row(self.rows, serializer);
+  }
+
+  @protected
+  void sse_encode_reader_block_kind(
+    ReaderBlockKind self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_reader_document(
+    ReaderDocument self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.chapterHref, serializer);
+    sse_encode_list_reader_block(self.blocks, serializer);
+  }
+
+  @protected
+  void sse_encode_reader_inline(ReaderInline self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_reader_inline_kind(self.kind, serializer);
+    sse_encode_opt_String(self.text, serializer);
+    sse_encode_opt_String(self.href, serializer);
+    sse_encode_list_span_style_hint(self.styleHints, serializer);
+    sse_encode_list_reader_inline(self.children, serializer);
+  }
+
+  @protected
+  void sse_encode_reader_inline_kind(
+    ReaderInlineKind self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_section(Section self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_String(self.startHref, serializer);
+    sse_encode_opt_String(self.startFragment, serializer);
+    sse_encode_opt_String(self.endHref, serializer);
+    sse_encode_opt_String(self.endFragment, serializer);
+    sse_encode_usize(self.spineStart, serializer);
+    sse_encode_usize(self.spineEnd, serializer);
+    sse_encode_list_String(self.anchors, serializer);
+    sse_encode_reader_document(self.document, serializer);
+  }
+
+  @protected
+  void sse_encode_span_style_hint(
+    SpanStyleHint self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_table_cell(TableCell self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.isHeader, serializer);
+    sse_encode_list_reader_inline(self.inlines, serializer);
+  }
+
+  @protected
+  void sse_encode_table_row(TableRow self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_table_cell(self.cells, serializer);
+  }
+
+  @protected
   void sse_encode_toc_entry(TocEntry self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.title, serializer);
@@ -864,17 +1163,5 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_usize(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
-  }
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
-  }
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putUint8(self ? 1 : 0);
   }
 }

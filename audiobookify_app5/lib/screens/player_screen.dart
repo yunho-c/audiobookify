@@ -7,15 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:html/parser.dart' as html_parser;
+import '../reader/epub_resource_resolver.dart';
+import '../reader/reader_dto_adapter.dart';
+import '../reader/reader_renderer.dart';
+import '../reader/reader_segmentation.dart';
 import '../core/app_theme.dart';
 import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../core/route_observer.dart';
 import '../services/book_service.dart';
-import '../services/epub_title_resolver.dart';
 import '../services/tts_audio_handler.dart';
 import '../services/tts_service.dart';
 import '../models/book.dart';
@@ -26,31 +27,6 @@ import '../widgets/settings_wheel.dart';
 import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
-
-List<String> _extractParagraphsInIsolate(String htmlContent) {
-  final document = html_parser.parse(htmlContent);
-  final body = document.body;
-  if (body == null) return [];
-
-  final paragraphs = <String>[];
-  final textNodes = body.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
-
-  for (final node in textNodes) {
-    final text = node.text.trim();
-    if (text.isNotEmpty) {
-      paragraphs.add(text);
-    }
-  }
-
-  if (paragraphs.isEmpty) {
-    final text = body.text.trim();
-    paragraphs.addAll(
-      text.split(RegExp(r'\n\s*\n')).where((p) => p.trim().isNotEmpty),
-    );
-  }
-
-  return paragraphs;
-}
 
 /// Player screen with text reader, TTS audio controls, and settings
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -65,16 +41,18 @@ class PlayerScreen extends ConsumerStatefulWidget {
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with RouteAware, SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
-  List<GlobalKey> _paragraphKeys = [];
+  List<GlobalKey> _blockKeys = [];
   final List<List<TapGestureRecognizer>> _sentenceRecognizers = [];
   late final AnimationController _sentenceHighlightController;
   late final Animation<double> _sentenceHighlightCurve;
 
   // Data
   Book? _book;
-  EpubBook? _epubBook;
-  Map<String, String> _tocTitleByHref = {};
-  List<String> _paragraphs = [];
+  ParsedEpubBook? _epubBook;
+  List<ReaderRenderBlock> _renderBlocks = [];
+  List<ReaderTtsParagraph> _ttsParagraphs = [];
+  List<int> _ttsIndexToBlockIndex = [];
+  EpubResourceResolver? _resourceResolver;
   late final BookService _bookService;
   late final TtsService _ttsService;
   late final TtsAudioHandler _audioHandler;
@@ -84,12 +62,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String? _error;
   bool _showSettings = false;
   int _currentChapterIndex = 0;
-  int _lastScrolledToParagraph = -1;
-  int _lastBucketParagraph = -1;
+  int _lastScrolledToTtsIndex = -1;
+  int _lastBucketTtsIndex = -1;
   int _activeSentenceIndex = -1;
-  int _activeSentenceParagraphIndex = -1;
+  int _activeSentenceTtsIndex = -1;
   int _previousSentenceIndex = -1;
-  int _previousSentenceParagraphIndex = -1;
+  int _previousSentenceTtsIndex = -1;
   int _lastResumeChapter = -1;
   int _lastResumeParagraph = -1;
   int _lastResumeSentence = -1;
@@ -121,7 +99,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (status == AnimationStatus.completed) {
         setState(() {
           _previousSentenceIndex = -1;
-          _previousSentenceParagraphIndex = -1;
+          _previousSentenceTtsIndex = -1;
         });
       }
     });
@@ -159,7 +137,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _ttsService.onComplete = () {
       if (!mounted) return;
       // Try to advance to next chapter
-      if (_currentChapterIndex < (_epubBook?.chapters.length ?? 1) - 1) {
+      if (_currentChapterIndex < (_epubBook?.sections.length ?? 1) - 1) {
         _loadChapter(_currentChapterIndex + 1);
       } else {
         _saveProgress();
@@ -197,7 +175,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() {
         _book = book;
         _epubBook = epub;
-        _tocTitleByHref = buildTocTitleByHref(epub.toc);
+        _resourceResolver = EpubResourceResolver(epubPath: book.filePath);
       });
 
       // Get chapter and resume position from query params or stored resume.
@@ -210,7 +188,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final rawChapterIndex = chapterParam != null
           ? (int.tryParse(chapterParam) ?? 1) - 1
           : (storedResume?.chapterIndex ?? 0);
-      final totalChapters = epub.chapters.length;
+      final totalChapters = epub.sections.length;
       final chapterIndex = totalChapters == 0
           ? 0
           : rawChapterIndex.clamp(0, totalChapters - 1).toInt();
@@ -243,11 +221,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }) async {
     if (_epubBook == null || !mounted) return;
 
-    final chapters = _epubBook!.chapters;
-    if (index < 0 || index >= chapters.length) return;
+    final sections = _epubBook!.sections;
+    if (index < 0 || index >= sections.length) return;
 
-    final chapterContent = _epubBook!.chapterContents[index];
-    final paragraphs = await _extractParagraphs(chapterContent);
+    final doc = adaptReaderDocument(sections[index].document);
+    final segmented = segmentReaderDocument(doc);
 
     if (!mounted) return;
 
@@ -255,11 +233,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _clearSentenceRecognizers();
     setState(() {
       _currentChapterIndex = index;
-      _paragraphs = paragraphs;
-      _paragraphKeys =
-          List.generate(paragraphs.length, (_) => GlobalKey());
-      _lastScrolledToParagraph = -1;
-      _lastBucketParagraph = -1;
+      _renderBlocks = segmented.renderBlocks;
+      _ttsParagraphs = segmented.ttsParagraphs;
+      _ttsIndexToBlockIndex = segmented.ttsIndexToBlockIndex;
+      _blockKeys = List.generate(_renderBlocks.length, (_) => GlobalKey());
+      _lastScrolledToTtsIndex = -1;
+      _lastBucketTtsIndex = -1;
       _isLoading = false;
     });
 
@@ -267,18 +246,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // Load content into TTS provider
     final wasPlaying = _ttsService.state.status == TtsStatus.playing;
-    _ttsService.loadContent(paragraphs);
+    final paragraphTexts = _ttsParagraphs.map((p) => p.plainText).toList();
+    _ttsService.loadContent(paragraphTexts);
 
-    if (resumeParagraphIndex != null && paragraphs.isNotEmpty) {
+    if (resumeParagraphIndex != null && _ttsParagraphs.isNotEmpty) {
       final targetParagraph = resumeParagraphIndex
-          .clamp(0, paragraphs.length - 1)
+          .clamp(0, _ttsParagraphs.length - 1)
           .toInt();
       final targetSentence = resumeSentenceIndex ?? 0;
       await _ttsService.jumpToSentence(targetParagraph, targetSentence);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _scrollToParagraph(targetParagraph);
-        _lastScrolledToParagraph = targetParagraph;
+        final blockIndex = _blockIndexForTts(targetParagraph);
+        _scrollToBlock(blockIndex);
+        _lastScrolledToTtsIndex = targetParagraph;
       });
     }
 
@@ -288,19 +269,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  Future<List<String>> _extractParagraphs(String htmlContent) {
-    if (htmlContent.trim().isEmpty) return Future.value(const []);
-    return compute(_extractParagraphsInIsolate, htmlContent);
-  }
-
   void _openSettings() {
     HapticFeedback.selectionClick();
     setState(() => _showSettings = true);
   }
 
-  void _scrollToParagraph(int index) {
-    if (index < 0 || index >= _paragraphKeys.length) return;
-    final targetContext = _paragraphKeys[index].currentContext;
+  void _scrollToBlock(int index) {
+    if (index < 0 || index >= _blockKeys.length) return;
+    final targetContext = _blockKeys[index].currentContext;
     if (targetContext != null) {
       Scrollable.ensureVisible(
         targetContext,
@@ -317,6 +293,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  int _blockIndexForTts(int ttsIndex) {
+    if (ttsIndex < 0 || ttsIndex >= _ttsIndexToBlockIndex.length) {
+      return 0;
+    }
+    return _ttsIndexToBlockIndex[ttsIndex];
   }
 
   void _updateBucketProgress(int paragraphIndex, int totalParagraphs) {
@@ -354,7 +337,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       HapticFeedback.selectionClick();
     }
     if (_epubBook != null &&
-        _currentChapterIndex < _epubBook!.chapters.length - 1) {
+        _currentChapterIndex < _epubBook!.sections.length - 1) {
       _loadChapter(_currentChapterIndex + 1);
     }
   }
@@ -362,7 +345,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _saveProgress() {
     if (_book == null || _epubBook == null) return;
 
-    final totalChapters = _epubBook!.chapters.length;
+    final totalChapters = _epubBook!.sections.length;
+    if (totalChapters <= 0) return;
     final progress = (((_currentChapterIndex + 1) / totalChapters) * 100)
         .round();
 
@@ -370,11 +354,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   double _calculateProgress(TtsPlaybackState ttsState) {
-    if (_paragraphs.isEmpty) return 0.0;
+    if (_ttsParagraphs.isEmpty) return 0.0;
     final sentences = ttsState.sentencesPerParagraph;
     if (sentences.isEmpty) {
-      if (_paragraphs.length <= 1) return 0.0;
-      return (ttsState.paragraphIndex / (_paragraphs.length - 1))
+      if (_ttsParagraphs.length <= 1) return 0.0;
+      return (ttsState.paragraphIndex / (_ttsParagraphs.length - 1))
           .clamp(0.0, 1.0);
     }
 
@@ -404,16 +388,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     double progress,
     TtsPlaybackState ttsState,
   ) async {
-    if (_paragraphs.isEmpty) return;
+    if (_ttsParagraphs.isEmpty) return;
     final normalized = progress.clamp(0.0, 1.0);
     final sentences = ttsState.sentencesPerParagraph;
     if (sentences.isEmpty) {
-      final targetParagraph = _paragraphs.length <= 1
+      final targetParagraph = _ttsParagraphs.length <= 1
           ? 0
-          : (normalized * (_paragraphs.length - 1)).round();
+          : (normalized * (_ttsParagraphs.length - 1)).round();
       await _ttsService.jumpToParagraph(targetParagraph);
       if (mounted) {
-        _scrollToParagraph(targetParagraph);
+        _scrollToBlock(_blockIndexForTts(targetParagraph));
       }
       return;
     }
@@ -423,12 +407,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       totalSentences += paragraphSentences.length;
     }
     if (totalSentences <= 0) {
-      final targetParagraph = _paragraphs.length <= 1
+      final targetParagraph = _ttsParagraphs.length <= 1
           ? 0
-          : (normalized * (_paragraphs.length - 1)).round();
+          : (normalized * (_ttsParagraphs.length - 1)).round();
       await _ttsService.jumpToParagraph(targetParagraph);
       if (mounted) {
-        _scrollToParagraph(targetParagraph);
+        _scrollToBlock(_blockIndexForTts(targetParagraph));
       }
       return;
     }
@@ -454,18 +438,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     await _ttsService.jumpToSentence(targetParagraph, targetSentenceIndex);
     if (mounted) {
-      _scrollToParagraph(targetParagraph);
+      _scrollToBlock(_blockIndexForTts(targetParagraph));
     }
   }
 
   void _persistResumePosition(TtsPlaybackState ttsState) {
     final book = _book;
-    if (book == null || _epubBook == null || _paragraphs.isEmpty) return;
+    if (book == null || _epubBook == null || _ttsParagraphs.isEmpty) return;
     final chapterIndex = _currentChapterIndex
-        .clamp(0, _epubBook!.chapters.length - 1)
+        .clamp(0, _epubBook!.sections.length - 1)
         .toInt();
     final paragraphIndex =
-        ttsState.paragraphIndex.clamp(0, _paragraphs.length - 1).toInt();
+        ttsState.paragraphIndex.clamp(0, _ttsParagraphs.length - 1).toInt();
     var sentenceIndex = ttsState.sentenceIndex;
     final sentences = ttsState.sentencesPerParagraph;
     if (paragraphIndex < sentences.length) {
@@ -519,16 +503,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _chapterTitleFor(int index) {
     final book = _epubBook;
     if (book == null) return 'Chapter ${index + 1}';
-    if (index < 0 || index >= book.chapters.length) {
+    if (index < 0 || index >= book.sections.length) {
       return 'Chapter ${index + 1}';
     }
-    return resolveChapterTitle(
-      chapter: book.chapters[index],
-      chapterIndex: index,
-      displayIndex: index + 1,
-      tocTitleByHref: _tocTitleByHref,
-      chapterContents: book.chapterContents,
-    );
+    final title = book.sections[index].title.trim();
+    return title.isEmpty ? 'Chapter ${index + 1}' : title;
   }
 
   void _updateNowPlaying() {
@@ -556,23 +535,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (sentenceIndex < 0) {
       setState(() {
         _activeSentenceIndex = -1;
-        _activeSentenceParagraphIndex = -1;
+        _activeSentenceTtsIndex = -1;
         _previousSentenceIndex = -1;
-        _previousSentenceParagraphIndex = -1;
+        _previousSentenceTtsIndex = -1;
       });
       _sentenceHighlightController.value = 1;
       return;
     }
-    if (paragraphIndex == _activeSentenceParagraphIndex &&
+    if (paragraphIndex == _activeSentenceTtsIndex &&
         sentenceIndex == _activeSentenceIndex) {
       return;
     }
 
     setState(() {
       _previousSentenceIndex = _activeSentenceIndex;
-      _previousSentenceParagraphIndex = _activeSentenceParagraphIndex;
+      _previousSentenceTtsIndex = _activeSentenceTtsIndex;
       _activeSentenceIndex = sentenceIndex;
-      _activeSentenceParagraphIndex = paragraphIndex;
+      _activeSentenceTtsIndex = paragraphIndex;
     });
 
     _sentenceHighlightController.stop();
@@ -580,85 +559,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _sentenceHighlightController.forward();
   }
 
-  List<TextSpan> _buildSentenceSpans({
-    required List<String> sentences,
-    required int paragraphIndex,
-    required bool isActiveParagraph,
-    required int currentSentenceIndex,
-    required int previousSentenceIndex,
-    required int previousParagraphIndex,
-    required double transitionValue,
-    required PlayerThemeSettings readerTheme,
-    required ColorScheme colorScheme,
-    required TextTheme textTheme,
-    required PlayerThemeSentenceHighlightStyle highlightStyle,
-    required double highlightOpacity,
-  }) {
-    final spans = <TextSpan>[];
-
-    for (var sentenceIdx = 0;
-        sentenceIdx < sentences.length;
-        sentenceIdx++) {
-      final sentence = sentences[sentenceIdx];
-      final isCurrentSentence =
-          isActiveParagraph && sentenceIdx == currentSentenceIndex;
-      final isPreviousSentence =
-          paragraphIndex == previousParagraphIndex &&
-              sentenceIdx == previousSentenceIndex;
-      final highlightIntensity = isCurrentSentence
-          ? transitionValue
-          : isPreviousSentence
-          ? 1 - transitionValue
-          : 0.0;
-      final sentenceColor = _resolveReaderTextColor(
-        readerTheme,
-        colorScheme,
-        isActive: isCurrentSentence || isPreviousSentence,
-      );
-      final sentenceStyle = _buildReaderTextStyle(
-        baseStyle: textTheme.bodyLarge,
-        theme: readerTheme,
-        color: sentenceColor,
-      );
-
-      spans.add(
-        TextSpan(
-          text: sentence,
-          style: _applySentenceHighlight(
-            base: sentenceStyle,
-            isCurrent: highlightIntensity > 0,
-            highlightStyle: highlightStyle,
-            highlightColor: colorScheme.primary.withOpacity(highlightOpacity),
-            intensity: highlightIntensity,
-          ),
-          recognizer: _sentenceRecognizerFor(paragraphIndex, sentenceIdx),
-        ),
-      );
-
-      if (sentenceIdx < sentences.length - 1) {
-        spans.add(TextSpan(text: ' ', style: sentenceStyle));
-      }
-    }
-
-    return spans;
-  }
-
   TapGestureRecognizer _sentenceRecognizerFor(
-    int paragraphIndex,
+    int ttsIndex,
     int sentenceIndex,
   ) {
-    while (_sentenceRecognizers.length <= paragraphIndex) {
+    while (_sentenceRecognizers.length <= ttsIndex) {
       _sentenceRecognizers.add(<TapGestureRecognizer>[]);
     }
-    final paragraphRecognizers = _sentenceRecognizers[paragraphIndex];
+    final paragraphRecognizers = _sentenceRecognizers[ttsIndex];
     while (paragraphRecognizers.length <= sentenceIndex) {
       paragraphRecognizers.add(TapGestureRecognizer());
     }
     final recognizer = paragraphRecognizers[sentenceIndex];
     recognizer.onTap = () {
-      ref
-          .read(ttsProvider.notifier)
-          .jumpToSentence(paragraphIndex, sentenceIndex);
+      ref.read(ttsProvider.notifier).jumpToSentence(ttsIndex, sentenceIndex);
     };
     return recognizer;
   }
@@ -672,120 +586,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _sentenceRecognizers.clear();
   }
 
-  Widget _wrapShadow({
-    required bool showShadow,
-    required Color shadowColor,
-    required Widget child,
-  }) {
-    if (!showShadow) return child;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-            blurStyle: BlurStyle.outer,
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  TextStyle _buildReaderTextStyle({
-    required TextStyle? baseStyle,
-    required PlayerThemeSettings theme,
-    required Color color,
-  }) {
-    final style = (baseStyle ?? const TextStyle()).copyWith(
-      fontSize: theme.fontSize,
-      fontWeight: _resolveFontWeight(theme.fontWeight),
-      height: theme.lineHeight,
-      color: color,
-    );
-    final fontFamily = theme.fontFamily;
-    if (fontFamily == null || fontFamily.trim().isEmpty) {
-      return style;
-    }
-    try {
-      return GoogleFonts.getFont(fontFamily, textStyle: style);
-    } catch (_) {
-      return style.copyWith(fontFamily: fontFamily);
-    }
-  }
-
-  FontWeight _resolveFontWeight(int weight) {
-    final normalized = ((weight / 100).round() * 100).clamp(100, 900);
-    switch (normalized) {
-      case 100:
-        return FontWeight.w100;
-      case 200:
-        return FontWeight.w200;
-      case 300:
-        return FontWeight.w300;
-      case 400:
-        return FontWeight.w400;
-      case 500:
-        return FontWeight.w500;
-      case 600:
-        return FontWeight.w600;
-      case 700:
-        return FontWeight.w700;
-      case 800:
-        return FontWeight.w800;
-      case 900:
-        return FontWeight.w900;
-    }
-    return FontWeight.w400;
-  }
-
-  Color _resolveReaderTextColor(
-    PlayerThemeSettings theme,
-    ColorScheme colorScheme, {
-    required bool isActive,
-  }) {
-    if (theme.textColorMode == PlayerThemeTextColorMode.fixed &&
-        theme.textColor != null) {
-      final base = theme.textColor!;
-      return isActive ? base : base.withOpacity(0.78);
-    }
-    return isActive ? colorScheme.onSurface : colorScheme.onSurfaceVariant;
-  }
-
-  TextStyle _applySentenceHighlight({
-    required TextStyle base,
-    required bool isCurrent,
-    required PlayerThemeSentenceHighlightStyle highlightStyle,
-    required Color highlightColor,
-    required double intensity,
-  }) {
-    if (!isCurrent || intensity <= 0) {
-      return base;
-    }
-    final resolvedColor =
-        highlightColor.withOpacity(highlightColor.opacity * intensity);
-    switch (highlightStyle) {
-      case PlayerThemeSentenceHighlightStyle.background:
-        return base.copyWith(backgroundColor: resolvedColor);
-      case PlayerThemeSentenceHighlightStyle.underline:
-        return base.copyWith(
-          decoration: TextDecoration.underline,
-          decorationColor: resolvedColor,
-          decorationThickness: 1.6,
-        );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     // Watch TTS state for reactive updates
     final ttsState = ref.watch(ttsProvider);
     ref.listen<TtsPlaybackState>(ttsProvider, (previous, next) {
-      if (!mounted || _paragraphs.isEmpty) return;
+      if (!mounted || _ttsParagraphs.isEmpty) return;
       final prevParagraph = previous?.paragraphIndex;
       final prevSentence = previous?.sentenceIndex;
       if (prevParagraph == next.paragraphIndex &&
@@ -845,30 +652,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         : readerTheme.pagePaddingVertical;
     final activeParagraphOpacity =
         readerTheme.activeParagraphOpacity.clamp(0.0, 1.0);
-                          final sentenceHighlightOpacity =
-                              (activeParagraphOpacity + 0.12).clamp(0.0, 0.6);
-                          final sentenceHighlightStyle =
-                              readerTheme.sentenceHighlightStyle;
+    final sentenceHighlightOpacity =
+        (activeParagraphOpacity + 0.12).clamp(0.0, 0.6);
+    final sentenceHighlightStyle = readerTheme.sentenceHighlightStyle;
+    final renderTheme = ReaderRenderTheme(
+      readerTheme: readerTheme,
+      textTheme: textTheme,
+      colorScheme: colorScheme,
+      shadowColor: glassShadow,
+      paragraphSpacing: safeParagraphSpacing,
+      paragraphIndent: safeParagraphIndent,
+      activeParagraphStyle: readerTheme.activeParagraphStyle,
+      activeParagraphOpacity: activeParagraphOpacity,
+      sentenceHighlightStyle: sentenceHighlightStyle,
+      sentenceHighlightOpacity: sentenceHighlightOpacity,
+    );
+    final resolver = _resourceResolver ??
+        EpubResourceResolver(
+          epubPath: _book?.filePath ?? '',
+        );
 
     // Auto-scroll when paragraph changes
-    if (currentParagraphIndex != _lastScrolledToParagraph && isPlaying) {
+    if (currentParagraphIndex != _lastScrolledToTtsIndex && isPlaying) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToParagraph(currentParagraphIndex);
-        _lastScrolledToParagraph = currentParagraphIndex;
+        _scrollToBlock(_blockIndexForTts(currentParagraphIndex));
+        _lastScrolledToTtsIndex = currentParagraphIndex;
       });
     }
 
     if (_book != null &&
-        _paragraphs.isNotEmpty &&
-        currentParagraphIndex != _lastBucketParagraph) {
+        _ttsParagraphs.isNotEmpty &&
+        currentParagraphIndex != _lastBucketTtsIndex) {
       final targetParagraph = currentParagraphIndex;
       final targetChapter = _currentChapterIndex;
-      _lastBucketParagraph = targetParagraph;
+      _lastBucketTtsIndex = targetParagraph;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        if (_book == null || _paragraphs.isEmpty) return;
+        if (_book == null || _ttsParagraphs.isEmpty) return;
         if (_currentChapterIndex != targetChapter) return;
-        _updateBucketProgress(targetParagraph, _paragraphs.length);
+        _updateBucketProgress(targetParagraph, _ttsParagraphs.length);
       });
     }
 
@@ -970,7 +792,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
               // Text content
               Expanded(
-                child: _paragraphs.isEmpty
+                child: _renderBlocks.isEmpty
                     ? Center(
                         child: Text(
                           'No content available',
@@ -987,143 +809,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           safePagePaddingHorizontal,
                           safePagePaddingVertical + 260,
                         ),
-                        itemCount: _paragraphs.length,
+                        itemCount: _renderBlocks.length,
                         itemBuilder: (context, index) {
-                          final paragraphKey = index < _paragraphKeys.length
-                              ? _paragraphKeys[index]
+                          final renderBlock = _renderBlocks[index];
+                          final ttsIndex = renderBlock.ttsIndex;
+                          final blockKey = index < _blockKeys.length
+                              ? _blockKeys[index]
                               : GlobalKey();
                           final isActiveParagraph =
-                              index == currentParagraphIndex;
-                          final sentences =
-                              ttsState.sentencesPerParagraph.length > index
-                              ? ttsState.sentencesPerParagraph[index]
-                              : <String>[];
-                          final style = readerTheme.activeParagraphStyle;
-                          final showHighlight = isActiveParagraph &&
-                              (style ==
-                                      PlayerThemeActiveParagraphStyle
-                                          .highlight ||
-                                  style ==
-                                      PlayerThemeActiveParagraphStyle
-                                          .highlightBar);
-                          final showLeftBar = isActiveParagraph &&
-                              (style ==
-                                      PlayerThemeActiveParagraphStyle.leftBar ||
-                                  style ==
-                                      PlayerThemeActiveParagraphStyle
-                                          .highlightBar);
-                          final showShadow = isActiveParagraph &&
-                              style ==
-                                  PlayerThemeActiveParagraphStyle.underline;
-                          final shadowOpacity =
-                              (activeParagraphOpacity * 0.9).clamp(0.08, 0.3);
-
-                          return Pressable(
-                            pressedOpacity: 0.78,
-                            pressedScale: 1,
-                            onTap: () {
-                              ref
-                                  .read(ttsProvider.notifier)
-                                  .jumpToParagraph(index);
-                            },
-                            child: _wrapShadow(
-                              showShadow: showShadow,
-                              shadowColor:
-                                  glassShadow.withOpacity(shadowOpacity),
-                              child: AnimatedContainer(
-                                key: paragraphKey,
-                                duration: const Duration(milliseconds: 200),
-                                margin: EdgeInsets.symmetric(
-                                  vertical: safeParagraphSpacing,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: showHighlight
-                                      ? colorScheme.primary
-                                          .withOpacity(activeParagraphOpacity)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                child: IntrinsicHeight(
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      // Vertical line indicator
-                                      AnimatedContainer(
-                                        duration:
-                                            const Duration(milliseconds: 200),
-                                        width: showLeftBar ? 3 : 0,
-                                        margin: EdgeInsets.only(
-                                          right: showLeftBar ? 12 : 0,
-                                          top: 6,
-                                          bottom: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: showLeftBar
-                                              ? colorScheme.primary
-                                              : Colors.transparent,
-                                          borderRadius: BorderRadius.circular(2),
-                                        ),
-                                      ),
-                                      // Text content
-                                      Expanded(
-                                        child: Padding(
-                                          padding: EdgeInsets.only(
-                                            left: safeParagraphIndent,
-                                          ),
-                                          child: sentences.isEmpty
-                                              ? Text(
-                                                  _paragraphs[index],
-                                                  style: _buildReaderTextStyle(
-                                                    baseStyle:
-                                                        textTheme.bodyLarge,
-                                                    theme: readerTheme,
-                                                    color:
-                                                        _resolveReaderTextColor(
-                                                      readerTheme,
-                                                      colorScheme,
-                                                      isActive:
-                                                          isActiveParagraph,
-                                                    ),
-                                                  ),
-                                                )
-                                              : RichText(
-                                                  text: TextSpan(
-                                                    children:
-                                                        _buildSentenceSpans(
-                                                      sentences: sentences,
-                                                      paragraphIndex: index,
-                                                      isActiveParagraph:
-                                                          isActiveParagraph,
-                                                      currentSentenceIndex:
-                                                          currentSentenceIndex,
-                                                      previousSentenceIndex:
-                                                          _previousSentenceIndex,
-                                                      previousParagraphIndex:
-                                                          _previousSentenceParagraphIndex,
-                                                      transitionValue:
-                                                          _sentenceHighlightCurve
-                                                              .value,
-                                                      readerTheme: readerTheme,
-                                                      colorScheme: colorScheme,
-                                                      textTheme: textTheme,
-                                                      highlightStyle:
-                                                          sentenceHighlightStyle,
-                                                      highlightOpacity:
-                                                          sentenceHighlightOpacity,
-                                                    ),
-                                                  ),
-                                                ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                              ttsIndex != null && ttsIndex == currentParagraphIndex;
+                          final ttsData = ttsIndex != null &&
+                                  ttsIndex < _ttsParagraphs.length
+                              ? _ttsParagraphs[ttsIndex]
+                              : null;
+                          return KeyedSubtree(
+                            key: blockKey,
+                            child: ReaderBlockRenderer.buildBlock(
+                              renderBlock: renderBlock,
+                              theme: renderTheme,
+                              resolver: resolver,
+                              isActiveParagraph: isActiveParagraph,
+                              activeSentenceIndex:
+                                  isActiveParagraph ? currentSentenceIndex : -1,
+                              previousSentenceIndex: isActiveParagraph
+                                  ? _previousSentenceIndex
+                                  : -1,
+                              transitionValue: isActiveParagraph
+                                  ? _sentenceHighlightCurve.value
+                                  : 0.0,
+                              sentenceRecognizer: ttsIndex != null
+                                  ? (sentenceIndex) => _sentenceRecognizerFor(
+                                        ttsIndex,
+                                        sentenceIndex,
+                                      )
+                                  : null,
+                              onTapParagraph: ttsIndex != null
+                                  ? () => ref
+                                      .read(ttsProvider.notifier)
+                                      .jumpToParagraph(ttsIndex)
+                                  : null,
+                              ttsData: ttsData,
                             ),
                           );
                         },
@@ -1140,7 +865,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               isPlaying: isPlaying,
               progress: progress,
               currentParagraph: currentParagraphIndex + 1,
-              totalParagraphs: _paragraphs.length,
+              totalParagraphs: _ttsParagraphs.length,
               glassBackground: glassBackground,
               glassBorder: glassBorder,
               glassShadow: glassShadow,
@@ -1154,7 +879,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               canGoPrevious: _currentChapterIndex > 0,
               canGoNext:
                   _epubBook != null &&
-                  _currentChapterIndex < _epubBook!.chapters.length - 1,
+                  _currentChapterIndex < _epubBook!.sections.length - 1,
             ),
           ),
           // Settings modal

@@ -18,7 +18,7 @@ class BookService {
   /// Save an imported EPUB book to the database.
   /// Returns an existing book if the import looks like a duplicate.
   BookSaveResult saveBook(
-    EpubBook epubBook,
+    ParsedEpubBook epubBook,
     String filePath, {
     bool allowLooseMatch = true,
   }) {
@@ -38,7 +38,7 @@ class BookService {
       publisher: epubBook.metadata.publisher,
       description: epubBook.metadata.description,
       coverImage: epubBook.coverImage,
-      chapterCount: epubBook.chapters.length,
+      chapterCount: epubBook.sections.length,
       filePath: filePath,
       addedAt: DateTime.now(),
       progress: 0,
@@ -49,7 +49,7 @@ class BookService {
   }
 
   Book? _findDuplicate(
-    EpubBook epubBook,
+    ParsedEpubBook epubBook,
     String filePath, {
     required bool allowLooseMatch,
   }) {
@@ -74,7 +74,7 @@ class BookService {
 
     final normalizedTitle = title.toLowerCase();
     final normalizedAuthor = author?.toLowerCase() ?? '';
-    final chapterCount = epubBook.chapters.length;
+    final chapterCount = epubBook.sections.length;
 
     final query = _bookBox.query(
       Book_.chapterCount.equals(chapterCount),

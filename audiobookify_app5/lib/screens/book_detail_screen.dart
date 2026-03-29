@@ -10,7 +10,6 @@ import '../core/app_theme.dart';
 import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../models/book.dart';
-import '../services/epub_title_resolver.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/book_actions_sheet.dart';
 import '../widgets/shared/glass_icon_button.dart';
@@ -29,7 +28,7 @@ class BookDetailScreen extends ConsumerStatefulWidget {
 
 class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   Book? _book;
-  EpubBook? _epubBook;
+  ParsedEpubBook? _epubBook;
   bool _isLoading = true;
   String? _error;
   String? _epubLoadError;
@@ -371,9 +370,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                       const SizedBox(height: 24),
                       _ChapterList(
                         bookId: book.id,
-                        toc: _epubBook?.toc ?? [],
-                        chapters: _epubBook?.chapters ?? [],
-                        chapterContents: _epubBook?.chapterContents ?? [],
+                        sections: _epubBook?.sections ?? [],
                         progress: book.progress,
                       ),
                       const SizedBox(height: 48),
@@ -581,40 +578,19 @@ class _StatItem extends StatelessWidget {
 
 class _ChapterList extends ConsumerWidget {
   final int bookId;
-  final List<TocEntry> toc;
-  final List<ChapterInfo> chapters;
-  final List<String> chapterContents;
+  final List<Section> sections;
   final int progress;
-
-  static const bool kPreferTocTitles = true;
-  static const bool kHideUnmatchedWhenTocCoverageHigh = false;
-  static const double kTocCoverageThreshold = 0.85;
 
   const _ChapterList({
     required this.bookId,
-    required this.toc,
-    required this.chapters,
-    required this.chapterContents,
+    required this.sections,
     required this.progress,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const bucketCount = 64;
-    final tocTitleByHref =
-        kPreferTocTitles ? buildTocTitleByHref(toc) : <String, String>{};
-    final matchedCount = kPreferTocTitles
-        ? chapters
-            .where(
-              (chapter) =>
-                  tocTitleByHref.containsKey(normalizeHref(chapter.href)),
-            )
-            .length
-        : 0;
-    final tocCoverage = chapters.isEmpty ? 0.0 : matchedCount / chapters.length;
-    final shouldFilter = kHideUnmatchedWhenTocCoverageHigh &&
-        tocCoverage >= kTocCoverageThreshold;
-    final hasChapters = chapters.isNotEmpty;
+    final hasChapters = sections.isNotEmpty;
 
     if (!hasChapters) {
       return Container(
@@ -673,31 +649,20 @@ class _ChapterList extends ConsumerWidget {
                 ),
           ),
           const SizedBox(height: 16),
-          ...chapters
+          ...sections
               .asMap()
               .entries
-              .where(
-                (entry) =>
-                    !shouldFilter ||
-                    tocTitleByHref
-                        .containsKey(normalizeHref(entry.value.href)),
-              )
               .map(
             (entry) {
               final index = entry.key + 1;
+              final title = entry.value.title.trim();
               return _TocItem(
                 index: index,
-                title: _chapterTitleFor(
-                  entry.value,
-                  index,
-                  tocTitleByHref,
-                  chapterContents,
-                  entry.key,
-                ),
+                title: title.isEmpty ? 'Chapter $index' : title,
                 bookId: bookId,
                 status: _chapterStatus(
                   index,
-                  chapters.length,
+                  sections.length,
                   progress,
                 ),
                 bucketCount: bucketCount,
@@ -711,23 +676,6 @@ class _ChapterList extends ConsumerWidget {
 }
 
 enum _ChapterStatus { newChapter, inProgress, completed }
-
-String _chapterTitleFor(
-  ChapterInfo chapter,
-  int index,
-  Map<String, String> tocTitleByHref,
-  List<String> chapterContents,
-  int chapterIndex,
-) {
-  return resolveChapterTitle(
-    chapter: chapter,
-    chapterIndex: chapterIndex,
-    displayIndex: index,
-    tocTitleByHref: tocTitleByHref,
-    chapterContents: chapterContents,
-    preferTocTitle: _ChapterList.kPreferTocTitles,
-  );
-}
 
 _ChapterStatus _chapterStatus(int index, int total, int progress) {
   if (total <= 0) return _ChapterStatus.newChapter;

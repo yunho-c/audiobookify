@@ -87,7 +87,7 @@ bool _isValidEpubInIsolate(String path) {
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   bool _isLoading = false;
-  EpubBook? _loadedBook;
+  ParsedEpubBook? _loadedBook;
   String? _errorMessage;
   String? _loadedFilePath;
   _CreateMode _mode = _CreateMode.import;
@@ -1367,7 +1367,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${book.chapters.length} chapters',
+                  '${book.sections.length} chapters',
                   style: textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),

@@ -6,107 +6,23 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `load_epub_data`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `map_runtime_error`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
-/// Open an EPUB file from path and load all data
-Future<EpubBook> openEpub({required String path}) =>
+/// Open an EPUB file from path and parse runtime reader sections.
+Future<ParsedEpubBook> openEpub({required String path}) =>
     RustLib.instance.api.crateApiEpubOpenEpub(path: path);
 
-/// Open an EPUB from raw bytes and load all data
-Future<EpubBook> openEpubBytes({required List<int> bytes}) =>
-    RustLib.instance.api.crateApiEpubOpenEpubBytes(bytes: bytes);
+/// Lazily read a book resource from the EPUB archive.
+Future<Uint8List?> readBookResourceBytes({
+  required String path,
+  required String href,
+}) => RustLib.instance.api.crateApiEpubReadBookResourceBytes(
+  path: path,
+  href: href,
+);
 
-/// Read a specific chapter by index
-Future<String> readChapter({required EpubBook book, required BigInt index}) =>
-    RustLib.instance.api.crateApiEpubReadChapter(book: book, index: index);
-
-/// Get the number of chapters in the book
-BigInt getChapterCount({required EpubBook book}) =>
-    RustLib.instance.api.crateApiEpubGetChapterCount(book: book);
-
-/// Get metadata from the book
-EpubMetadata getMetadata({required EpubBook book}) =>
-    RustLib.instance.api.crateApiEpubGetMetadata(book: book);
-
-/// Get table of contents entries
-List<TocEntry> getToc({required EpubBook book}) =>
-    RustLib.instance.api.crateApiEpubGetToc(book: book);
-
-/// Get chapter info list
-List<ChapterInfo> getChapters({required EpubBook book}) =>
-    RustLib.instance.api.crateApiEpubGetChapters(book: book);
-
-/// Get cover image bytes
-Uint8List? getCover({required EpubBook book}) =>
-    RustLib.instance.api.crateApiEpubGetCover(book: book);
-
-/// A chapter from the EPUB spine
-class ChapterInfo {
-  final BigInt index;
-  final String id;
-  final String href;
-  final String mediaType;
-
-  const ChapterInfo({
-    required this.index,
-    required this.id,
-    required this.href,
-    required this.mediaType,
-  });
-
-  @override
-  int get hashCode =>
-      index.hashCode ^ id.hashCode ^ href.hashCode ^ mediaType.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ChapterInfo &&
-          runtimeType == other.runtimeType &&
-          index == other.index &&
-          id == other.id &&
-          href == other.href &&
-          mediaType == other.mediaType;
-}
-
-/// EPUB book data - we load everything upfront to avoid lifetime issues with FFI
-class EpubBook {
-  final EpubMetadata metadata;
-  final List<ChapterInfo> chapters;
-  final List<TocEntry> toc;
-  final Uint8List? coverImage;
-  final List<String> chapterContents;
-
-  const EpubBook({
-    required this.metadata,
-    required this.chapters,
-    required this.toc,
-    this.coverImage,
-    required this.chapterContents,
-  });
-
-  @override
-  int get hashCode =>
-      metadata.hashCode ^
-      chapters.hashCode ^
-      toc.hashCode ^
-      coverImage.hashCode ^
-      chapterContents.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is EpubBook &&
-          runtimeType == other.runtimeType &&
-          metadata == other.metadata &&
-          chapters == other.chapters &&
-          toc == other.toc &&
-          coverImage == other.coverImage &&
-          chapterContents == other.chapterContents;
-}
-
-/// Error type for EPUB operations
+/// Error type for EPUB operations.
 class EpubError implements FrbException {
   final String message;
 
@@ -123,7 +39,7 @@ class EpubError implements FrbException {
           message == other.message;
 }
 
-/// Metadata extracted from an EPUB file
+/// Metadata extracted from an EPUB file.
 class EpubMetadata {
   final String? title;
   final String? creator;
@@ -163,7 +79,276 @@ class EpubMetadata {
           description == other.description;
 }
 
-/// A single entry in the table of contents
+class ListItem {
+  final List<ReaderBlock> blocks;
+
+  const ListItem({required this.blocks});
+
+  @override
+  int get hashCode => blocks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ListItem &&
+          runtimeType == other.runtimeType &&
+          blocks == other.blocks;
+}
+
+/// Fully parsed runtime book data.
+class ParsedEpubBook {
+  final EpubMetadata metadata;
+  final List<TocEntry> toc;
+  final Uint8List? coverImage;
+  final List<Section> sections;
+
+  const ParsedEpubBook({
+    required this.metadata,
+    required this.toc,
+    this.coverImage,
+    required this.sections,
+  });
+
+  @override
+  int get hashCode =>
+      metadata.hashCode ^
+      toc.hashCode ^
+      coverImage.hashCode ^
+      sections.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ParsedEpubBook &&
+          runtimeType == other.runtimeType &&
+          metadata == other.metadata &&
+          toc == other.toc &&
+          coverImage == other.coverImage &&
+          sections == other.sections;
+}
+
+class ReaderBlock {
+  final ReaderBlockKind kind;
+  final int level;
+  final bool ordered;
+  final List<ReaderInline> inlines;
+  final List<ReaderBlock> blocks;
+  final List<ListItem> items;
+  final String? src;
+  final String? alt;
+  final String? caption;
+  final List<TableRow> rows;
+
+  const ReaderBlock({
+    required this.kind,
+    required this.level,
+    required this.ordered,
+    required this.inlines,
+    required this.blocks,
+    required this.items,
+    this.src,
+    this.alt,
+    this.caption,
+    required this.rows,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      level.hashCode ^
+      ordered.hashCode ^
+      inlines.hashCode ^
+      blocks.hashCode ^
+      items.hashCode ^
+      src.hashCode ^
+      alt.hashCode ^
+      caption.hashCode ^
+      rows.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReaderBlock &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          level == other.level &&
+          ordered == other.ordered &&
+          inlines == other.inlines &&
+          blocks == other.blocks &&
+          items == other.items &&
+          src == other.src &&
+          alt == other.alt &&
+          caption == other.caption &&
+          rows == other.rows;
+}
+
+enum ReaderBlockKind {
+  paragraph,
+  heading,
+  blockQuote,
+  list,
+  listItem,
+  image,
+  table,
+  horizontalRule,
+}
+
+class ReaderDocument {
+  final String chapterHref;
+  final List<ReaderBlock> blocks;
+
+  const ReaderDocument({required this.chapterHref, required this.blocks});
+
+  @override
+  int get hashCode => chapterHref.hashCode ^ blocks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReaderDocument &&
+          runtimeType == other.runtimeType &&
+          chapterHref == other.chapterHref &&
+          blocks == other.blocks;
+}
+
+class ReaderInline {
+  final ReaderInlineKind kind;
+  final String? text;
+  final String? href;
+  final List<SpanStyleHint> styleHints;
+  final List<ReaderInline> children;
+
+  const ReaderInline({
+    required this.kind,
+    this.text,
+    this.href,
+    required this.styleHints,
+    required this.children,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      text.hashCode ^
+      href.hashCode ^
+      styleHints.hashCode ^
+      children.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReaderInline &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          text == other.text &&
+          href == other.href &&
+          styleHints == other.styleHints &&
+          children == other.children;
+}
+
+enum ReaderInlineKind {
+  text,
+  emphasis,
+  strong,
+  sup,
+  sub,
+  link,
+  lineBreak,
+  span,
+}
+
+class Section {
+  final String id;
+  final String title;
+  final String startHref;
+  final String? startFragment;
+  final String? endHref;
+  final String? endFragment;
+  final BigInt spineStart;
+  final BigInt spineEnd;
+  final List<String> anchors;
+  final ReaderDocument document;
+
+  const Section({
+    required this.id,
+    required this.title,
+    required this.startHref,
+    this.startFragment,
+    this.endHref,
+    this.endFragment,
+    required this.spineStart,
+    required this.spineEnd,
+    required this.anchors,
+    required this.document,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      startHref.hashCode ^
+      startFragment.hashCode ^
+      endHref.hashCode ^
+      endFragment.hashCode ^
+      spineStart.hashCode ^
+      spineEnd.hashCode ^
+      anchors.hashCode ^
+      document.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Section &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          startHref == other.startHref &&
+          startFragment == other.startFragment &&
+          endHref == other.endHref &&
+          endFragment == other.endFragment &&
+          spineStart == other.spineStart &&
+          spineEnd == other.spineEnd &&
+          anchors == other.anchors &&
+          document == other.document;
+}
+
+enum SpanStyleHint { italic, bold, underline }
+
+class TableCell {
+  final bool isHeader;
+  final List<ReaderInline> inlines;
+
+  const TableCell({required this.isHeader, required this.inlines});
+
+  @override
+  int get hashCode => isHeader.hashCode ^ inlines.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TableCell &&
+          runtimeType == other.runtimeType &&
+          isHeader == other.isHeader &&
+          inlines == other.inlines;
+}
+
+class TableRow {
+  final List<TableCell> cells;
+
+  const TableRow({required this.cells});
+
+  @override
+  int get hashCode => cells.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TableRow &&
+          runtimeType == other.runtimeType &&
+          cells == other.cells;
+}
+
+/// A single entry in the table of contents.
 class TocEntry {
   final String title;
   final String href;

@@ -34,14 +34,13 @@ Future<void> main() async {
     print('Publisher: ${book.metadata.publisher ?? "N/A"}');
     print('');
 
-    // Print chapter count
-    final chapterCount = getChapterCount(book: book);
-    print('--- Chapters ---');
-    print('Total chapters: $chapterCount');
+    // Print section count
+    print('--- Sections ---');
+    print('Total sections: ${book.sections.length}');
     print('');
 
     // Print first few TOC entries
-    final toc = getToc(book: book);
+    final toc = book.toc;
     print('--- Table of Contents (first 5 entries) ---');
     for (var i = 0; i < toc.length && i < 5; i++) {
       print('  ${i + 1}. ${toc[i].title}');
@@ -49,7 +48,7 @@ Future<void> main() async {
     print('');
 
     // Check cover image
-    final cover = getCover(book: book);
+    final cover = book.coverImage;
     if (cover != null) {
       print('--- Cover Image ---');
       print('Cover image size: ${cover.length} bytes');
@@ -59,13 +58,17 @@ Future<void> main() async {
     }
     print('');
 
-    // Read first chapter content (just a preview)
-    if (book.chapterContents.isNotEmpty) {
-      print('--- First Chapter Preview ---');
-      final content = book.chapterContents[0];
-      final preview = content.length > 200
-          ? '${content.substring(0, 200)}...'
-          : content;
+    // Read first section content (just a preview)
+    if (book.sections.isNotEmpty) {
+      print('--- First Section Preview ---');
+      final section = book.sections.first;
+      final text = section.document.blocks
+          .expand((block) => block.inlines)
+          .map((inline) => inline.text ?? '')
+          .join(' ')
+          .trim();
+      final preview =
+          text.length > 200 ? '${text.substring(0, 200)}...' : text;
       print(preview);
     }
 

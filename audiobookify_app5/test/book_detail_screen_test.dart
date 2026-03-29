@@ -29,34 +29,10 @@ void main() {
       await tempDir.delete(recursive: true);
     });
 
-    final epubBook = EpubBook(
-      metadata: const EpubMetadata(
-        title: 'Test Book',
-        creator: 'Test Author',
-        language: 'en',
-        identifier: 'id-1',
-        publisher: 'Test Publisher',
-        description: 'Test Description',
-      ),
-      chapters: [
-        ChapterInfo(
-          index: BigInt.from(0),
-          id: 'chapter-1',
-          href: 'chapter1.xhtml',
-          mediaType: 'application/xhtml+xml',
-        ),
-      ],
-      toc: [
-        const TocEntry(title: 'Chapter 1', href: 'chapter1.xhtml'),
-      ],
-      coverImage: null,
-      chapterContents: const [
-        '<p>Hello world.</p><p>Second paragraph.</p>',
-      ],
-    );
+    final epubBook = _stubEpubBook();
 
     final bookService = BookService(store);
-    final savedBook = bookService.saveBook(epubBook, 'test.epub');
+    final savedBook = bookService.saveBook(epubBook, 'test.epub').book;
     bookService.updateProgress(savedBook.id, 40);
 
     await tester.pumpWidget(
@@ -105,7 +81,7 @@ void main() {
     final savedBook = bookService.saveBook(
       _stubEpubBook(),
       'missing.epub',
-    );
+    ).book;
 
     await tester.pumpWidget(
       ProviderScope(
@@ -135,23 +111,23 @@ void main() {
 }
 
 class _FakeEpubService extends EpubService {
-  final EpubBook book;
+  final ParsedEpubBook book;
 
   _FakeEpubService(this.book);
 
   @override
-  Future<EpubBook> openEpub(String path) async => book;
+  Future<ParsedEpubBook> openEpub(String path) async => book;
 }
 
 class _ThrowingEpubService extends EpubService {
   @override
-  Future<EpubBook> openEpub(String path) {
+  Future<ParsedEpubBook> openEpub(String path) {
     throw Exception('Failed to load epub');
   }
 }
 
-EpubBook _stubEpubBook() {
-  return EpubBook(
+ParsedEpubBook _stubEpubBook() {
+  return ParsedEpubBook(
     metadata: const EpubMetadata(
       title: 'Test Book',
       creator: 'Test Author',
@@ -160,20 +136,38 @@ EpubBook _stubEpubBook() {
       publisher: 'Test Publisher',
       description: 'Test Description',
     ),
-    chapters: [
-      ChapterInfo(
-        index: BigInt.from(0),
-        id: 'chapter-1',
-        href: 'chapter1.xhtml',
-        mediaType: 'application/xhtml+xml',
-      ),
-    ],
-    toc: [
-      const TocEntry(title: 'Chapter 1', href: 'chapter1.xhtml'),
-    ],
+    toc: const [TocEntry(title: 'Chapter 1', href: 'chapter1.xhtml')],
     coverImage: null,
-    chapterContents: const [
-      '<p>Hello world.</p><p>Second paragraph.</p>',
+    sections: [
+      Section(
+        id: 'section-1',
+        title: 'Chapter 1',
+        startHref: 'chapter1.xhtml',
+        spineStart: BigInt.zero,
+        spineEnd: BigInt.zero,
+        anchors: const [],
+        document: const ReaderDocument(
+          chapterHref: 'chapter1.xhtml',
+          blocks: [
+            ReaderBlock(
+              kind: ReaderBlockKind.paragraph,
+              level: 0,
+              ordered: false,
+              inlines: [
+                ReaderInline(
+                  kind: ReaderInlineKind.text,
+                  text: 'Hello world.',
+                  styleHints: [],
+                  children: [],
+                ),
+              ],
+              blocks: [],
+              items: [],
+              rows: [],
+            ),
+          ],
+        ),
+      ),
     ],
   );
 }

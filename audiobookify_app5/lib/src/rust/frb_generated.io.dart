@@ -23,13 +23,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
-  EpubBook dco_decode_box_autoadd_epub_book(dynamic raw);
-
-  @protected
-  ChapterInfo dco_decode_chapter_info(dynamic raw);
-
-  @protected
-  EpubBook dco_decode_epub_book(dynamic raw);
+  bool dco_decode_bool(dynamic raw);
 
   @protected
   EpubError dco_decode_epub_error(dynamic raw);
@@ -38,16 +32,37 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EpubMetadata dco_decode_epub_metadata(dynamic raw);
 
   @protected
+  int dco_decode_i_32(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
-  List<ChapterInfo> dco_decode_list_chapter_info(dynamic raw);
+  ListItem dco_decode_list_item(dynamic raw);
 
   @protected
-  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+  List<ListItem> dco_decode_list_list_item(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<ReaderBlock> dco_decode_list_reader_block(dynamic raw);
+
+  @protected
+  List<ReaderInline> dco_decode_list_reader_inline(dynamic raw);
+
+  @protected
+  List<Section> dco_decode_list_section(dynamic raw);
+
+  @protected
+  List<SpanStyleHint> dco_decode_list_span_style_hint(dynamic raw);
+
+  @protected
+  List<TableCell> dco_decode_list_table_cell(dynamic raw);
+
+  @protected
+  List<TableRow> dco_decode_list_table_row(dynamic raw);
 
   @protected
   List<TocEntry> dco_decode_list_toc_entry(dynamic raw);
@@ -57,6 +72,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  ParsedEpubBook dco_decode_parsed_epub_book(dynamic raw);
+
+  @protected
+  ReaderBlock dco_decode_reader_block(dynamic raw);
+
+  @protected
+  ReaderBlockKind dco_decode_reader_block_kind(dynamic raw);
+
+  @protected
+  ReaderDocument dco_decode_reader_document(dynamic raw);
+
+  @protected
+  ReaderInline dco_decode_reader_inline(dynamic raw);
+
+  @protected
+  ReaderInlineKind dco_decode_reader_inline_kind(dynamic raw);
+
+  @protected
+  Section dco_decode_section(dynamic raw);
+
+  @protected
+  SpanStyleHint dco_decode_span_style_hint(dynamic raw);
+
+  @protected
+  TableCell dco_decode_table_cell(dynamic raw);
+
+  @protected
+  TableRow dco_decode_table_row(dynamic raw);
 
   @protected
   TocEntry dco_decode_toc_entry(dynamic raw);
@@ -74,13 +119,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
-  EpubBook sse_decode_box_autoadd_epub_book(SseDeserializer deserializer);
-
-  @protected
-  ChapterInfo sse_decode_chapter_info(SseDeserializer deserializer);
-
-  @protected
-  EpubBook sse_decode_epub_book(SseDeserializer deserializer);
+  bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
   EpubError sse_decode_epub_error(SseDeserializer deserializer);
@@ -89,16 +128,41 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EpubMetadata sse_decode_epub_metadata(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
-  List<ChapterInfo> sse_decode_list_chapter_info(SseDeserializer deserializer);
+  ListItem sse_decode_list_item(SseDeserializer deserializer);
 
   @protected
-  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+  List<ListItem> sse_decode_list_list_item(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<ReaderBlock> sse_decode_list_reader_block(SseDeserializer deserializer);
+
+  @protected
+  List<ReaderInline> sse_decode_list_reader_inline(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<Section> sse_decode_list_section(SseDeserializer deserializer);
+
+  @protected
+  List<SpanStyleHint> sse_decode_list_span_style_hint(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<TableCell> sse_decode_list_table_cell(SseDeserializer deserializer);
+
+  @protected
+  List<TableRow> sse_decode_list_table_row(SseDeserializer deserializer);
 
   @protected
   List<TocEntry> sse_decode_list_toc_entry(SseDeserializer deserializer);
@@ -108,6 +172,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  ParsedEpubBook sse_decode_parsed_epub_book(SseDeserializer deserializer);
+
+  @protected
+  ReaderBlock sse_decode_reader_block(SseDeserializer deserializer);
+
+  @protected
+  ReaderBlockKind sse_decode_reader_block_kind(SseDeserializer deserializer);
+
+  @protected
+  ReaderDocument sse_decode_reader_document(SseDeserializer deserializer);
+
+  @protected
+  ReaderInline sse_decode_reader_inline(SseDeserializer deserializer);
+
+  @protected
+  ReaderInlineKind sse_decode_reader_inline_kind(SseDeserializer deserializer);
+
+  @protected
+  Section sse_decode_section(SseDeserializer deserializer);
+
+  @protected
+  SpanStyleHint sse_decode_span_style_hint(SseDeserializer deserializer);
+
+  @protected
+  TableCell sse_decode_table_cell(SseDeserializer deserializer);
+
+  @protected
+  TableRow sse_decode_table_row(SseDeserializer deserializer);
 
   @protected
   TocEntry sse_decode_toc_entry(SseDeserializer deserializer);
@@ -122,25 +216,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
-
-  @protected
-  bool sse_decode_bool(SseDeserializer deserializer);
-
-  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
-  void sse_encode_box_autoadd_epub_book(
-    EpubBook self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_chapter_info(ChapterInfo self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_epub_book(EpubBook self, SseSerializer serializer);
+  void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_epub_error(EpubError self, SseSerializer serializer);
@@ -149,22 +228,52 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_epub_metadata(EpubMetadata self, SseSerializer serializer);
 
   @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
-  void sse_encode_list_chapter_info(
-    List<ChapterInfo> self,
-    SseSerializer serializer,
-  );
+  void sse_encode_list_item(ListItem self, SseSerializer serializer);
 
   @protected
-  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
+  void sse_encode_list_list_item(List<ListItem> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_reader_block(
+    List<ReaderBlock> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_reader_inline(
+    List<ReaderInline> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_section(List<Section> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_span_style_hint(
+    List<SpanStyleHint> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_table_cell(
+    List<TableCell> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_table_row(List<TableRow> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_toc_entry(List<TocEntry> self, SseSerializer serializer);
@@ -179,6 +288,48 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_parsed_epub_book(
+    ParsedEpubBook self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reader_block(ReaderBlock self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_reader_block_kind(
+    ReaderBlockKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reader_document(
+    ReaderDocument self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reader_inline(ReaderInline self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_reader_inline_kind(
+    ReaderInlineKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_section(Section self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_span_style_hint(SpanStyleHint self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_table_cell(TableCell self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_table_row(TableRow self, SseSerializer serializer);
+
+  @protected
   void sse_encode_toc_entry(TocEntry self, SseSerializer serializer);
 
   @protected
@@ -189,12 +340,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer);
 }
 
 // Section: wire_class
