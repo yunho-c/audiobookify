@@ -53,4 +53,32 @@ void main() {
     final runs = paragraph.sentenceRuns.first;
     expect(runs.any((run) => run.style.sub), isTrue);
   });
+
+  test('preserves spaces before styled words across sentence runs', () {
+    final doc = ReaderDocument(
+      chapterHref: 'ch.xhtml',
+      blocks: [
+        ParagraphBlock([
+          const TextInline('Tell them '),
+          const SpanInline(
+            styleHints: {SpanStyleHint.italic},
+            children: [TextInline('something')],
+          ),
+          const TextInline('.'),
+        ]),
+      ],
+    );
+
+    final segmented = segmentReaderDocument(doc);
+    final paragraph = segmented.ttsParagraphs.first;
+
+    expect(paragraph.sentences, ['Tell them something.']);
+    expect(paragraph.plainText, 'Tell them something.');
+    expect(paragraph.sentenceRuns.first.map((run) => run.text).toList(), [
+      'Tell them ',
+      'something',
+      '.',
+    ]);
+    expect(paragraph.sentenceRuns.first[1].style.italic, isTrue);
+  });
 }
