@@ -43,6 +43,7 @@ ReaderBlock adaptReaderBlock(rust_epub.ReaderBlock block) {
         resource: adaptResourceRef(block.resource!),
         alt: block.alt,
         caption: block.caption,
+        presentation: adaptImagePresentation(block.presentation),
         source: source,
       );
     case rust_epub.ReaderBlockKind.table:
@@ -53,10 +54,7 @@ ReaderBlock adaptReaderBlock(rust_epub.ReaderBlock block) {
     case rust_epub.ReaderBlockKind.horizontalRule:
       return HorizontalRuleBlock(source: source);
     case rust_epub.ReaderBlockKind.code:
-      return CodeBlock(
-        text: block.codeText ?? '',
-        source: source,
-      );
+      return CodeBlock(text: block.codeText ?? '', source: source);
   }
 }
 
@@ -86,10 +84,7 @@ ReaderInline adaptReaderInline(rust_epub.ReaderInline inline) {
   final source = adaptSourceMap(inline.source);
   switch (inline.kind) {
     case rust_epub.ReaderInlineKind.text:
-      return TextInline(
-        inline.text ?? '',
-        source: source,
-      );
+      return TextInline(inline.text ?? '', source: source);
     case rust_epub.ReaderInlineKind.span:
       return SpanInline(
         styleHints: inline.styleHints.map(adaptSpanStyleHint).toSet(),
@@ -106,6 +101,7 @@ ReaderInline adaptReaderInline(rust_epub.ReaderInline inline) {
       return InlineImage(
         resource: adaptResourceRef(inline.resource!),
         alt: inline.alt,
+        presentation: adaptImagePresentation(inline.presentation),
         source: source,
       );
     case rust_epub.ReaderInlineKind.lineBreak:
@@ -162,6 +158,46 @@ ReaderSourceMap adaptSourceMap(rust_epub.SourceMap source) {
     fragment: source.fragment,
     nodePath: source.nodePath,
   );
+}
+
+ReaderImagePresentation? adaptImagePresentation(
+  rust_epub.ImagePresentation? presentation,
+) {
+  if (presentation == null) {
+    return null;
+  }
+  final adapted = ReaderImagePresentation(
+    width: adaptImageLength(presentation.width),
+    height: adaptImageLength(presentation.height),
+    maxWidth: adaptImageLength(presentation.maxWidth),
+    maxHeight: adaptImageLength(presentation.maxHeight),
+  );
+  return adapted.isEmpty ? null : adapted;
+}
+
+ReaderImageLength? adaptImageLength(rust_epub.ImageLength? length) {
+  if (length == null) {
+    return null;
+  }
+  return ReaderImageLength(
+    valueMilli: length.valueMilli,
+    unit: adaptImageLengthUnit(length.unit),
+  );
+}
+
+ReaderImageLengthUnit adaptImageLengthUnit(rust_epub.ImageLengthUnit unit) {
+  switch (unit) {
+    case rust_epub.ImageLengthUnit.percent:
+      return ReaderImageLengthUnit.percent;
+    case rust_epub.ImageLengthUnit.px:
+      return ReaderImageLengthUnit.px;
+    case rust_epub.ImageLengthUnit.em:
+      return ReaderImageLengthUnit.em;
+    case rust_epub.ImageLengthUnit.rem:
+      return ReaderImageLengthUnit.rem;
+    case rust_epub.ImageLengthUnit.auto:
+      return ReaderImageLengthUnit.auto;
+  }
 }
 
 SpanStyleHint adaptSpanStyleHint(rust_epub.SpanStyleHint hint) {

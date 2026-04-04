@@ -14,9 +14,7 @@ import 'package:audiobookify/reader/reader_segmentation.dart';
 void main() {
   testWidgets('renders text blocks with sentence spans', (tester) async {
     final renderBlock = ReaderRenderBlock(
-      block: ParagraphBlock([
-        const TextInline('Hello world.'),
-      ]),
+      block: ParagraphBlock([const TextInline('Hello world.')]),
       style: const RenderBlockStyle(),
       ttsIndex: 0,
     );
@@ -24,7 +22,7 @@ void main() {
       plainText: 'Hello world.',
       sentences: const ['Hello world.'],
       sentenceRuns: const [
-        [TextRun('Hello world.', TextRunStyle())]
+        [TextRun('Hello world.', TextRunStyle())],
       ],
     );
 
@@ -78,17 +76,22 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ReaderBlockRenderer.buildBlock(
-            renderBlock: renderBlock,
-            theme: _theme(),
-            resolver: resolver,
-            isActiveParagraph: false,
-            activeSentenceIndex: -1,
-            previousSentenceIndex: -1,
-            transitionValue: 0.0,
-            sentenceRecognizer: null,
-            linkRecognizer: null,
-            onTapParagraph: null,
+          body: Center(
+            child: SizedBox(
+              width: 240,
+              child: ReaderBlockRenderer.buildBlock(
+                renderBlock: renderBlock,
+                theme: _theme(),
+                resolver: resolver,
+                isActiveParagraph: false,
+                activeSentenceIndex: -1,
+                previousSentenceIndex: -1,
+                transitionValue: 0.0,
+                sentenceRecognizer: null,
+                linkRecognizer: null,
+                onTapParagraph: null,
+              ),
+            ),
           ),
         ),
       ),
@@ -96,7 +99,134 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(find.byType(Image), findsOneWidget);
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.width, double.infinity);
+    expect(image.height, isNull);
     expect(find.text('Caption'), findsOneWidget);
+  });
+
+  testWidgets('respects block image width and max-width presentation', (
+    tester,
+  ) async {
+    final bytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAp4XfQAAAABJRU5ErkJggg==',
+    );
+    final resolver = EpubResourceResolver.fromMemory({
+      'images/pic.png': Uint8List.fromList(bytes),
+    });
+
+    final renderBlock = ReaderRenderBlock(
+      block: const ImageBlock(
+        resource: ReaderResourceRef(
+          href: 'images/pic.png',
+          mediaType: 'image/png',
+          kind: ReaderResourceKind.image,
+        ),
+        presentation: ReaderImagePresentation(
+          width: ReaderImageLength(
+            valueMilli: 100000,
+            unit: ReaderImageLengthUnit.percent,
+          ),
+          maxWidth: ReaderImageLength(
+            valueMilli: 40000,
+            unit: ReaderImageLengthUnit.percent,
+          ),
+        ),
+      ),
+      style: const RenderBlockStyle(),
+      ttsIndex: null,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 240,
+              child: ReaderBlockRenderer.buildBlock(
+                renderBlock: renderBlock,
+                theme: _theme(),
+                resolver: resolver,
+                isActiveParagraph: false,
+                activeSentenceIndex: -1,
+                previousSentenceIndex: -1,
+                transitionValue: 0.0,
+                sentenceRecognizer: null,
+                linkRecognizer: null,
+                onTapParagraph: null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    final constrainedBox = tester.widget<ConstrainedBox>(
+      find.descendant(
+        of: find.byType(ClipRRect),
+        matching: find.byType(ConstrainedBox),
+      ),
+    );
+    expect(constrainedBox.constraints.maxWidth, closeTo(96, 0.1));
+  });
+
+  testWidgets('renders logo-like block images from height metadata', (
+    tester,
+  ) async {
+    final bytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAp4XfQAAAABJRU5ErkJggg==',
+    );
+    final resolver = EpubResourceResolver.fromMemory({
+      'images/logo.png': Uint8List.fromList(bytes),
+    });
+
+    final renderBlock = ReaderRenderBlock(
+      block: const ImageBlock(
+        resource: ReaderResourceRef(
+          href: 'images/logo.png',
+          mediaType: 'image/png',
+          kind: ReaderResourceKind.image,
+        ),
+        presentation: ReaderImagePresentation(
+          height: ReaderImageLength(
+            valueMilli: 1000,
+            unit: ReaderImageLengthUnit.em,
+          ),
+        ),
+      ),
+      style: const RenderBlockStyle(),
+      ttsIndex: null,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 240,
+              child: ReaderBlockRenderer.buildBlock(
+                renderBlock: renderBlock,
+                theme: _theme(),
+                resolver: resolver,
+                isActiveParagraph: false,
+                activeSentenceIndex: -1,
+                previousSentenceIndex: -1,
+                transitionValue: 0.0,
+                sentenceRecognizer: null,
+                linkRecognizer: null,
+                onTapParagraph: null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.width, isNull);
+    expect(image.height, closeTo(18, 0.1));
   });
 
   testWidgets('renders inline images and interactive links', (tester) async {
@@ -128,6 +258,12 @@ void main() {
             kind: ReaderResourceKind.image,
           ),
           alt: 'Inline pic',
+          presentation: ReaderImagePresentation(
+            height: ReaderImageLength(
+              valueMilli: 2000,
+              unit: ReaderImageLengthUnit.em,
+            ),
+          ),
         ),
       ]),
       style: const RenderBlockStyle(),
@@ -162,6 +298,8 @@ void main() {
     final linkFinder = find.textContaining('Next', findRichText: true);
     expect(linkFinder, findsOneWidget);
     expect(find.byType(Image), findsOneWidget);
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.height, closeTo(36, 0.1));
     expect(recognizers, isNotEmpty);
 
     for (final recognizer in recognizers) {

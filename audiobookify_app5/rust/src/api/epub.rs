@@ -42,6 +42,29 @@ pub struct ReaderDocument {
 }
 
 #[derive(Debug, Clone)]
+pub struct ImagePresentation {
+    pub width: Option<ImageLength>,
+    pub height: Option<ImageLength>,
+    pub max_width: Option<ImageLength>,
+    pub max_height: Option<ImageLength>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImageLength {
+    pub value_milli: i32,
+    pub unit: ImageLengthUnit,
+}
+
+#[derive(Debug, Clone)]
+pub enum ImageLengthUnit {
+    Percent,
+    Px,
+    Em,
+    Rem,
+    Auto,
+}
+
+#[derive(Debug, Clone)]
 pub enum ReaderBlockKind {
     Paragraph,
     Heading,
@@ -65,6 +88,7 @@ pub struct ReaderBlock {
     pub resource: Option<ResourceRef>,
     pub alt: Option<String>,
     pub caption: Option<String>,
+    pub presentation: Option<ImagePresentation>,
     pub rows: Vec<TableRow>,
     pub code_text: Option<String>,
     pub source: SourceMap,
@@ -115,6 +139,7 @@ pub struct ReaderInline {
     pub target: Option<LinkTarget>,
     pub resource: Option<ResourceRef>,
     pub alt: Option<String>,
+    pub presentation: Option<ImagePresentation>,
     pub style_hints: Vec<SpanStyleHint>,
     pub children: Vec<ReaderInline>,
     pub source: SourceMap,
@@ -274,6 +299,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
                 resource: None,
                 alt: None,
                 caption: None,
+                presentation: None,
                 rows: Vec::new(),
                 code_text: None,
                 source: paragraph.source.into(),
@@ -282,12 +308,17 @@ impl From<render_ir_epub::Block> for ReaderBlock {
                 kind: ReaderBlockKind::Heading,
                 level: i32::from(heading.level),
                 ordered: false,
-                inlines: heading.inlines.into_iter().map(ReaderInline::from).collect(),
+                inlines: heading
+                    .inlines
+                    .into_iter()
+                    .map(ReaderInline::from)
+                    .collect(),
                 blocks: Vec::new(),
                 items: Vec::new(),
                 resource: None,
                 alt: None,
                 caption: None,
+                presentation: None,
                 rows: Vec::new(),
                 code_text: None,
                 source: heading.source.into(),
@@ -302,6 +333,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
                 resource: None,
                 alt: None,
                 caption: None,
+                presentation: None,
                 rows: Vec::new(),
                 code_text: None,
                 source: quote.source.into(),
@@ -316,6 +348,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
                 resource: None,
                 alt: None,
                 caption: None,
+                presentation: None,
                 rows: Vec::new(),
                 code_text: None,
                 source: list.source.into(),
@@ -330,6 +363,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
                 resource: None,
                 alt: None,
                 caption: None,
+                presentation: None,
                 rows: table.rows.into_iter().map(TableRow::from).collect(),
                 code_text: None,
                 source: table.source.into(),
@@ -344,6 +378,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
                 resource: Some(image.resource.into()),
                 alt: image.alt,
                 caption: image.caption,
+                presentation: image_presentation_into_option(image.presentation),
                 rows: Vec::new(),
                 code_text: None,
                 source: image.source.into(),
@@ -358,6 +393,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
                 resource: None,
                 alt: None,
                 caption: None,
+                presentation: None,
                 rows: Vec::new(),
                 code_text: None,
                 source: rule.source.into(),
@@ -372,6 +408,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
                 resource: None,
                 alt: None,
                 caption: None,
+                presentation: None,
                 rows: Vec::new(),
                 code_text: Some(code.text),
                 source: code.source.into(),
@@ -417,6 +454,7 @@ impl From<render_ir_epub::Inline> for ReaderInline {
                 target: None,
                 resource: None,
                 alt: None,
+                presentation: None,
                 style_hints: Vec::new(),
                 children: Vec::new(),
                 source: text.source.into(),
@@ -427,6 +465,7 @@ impl From<render_ir_epub::Inline> for ReaderInline {
                 target: None,
                 resource: None,
                 alt: None,
+                presentation: None,
                 style_hints: span.styles.into_iter().map(SpanStyleHint::from).collect(),
                 children: span.children.into_iter().map(ReaderInline::from).collect(),
                 source: span.source.into(),
@@ -437,6 +476,7 @@ impl From<render_ir_epub::Inline> for ReaderInline {
                 target: Some(link.target.into()),
                 resource: None,
                 alt: None,
+                presentation: None,
                 style_hints: Vec::new(),
                 children: link.children.into_iter().map(ReaderInline::from).collect(),
                 source: link.source.into(),
@@ -447,6 +487,7 @@ impl From<render_ir_epub::Inline> for ReaderInline {
                 target: None,
                 resource: Some(image.resource.into()),
                 alt: image.alt,
+                presentation: image_presentation_into_option(image.presentation),
                 style_hints: Vec::new(),
                 children: Vec::new(),
                 source: image.source.into(),
@@ -457,6 +498,7 @@ impl From<render_ir_epub::Inline> for ReaderInline {
                 target: None,
                 resource: None,
                 alt: None,
+                presentation: None,
                 style_hints: Vec::new(),
                 children: Vec::new(),
                 source: source.into(),
@@ -475,6 +517,52 @@ impl From<render_ir_epub::TextStyleHint> for SpanStyleHint {
             render_ir_epub::TextStyleHint::Subscript => Self::Subscript,
             render_ir_epub::TextStyleHint::Code => Self::Code,
         }
+    }
+}
+
+impl From<render_ir_epub::ImagePresentation> for ImagePresentation {
+    fn from(value: render_ir_epub::ImagePresentation) -> Self {
+        Self {
+            width: value.width.map(ImageLength::from),
+            height: value.height.map(ImageLength::from),
+            max_width: value.max_width.map(ImageLength::from),
+            max_height: value.max_height.map(ImageLength::from),
+        }
+    }
+}
+
+impl From<render_ir_epub::ImageLength> for ImageLength {
+    fn from(value: render_ir_epub::ImageLength) -> Self {
+        Self {
+            value_milli: value.value_milli,
+            unit: value.unit.into(),
+        }
+    }
+}
+
+impl From<render_ir_epub::ImageLengthUnit> for ImageLengthUnit {
+    fn from(value: render_ir_epub::ImageLengthUnit) -> Self {
+        match value {
+            render_ir_epub::ImageLengthUnit::Percent => Self::Percent,
+            render_ir_epub::ImageLengthUnit::Px => Self::Px,
+            render_ir_epub::ImageLengthUnit::Em => Self::Em,
+            render_ir_epub::ImageLengthUnit::Rem => Self::Rem,
+            render_ir_epub::ImageLengthUnit::Auto => Self::Auto,
+        }
+    }
+}
+
+fn image_presentation_into_option(
+    value: render_ir_epub::ImagePresentation,
+) -> Option<ImagePresentation> {
+    if value.width.is_none()
+        && value.height.is_none()
+        && value.max_width.is_none()
+        && value.max_height.is_none()
+    {
+        None
+    } else {
+        Some(value.into())
     }
 }
 
@@ -501,7 +589,9 @@ impl From<render_ir_epub::LinkTarget> for LinkTarget {
                 fragment: None,
             },
             render_ir_epub::LinkTarget::Unresolved { href } => {
-                let fragment = href.split_once('#').map(|(_, fragment)| fragment.to_string());
+                let fragment = href
+                    .split_once('#')
+                    .map(|(_, fragment)| fragment.to_string());
                 Self {
                     kind: LinkTargetKind::Unresolved,
                     href,
@@ -552,11 +642,7 @@ impl From<render_ir_epub::SourceMap> for SourceMap {
             spine_index: to_i32(value.spine_index),
             href: value.href,
             fragment: value.fragment,
-            node_path: value
-                .node_path
-                .into_iter()
-                .map(to_i32)
-                .collect(),
+            node_path: value.node_path.into_iter().map(to_i32).collect(),
         }
     }
 }
@@ -602,8 +688,7 @@ mod tests {
             .flat_map(|section| section.document.blocks.iter())
             .find_map(|block| block.resource.clone());
         if let Some(resource) = image_resource {
-            let bytes =
-                read_book_resource_bytes(fixture_path(), resource).expect("read bytes");
+            let bytes = read_book_resource_bytes(fixture_path(), resource).expect("read bytes");
             assert!(bytes.is_some());
         }
     }

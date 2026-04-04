@@ -31,6 +31,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_box_autoadd_i_32(dynamic raw);
 
   @protected
+  ImageLength dco_decode_box_autoadd_image_length(dynamic raw);
+
+  @protected
+  ImagePresentation dco_decode_box_autoadd_image_presentation(dynamic raw);
+
+  @protected
   LinkTarget dco_decode_box_autoadd_link_target(dynamic raw);
 
   @protected
@@ -44,6 +50,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_i_32(dynamic raw);
+
+  @protected
+  ImageLength dco_decode_image_length(dynamic raw);
+
+  @protected
+  ImageLengthUnit dco_decode_image_length_unit(dynamic raw);
+
+  @protected
+  ImagePresentation dco_decode_image_presentation(dynamic raw);
 
   @protected
   LinkTarget dco_decode_link_target(dynamic raw);
@@ -89,6 +104,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  ImageLength? dco_decode_opt_box_autoadd_image_length(dynamic raw);
+
+  @protected
+  ImagePresentation? dco_decode_opt_box_autoadd_image_presentation(dynamic raw);
 
   @protected
   LinkTarget? dco_decode_opt_box_autoadd_link_target(dynamic raw);
@@ -154,6 +175,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
+  ImageLength sse_decode_box_autoadd_image_length(SseDeserializer deserializer);
+
+  @protected
+  ImagePresentation sse_decode_box_autoadd_image_presentation(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LinkTarget sse_decode_box_autoadd_link_target(SseDeserializer deserializer);
 
   @protected
@@ -167,6 +196,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  ImageLength sse_decode_image_length(SseDeserializer deserializer);
+
+  @protected
+  ImageLengthUnit sse_decode_image_length_unit(SseDeserializer deserializer);
+
+  @protected
+  ImagePresentation sse_decode_image_presentation(SseDeserializer deserializer);
 
   @protected
   LinkTarget sse_decode_link_target(SseDeserializer deserializer);
@@ -216,6 +254,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  ImageLength? sse_decode_opt_box_autoadd_image_length(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ImagePresentation? sse_decode_opt_box_autoadd_image_presentation(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LinkTarget? sse_decode_opt_box_autoadd_link_target(
@@ -285,6 +333,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_image_length(
+    ImageLength self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_image_presentation(
+    ImagePresentation self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_link_target(
     LinkTarget self,
     SseSerializer serializer,
@@ -304,6 +364,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_image_length(ImageLength self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_image_length_unit(
+    ImageLengthUnit self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_image_presentation(
+    ImagePresentation self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_link_target(LinkTarget self, SseSerializer serializer);
@@ -370,6 +445,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_image_length(
+    ImageLength? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_image_presentation(
+    ImagePresentation? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_link_target(

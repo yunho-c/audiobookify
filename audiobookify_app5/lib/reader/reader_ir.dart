@@ -60,25 +60,49 @@ abstract class ReaderBlock {
   const ReaderBlock({this.source});
 }
 
+enum ReaderImageLengthUnit { percent, px, em, rem, auto }
+
+@immutable
+class ReaderImageLength {
+  final int valueMilli;
+  final ReaderImageLengthUnit unit;
+
+  const ReaderImageLength({required this.valueMilli, required this.unit});
+
+  double get value => valueMilli / 1000.0;
+}
+
+@immutable
+class ReaderImagePresentation {
+  final ReaderImageLength? width;
+  final ReaderImageLength? height;
+  final ReaderImageLength? maxWidth;
+  final ReaderImageLength? maxHeight;
+
+  const ReaderImagePresentation({
+    this.width,
+    this.height,
+    this.maxWidth,
+    this.maxHeight,
+  });
+
+  bool get isEmpty =>
+      width == null && height == null && maxWidth == null && maxHeight == null;
+}
+
 @immutable
 class ReaderDocument {
   final List<ReaderBlock> blocks;
   final String chapterHref;
 
-  const ReaderDocument({
-    required this.blocks,
-    required this.chapterHref,
-  });
+  const ReaderDocument({required this.blocks, required this.chapterHref});
 }
 
 @immutable
 class ParagraphBlock extends ReaderBlock {
   final List<ReaderInline> inlines;
 
-  const ParagraphBlock(
-    this.inlines, {
-    super.source,
-  });
+  const ParagraphBlock(this.inlines, {super.source});
 }
 
 @immutable
@@ -97,10 +121,7 @@ class HeadingBlock extends ReaderBlock {
 class BlockQuoteBlock extends ReaderBlock {
   final List<ReaderBlock> blocks;
 
-  const BlockQuoteBlock(
-    this.blocks, {
-    super.source,
-  });
+  const BlockQuoteBlock(this.blocks, {super.source});
 }
 
 @immutable
@@ -108,21 +129,14 @@ class ListBlock extends ReaderBlock {
   final bool ordered;
   final List<ListItemBlock> items;
 
-  const ListBlock({
-    required this.ordered,
-    required this.items,
-    super.source,
-  });
+  const ListBlock({required this.ordered, required this.items, super.source});
 }
 
 @immutable
 class ListItemBlock extends ReaderBlock {
   final List<ReaderBlock> blocks;
 
-  const ListItemBlock(
-    this.blocks, {
-    super.source,
-  });
+  const ListItemBlock(this.blocks, {super.source});
 }
 
 @immutable
@@ -130,11 +144,13 @@ class ImageBlock extends ReaderBlock {
   final ReaderResourceRef resource;
   final String? alt;
   final String? caption;
+  final ReaderImagePresentation? presentation;
 
   const ImageBlock({
     required this.resource,
     this.alt,
     this.caption,
+    this.presentation,
     super.source,
   });
 
@@ -145,10 +161,7 @@ class ImageBlock extends ReaderBlock {
 class TableBlock extends ReaderBlock {
   final List<TableRowBlock> rows;
 
-  const TableBlock({
-    required this.rows,
-    super.source,
-  });
+  const TableBlock({required this.rows, super.source});
 }
 
 @immutable
@@ -156,10 +169,7 @@ class TableRowBlock {
   final List<TableCellBlock> cells;
   final ReaderSourceMap? source;
 
-  const TableRowBlock({
-    required this.cells,
-    this.source,
-  });
+  const TableRowBlock({required this.cells, this.source});
 }
 
 @immutable
@@ -184,10 +194,7 @@ class HorizontalRuleBlock extends ReaderBlock {
 class CodeBlock extends ReaderBlock {
   final String text;
 
-  const CodeBlock({
-    required this.text,
-    super.source,
-  });
+  const CodeBlock({required this.text, super.source});
 }
 
 @immutable
@@ -201,20 +208,10 @@ abstract class ReaderInline {
 class TextInline extends ReaderInline {
   final String text;
 
-  const TextInline(
-    this.text, {
-    super.source,
-  });
+  const TextInline(this.text, {super.source});
 }
 
-enum SpanStyleHint {
-  italic,
-  bold,
-  underline,
-  superscript,
-  subscript,
-  code,
-}
+enum SpanStyleHint { italic, bold, underline, superscript, subscript, code }
 
 @immutable
 class SpanInline extends ReaderInline {
@@ -246,10 +243,12 @@ class LinkInline extends ReaderInline {
 class InlineImage extends ReaderInline {
   final ReaderResourceRef resource;
   final String? alt;
+  final ReaderImagePresentation? presentation;
 
   const InlineImage({
     required this.resource,
     this.alt,
+    this.presentation,
     super.source,
   });
 }

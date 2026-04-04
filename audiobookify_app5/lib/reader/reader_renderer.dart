@@ -45,9 +45,9 @@ class ReaderBlockRenderer {
     required int previousSentenceIndex,
     required double transitionValue,
     required TapGestureRecognizer? Function(int sentenceIndex)?
-        sentenceRecognizer,
+    sentenceRecognizer,
     required TapGestureRecognizer? Function(ReaderLinkTarget target)?
-        linkRecognizer,
+    linkRecognizer,
     required VoidCallback? onTapParagraph,
     ReaderTtsParagraph? ttsData,
   }) {
@@ -102,10 +102,7 @@ class ReaderBlockRenderer {
     return const SizedBox.shrink();
   }
 
-  static Widget _buildDivider(
-    ReaderRenderTheme theme,
-    RenderBlockStyle style,
-  ) {
+  static Widget _buildDivider(ReaderRenderTheme theme, RenderBlockStyle style) {
     final indent = _indentForStyle(theme, style);
     return Padding(
       padding: EdgeInsets.fromLTRB(indent, 12, 0, 12),
@@ -143,47 +140,51 @@ class ReaderBlockRenderer {
           if (data == null) {
             return _imagePlaceholder(theme, block.caption ?? block.alt);
           }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.memory(
-                  data,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  errorBuilder: (context, error, stackTrace) {
-                    _logImageDecodeError(
-                      'block',
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final layout = _resolveBlockImageLayout(
+                presentation: block.presentation,
+                availableWidth: constraints.maxWidth,
+                fontSize: theme.readerTheme.fontSize,
+              );
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: _buildMemoryImage(
+                      data: data,
                       href: block.resource.href,
                       alt: block.alt,
-                      error: error,
-                    );
-                    return _imagePlaceholder(theme, block.caption ?? block.alt);
-                  },
-                ),
-              ),
-              if ((block.caption ?? '').trim().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    block.caption!.trim(),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      fallbackLabel: block.caption ?? block.alt,
+                      fallbackTheme: theme,
+                      width: layout.width,
+                      height: layout.height,
+                      maxWidth: layout.maxWidth,
+                      maxHeight: layout.maxHeight,
+                      fullWidthFallback: block.presentation == null,
                     ),
                   ),
-                ),
-            ],
+                  if ((block.caption ?? '').trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        block.caption!.trim(),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           );
         },
       ),
     );
   }
 
-  static Widget _imagePlaceholder(
-    ReaderRenderTheme theme,
-    String? caption,
-  ) {
+  static Widget _imagePlaceholder(ReaderRenderTheme theme, String? caption) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -233,8 +234,7 @@ class ReaderBlockRenderer {
                       baseStyle: theme.textTheme.bodyMedium,
                       theme: theme.readerTheme,
                       color: theme.colorScheme.onSurface,
-                      overrideWeight:
-                          cell.isHeader ? FontWeight.w600 : null,
+                      overrideWeight: cell.isHeader ? FontWeight.w600 : null,
                     );
                     final spans = _buildInlineSpans(
                       runs,
@@ -245,9 +245,7 @@ class ReaderBlockRenderer {
                     );
                     return Padding(
                       padding: const EdgeInsets.all(8),
-                      child: RichText(
-                        text: TextSpan(children: spans),
-                      ),
+                      child: RichText(text: TextSpan(children: spans)),
                     );
                   }).toList(),
                 ),
@@ -269,24 +267,28 @@ class ReaderBlockRenderer {
     required int previousSentenceIndex,
     required double transitionValue,
     required TapGestureRecognizer? Function(int sentenceIndex)?
-        sentenceRecognizer,
+    sentenceRecognizer,
     required TapGestureRecognizer? Function(ReaderLinkTarget target)?
-        linkRecognizer,
+    linkRecognizer,
     required VoidCallback? onTapParagraph,
     required ReaderTtsParagraph? ttsData,
   }) {
     final style = renderBlock.style;
-    final showHighlight = isActiveParagraph &&
-        (theme.activeParagraphStyle == PlayerThemeActiveParagraphStyle.highlight ||
+    final showHighlight =
+        isActiveParagraph &&
+        (theme.activeParagraphStyle ==
+                PlayerThemeActiveParagraphStyle.highlight ||
             theme.activeParagraphStyle ==
                 PlayerThemeActiveParagraphStyle.highlightBar);
-    final showLeftBar = isActiveParagraph &&
-        (theme.activeParagraphStyle == PlayerThemeActiveParagraphStyle.leftBar ||
+    final showLeftBar =
+        isActiveParagraph &&
+        (theme.activeParagraphStyle ==
+                PlayerThemeActiveParagraphStyle.leftBar ||
             theme.activeParagraphStyle ==
                 PlayerThemeActiveParagraphStyle.highlightBar);
-    final showShadow = isActiveParagraph &&
-        theme.activeParagraphStyle ==
-            PlayerThemeActiveParagraphStyle.underline;
+    final showShadow =
+        isActiveParagraph &&
+        theme.activeParagraphStyle == PlayerThemeActiveParagraphStyle.underline;
 
     final baseStyle = theme.textTheme.bodyLarge;
     final scale = headingLevel != null ? _headingScale(headingLevel) : 1.0;
@@ -329,9 +331,7 @@ class ReaderBlockRenderer {
     final indent = _indentForStyle(theme, style);
     final listMarker = style.listMarker;
 
-    Widget textContent = RichText(
-      text: TextSpan(children: spans),
-    );
+    Widget textContent = RichText(text: TextSpan(children: spans));
 
     if (listMarker != null) {
       textContent = Row(
@@ -339,10 +339,7 @@ class ReaderBlockRenderer {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              listMarker,
-              style: contentStyle,
-            ),
+            child: Text(listMarker, style: contentStyle),
           ),
           const SizedBox(width: 8),
           Expanded(child: textContent),
@@ -355,23 +352,19 @@ class ReaderBlockRenderer {
         padding: const EdgeInsets.only(left: 12),
         decoration: BoxDecoration(
           border: Border(
-            left: BorderSide(
-              color: theme.colorScheme.outlineVariant,
-              width: 2,
-            ),
+            left: BorderSide(color: theme.colorScheme.outlineVariant, width: 2),
           ),
         ),
         child: textContent,
       );
     }
 
-    final shadowOpacity =
-        (theme.activeParagraphOpacity * 0.9).clamp(0.08, 0.3);
+    final shadowOpacity = (theme.activeParagraphOpacity * 0.9).clamp(0.08, 0.3);
 
     final effectiveOnTap =
         sentenceRecognizer != null || containsInteractiveLinks
-            ? null
-            : onTapParagraph;
+        ? null
+        : onTapParagraph;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -390,8 +383,9 @@ class ReaderBlockRenderer {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
               color: showHighlight
-                  ? theme.colorScheme.primary
-                      .withOpacity(theme.activeParagraphOpacity)
+                  ? theme.colorScheme.primary.withOpacity(
+                      theme.activeParagraphOpacity,
+                    )
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(18),
             ),
@@ -444,7 +438,10 @@ class ReaderBlockRenderer {
     }
   }
 
-  static double _indentForStyle(ReaderRenderTheme theme, RenderBlockStyle style) {
+  static double _indentForStyle(
+    ReaderRenderTheme theme,
+    RenderBlockStyle style,
+  ) {
     return style.blockQuoteDepth * 12 + style.listDepth * 18;
   }
 
@@ -481,9 +478,9 @@ class ReaderBlockRenderer {
     required int previousSentenceIndex,
     required double transitionValue,
     required TapGestureRecognizer? Function(int sentenceIndex)?
-        sentenceRecognizer,
+    sentenceRecognizer,
     required TapGestureRecognizer? Function(ReaderLinkTarget target)?
-        linkRecognizer,
+    linkRecognizer,
   }) {
     final spans = <InlineSpan>[];
     for (var sentenceIdx = 0; sentenceIdx < sentences.length; sentenceIdx++) {
@@ -494,18 +491,20 @@ class ReaderBlockRenderer {
       final highlightIntensity = isCurrentSentence
           ? transitionValue
           : isPreviousSentence
-              ? 1 - transitionValue
-              : 0.0;
+          ? 1 - transitionValue
+          : 0.0;
       final sentenceColor = _resolveReaderTextColor(
         theme.readerTheme,
         theme.colorScheme,
         isActive: isCurrentSentence || isPreviousSentence,
       );
-      final highlightColor = theme.colorScheme.primary
-          .withOpacity(theme.sentenceHighlightOpacity * highlightIntensity);
+      final highlightColor = theme.colorScheme.primary.withOpacity(
+        theme.sentenceHighlightOpacity * highlightIntensity,
+      );
 
-      final recognizer =
-          sentenceRecognizer != null ? sentenceRecognizer(sentenceIdx) : null;
+      final recognizer = sentenceRecognizer != null
+          ? sentenceRecognizer(sentenceIdx)
+          : null;
       final sentenceRuns = sentences[sentenceIdx];
       for (final run in sentenceRuns) {
         spans.add(
@@ -516,10 +515,9 @@ class ReaderBlockRenderer {
             sentenceColor,
             highlightColor: highlightColor,
             highlightStyle: theme.sentenceHighlightStyle,
-            recognizer:
-                run.style.linkTarget != null && linkRecognizer != null
-                    ? linkRecognizer(run.style.linkTarget!)
-                    : recognizer,
+            recognizer: run.style.linkTarget != null && linkRecognizer != null
+                ? linkRecognizer(run.style.linkTarget!)
+                : recognizer,
           ),
         );
       }
@@ -537,7 +535,8 @@ class ReaderBlockRenderer {
     TextStyle? baseStyle,
     TapGestureRecognizer? Function(ReaderLinkTarget target)? linkRecognizer,
   }) {
-    final resolvedBase = baseStyle ??
+    final resolvedBase =
+        baseStyle ??
         _buildReaderTextStyle(
           baseStyle: theme.textTheme.bodyLarge,
           theme: theme.readerTheme,
@@ -550,10 +549,9 @@ class ReaderBlockRenderer {
             resolvedBase,
             theme,
             baseColor,
-            recognizer:
-                run.style.linkTarget != null && linkRecognizer != null
-                    ? linkRecognizer(run.style.linkTarget!)
-                    : null,
+            recognizer: run.style.linkTarget != null && linkRecognizer != null
+                ? linkRecognizer(run.style.linkTarget!)
+                : null,
           ),
         )
         .toList();
@@ -565,7 +563,7 @@ class ReaderBlockRenderer {
     Color baseColor, {
     required TextStyle baseStyle,
     required TapGestureRecognizer? Function(ReaderLinkTarget target)?
-        linkRecognizer,
+    linkRecognizer,
     required EpubResourceResolver? resolver,
   }) {
     return inlines
@@ -588,7 +586,7 @@ class ReaderBlockRenderer {
     Color baseColor, {
     required TextStyle baseStyle,
     required TapGestureRecognizer? Function(ReaderLinkTarget target)?
-        linkRecognizer,
+    linkRecognizer,
     required EpubResourceResolver? resolver,
   }) {
     if (inline is TextInline) {
@@ -606,6 +604,8 @@ class ReaderBlockRenderer {
         child: _InlineImageWidget(
           resource: inline.resource,
           alt: inline.alt,
+          presentation: inline.presentation,
+          fontSize: theme.readerTheme.fontSize,
           resolver: resolver,
           colorScheme: theme.colorScheme,
         ),
@@ -620,8 +620,9 @@ class ReaderBlockRenderer {
           null,
           PlayerThemeSentenceHighlightStyle.background,
         ),
-        recognizer:
-            linkRecognizer != null ? linkRecognizer(inline.target) : null,
+        recognizer: linkRecognizer != null
+            ? linkRecognizer(inline.target)
+            : null,
         children: _buildInlineSpansFromInlines(
           inline.children,
           theme,
@@ -736,10 +737,9 @@ class ReaderBlockRenderer {
     if (runStyle.code) {
       style = style.copyWith(
         fontFamily: 'monospace',
-        backgroundColor:
-            highlightColor == null || highlightColor.opacity == 0
-                ? baseColor.withOpacity(0.08)
-                : highlightColor,
+        backgroundColor: highlightColor == null || highlightColor.opacity == 0
+            ? baseColor.withOpacity(0.08)
+            : highlightColor,
       );
     }
     if (highlightColor != null && highlightColor.opacity > 0) {
@@ -832,10 +832,7 @@ class ReaderBlockRenderer {
       baseStyle: theme.textTheme.bodyMedium,
       theme: theme.readerTheme,
       color: theme.colorScheme.onSurface,
-    ).copyWith(
-      fontFamily: 'monospace',
-      height: 1.45,
-    );
+    ).copyWith(fontFamily: 'monospace', height: 1.45);
     return Padding(
       padding: EdgeInsets.fromLTRB(indent, 12, 0, 12),
       child: Container(
@@ -851,6 +848,149 @@ class ReaderBlockRenderer {
         child: Text(block.text, style: baseStyle),
       ),
     );
+  }
+
+  static _ResolvedImageLayout _resolveBlockImageLayout({
+    required ReaderImagePresentation? presentation,
+    required double availableWidth,
+    required double fontSize,
+  }) {
+    final normalizedWidth = availableWidth.isFinite && availableWidth > 0
+        ? availableWidth
+        : double.infinity;
+    return _ResolvedImageLayout(
+      width: _resolveImageLength(
+        presentation?.width,
+        availableWidth: normalizedWidth,
+        fontSize: fontSize,
+        allowPercent: true,
+      ),
+      height: _resolveImageLength(
+        presentation?.height,
+        availableWidth: normalizedWidth,
+        fontSize: fontSize,
+        allowPercent: false,
+      ),
+      maxWidth: _resolveImageLength(
+        presentation?.maxWidth,
+        availableWidth: normalizedWidth,
+        fontSize: fontSize,
+        allowPercent: true,
+      ),
+      maxHeight: _resolveImageLength(
+        presentation?.maxHeight,
+        availableWidth: normalizedWidth,
+        fontSize: fontSize,
+        allowPercent: false,
+      ),
+    );
+  }
+
+  static _ResolvedImageLayout _resolveInlineImageLayout({
+    required ReaderImagePresentation? presentation,
+    required double fontSize,
+  }) {
+    return _ResolvedImageLayout(
+      width: _resolveImageLength(
+        presentation?.width,
+        availableWidth: double.infinity,
+        fontSize: fontSize,
+        allowPercent: false,
+      ),
+      height: _resolveImageLength(
+        presentation?.height,
+        availableWidth: double.infinity,
+        fontSize: fontSize,
+        allowPercent: false,
+      ),
+      maxWidth: _resolveImageLength(
+        presentation?.maxWidth,
+        availableWidth: double.infinity,
+        fontSize: fontSize,
+        allowPercent: false,
+      ),
+      maxHeight: _resolveImageLength(
+        presentation?.maxHeight,
+        availableWidth: double.infinity,
+        fontSize: fontSize,
+        allowPercent: false,
+      ),
+    );
+  }
+
+  static double? _resolveImageLength(
+    ReaderImageLength? length, {
+    required double availableWidth,
+    required double fontSize,
+    required bool allowPercent,
+  }) {
+    if (length == null) {
+      return null;
+    }
+    final rawValue = switch (length.unit) {
+      ReaderImageLengthUnit.percent =>
+        allowPercent ? availableWidth * (length.value / 100.0) : null,
+      ReaderImageLengthUnit.px => length.value,
+      ReaderImageLengthUnit.em => fontSize * length.value,
+      ReaderImageLengthUnit.rem => fontSize * length.value,
+      ReaderImageLengthUnit.auto => null,
+    };
+    if (rawValue == null || !rawValue.isFinite || rawValue <= 0) {
+      return null;
+    }
+    return rawValue;
+  }
+
+  static Widget _buildMemoryImage({
+    required Uint8List data,
+    required String href,
+    required String? alt,
+    required String? fallbackLabel,
+    required ReaderRenderTheme fallbackTheme,
+    required double? width,
+    required double? height,
+    required double? maxWidth,
+    required double? maxHeight,
+    required bool fullWidthFallback,
+  }) {
+    final effectiveMaxWidth = maxWidth == null || !maxWidth.isFinite
+        ? null
+        : maxWidth;
+    final effectiveWidth = width == null || !width.isFinite
+        ? null
+        : effectiveMaxWidth == null
+        ? width
+        : width.clamp(0.0, effectiveMaxWidth);
+    final effectiveHeight = height == null || !height.isFinite
+        ? null
+        : maxHeight == null || !maxHeight.isFinite
+        ? height
+        : height.clamp(0.0, maxHeight);
+
+    Widget image = Image.memory(
+      data,
+      fit: BoxFit.contain,
+      width: fullWidthFallback ? double.infinity : effectiveWidth,
+      height: effectiveHeight,
+      errorBuilder: (context, error, stackTrace) {
+        _logImageDecodeError('block', href: href, alt: alt, error: error);
+        return _imagePlaceholder(fallbackTheme, fallbackLabel);
+      },
+    );
+
+    if (!fullWidthFallback &&
+        (effectiveMaxWidth != null ||
+            (maxHeight != null && maxHeight.isFinite))) {
+      image = ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: effectiveMaxWidth ?? double.infinity,
+          maxHeight: maxHeight ?? double.infinity,
+        ),
+        child: image,
+      );
+    }
+
+    return image;
   }
 
   static bool _containsInlineImages(List<ReaderInline> inlines) {
@@ -880,12 +1020,16 @@ class ReaderBlockRenderer {
 class _InlineImageWidget extends StatelessWidget {
   final ReaderResourceRef resource;
   final String? alt;
+  final ReaderImagePresentation? presentation;
+  final double fontSize;
   final EpubResourceResolver resolver;
   final ColorScheme colorScheme;
 
   const _InlineImageWidget({
     required this.resource,
     required this.alt,
+    required this.presentation,
+    required this.fontSize,
     required this.resolver,
     required this.colorScheme,
   });
@@ -924,30 +1068,55 @@ class _InlineImageWidget extends StatelessWidget {
             ),
           );
         }
+        final layout = ReaderBlockRenderer._resolveInlineImageLayout(
+          presentation: presentation,
+          fontSize: fontSize,
+        );
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.contain,
-            height: 18,
-            errorBuilder: (_, error, __) {
-              _logImageDecodeError(
-                'inline',
-                href: resource.href,
-                alt: alt,
-                error: error,
-              );
-              return Icon(
-                Icons.broken_image_outlined,
-                size: 16,
-                color: colorScheme.onSurfaceVariant,
-              );
-            },
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: layout.maxWidth ?? double.infinity,
+              maxHeight: layout.maxHeight ?? double.infinity,
+            ),
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.contain,
+              width: layout.width,
+              height: layout.height ?? (presentation == null ? 18 : null),
+              errorBuilder: (_, error, __) {
+                _logImageDecodeError(
+                  'inline',
+                  href: resource.href,
+                  alt: alt,
+                  error: error,
+                );
+                return Icon(
+                  Icons.broken_image_outlined,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant,
+                );
+              },
+            ),
           ),
         );
       },
     );
   }
+}
+
+class _ResolvedImageLayout {
+  final double? width;
+  final double? height;
+  final double? maxWidth;
+  final double? maxHeight;
+
+  const _ResolvedImageLayout({
+    this.width,
+    this.height,
+    this.maxWidth,
+    this.maxHeight,
+  });
 }
 
 final Set<String> _imageDebugStates = <String>{};

@@ -46,6 +46,16 @@ void main() {
           ),
           alt: 'Pic',
           caption: 'Figure caption',
+          presentation: const rust_epub.ImagePresentation(
+            height: rust_epub.ImageLength(
+              valueMilli: 1000,
+              unit: rust_epub.ImageLengthUnit.em,
+            ),
+            maxWidth: rust_epub.ImageLength(
+              valueMilli: 40000,
+              unit: rust_epub.ImageLengthUnit.percent,
+            ),
+          ),
           rows: const [],
           source: _source(href: 'OEBPS/Text/ch1.xhtml', fragment: 'fig-1'),
         ),
@@ -58,9 +68,7 @@ void main() {
           items: [
             rust_epub.ListItem(
               blocks: [
-                _paragraphBlock(
-                  inlines: [_textInline('First item')],
-                ),
+                _paragraphBlock(inlines: [_textInline('First item')]),
               ],
               source: _source(fragment: 'list-item-1'),
             ),
@@ -107,64 +115,132 @@ void main() {
     expect(image.resource.href, 'OEBPS/images/pic.png');
     expect(image.resource.kind, ReaderResourceKind.image);
     expect(image.caption, 'Figure caption');
+    expect(image.presentation?.height?.valueMilli, 1000);
+    expect(image.presentation?.height?.unit, ReaderImageLengthUnit.em);
+    expect(image.presentation?.maxWidth?.valueMilli, 40000);
+    expect(image.presentation?.maxWidth?.unit, ReaderImageLengthUnit.percent);
     expect(image.source?.fragment, 'fig-1');
   });
 
-  test('adaptReaderDocument maps span hints, link targets, and source maps', () {
-    final document = rust_epub.ReaderDocument(
-      chapterHref: 'ch.xhtml',
-      blocks: [
-        _paragraphBlock(
-          inlines: [
-            rust_epub.ReaderInline(
-              kind: rust_epub.ReaderInlineKind.span,
-              styleHints: const [
-                rust_epub.SpanStyleHint.italic,
-                rust_epub.SpanStyleHint.bold,
-                rust_epub.SpanStyleHint.code,
-              ],
-              children: [
-                rust_epub.ReaderInline(
-                  kind: rust_epub.ReaderInlineKind.link,
-                  target: const rust_epub.LinkTarget(
-                    kind: rust_epub.LinkTargetKind.internal,
-                    href: 'ch2.xhtml#next',
-                    sectionId: 'section-2',
-                    sectionIndex: 1,
-                    fragment: 'next',
+  test(
+    'adaptReaderDocument maps span hints, link targets, and source maps',
+    () {
+      final document = rust_epub.ReaderDocument(
+        chapterHref: 'ch.xhtml',
+        blocks: [
+          _paragraphBlock(
+            inlines: [
+              rust_epub.ReaderInline(
+                kind: rust_epub.ReaderInlineKind.span,
+                styleHints: const [
+                  rust_epub.SpanStyleHint.italic,
+                  rust_epub.SpanStyleHint.bold,
+                  rust_epub.SpanStyleHint.code,
+                ],
+                children: [
+                  rust_epub.ReaderInline(
+                    kind: rust_epub.ReaderInlineKind.link,
+                    target: const rust_epub.LinkTarget(
+                      kind: rust_epub.LinkTargetKind.internal,
+                      href: 'ch2.xhtml#next',
+                      sectionId: 'section-2',
+                      sectionIndex: 1,
+                      fragment: 'next',
+                    ),
+                    styleHints: const [],
+                    children: [_textInline('Next chapter', fragment: 'next')],
+                    source: _source(fragment: 'link-1'),
                   ),
-                  styleHints: const [],
-                  children: [_textInline('Next chapter', fragment: 'next')],
-                  source: _source(fragment: 'link-1'),
+                ],
+                source: _source(fragment: 'span-1'),
+              ),
+            ],
+            fragment: 'para-1',
+          ),
+        ],
+      );
+
+      final adapted = adaptReaderDocument(document);
+      final paragraph = adapted.blocks.whereType<ParagraphBlock>().first;
+      final span = paragraph.inlines.whereType<SpanInline>().first;
+      final link = span.children.whereType<LinkInline>().first;
+
+      expect(
+        span.styleHints,
+        containsAll(<SpanStyleHint>[
+          SpanStyleHint.italic,
+          SpanStyleHint.bold,
+          SpanStyleHint.code,
+        ]),
+      );
+      expect(span.source?.fragment, 'span-1');
+
+      expect(link.target.kind, ReaderLinkTargetKind.internal);
+      expect(link.target.href, 'ch2.xhtml#next');
+      expect(link.target.sectionId, 'section-2');
+      expect(link.target.sectionIndex, 1);
+      expect(link.target.fragment, 'next');
+      expect(link.source?.fragment, 'link-1');
+    },
+  );
+
+  test(
+    'adaptReaderDocument maps inline image presentation and drops empty data',
+    () {
+      final document = rust_epub.ReaderDocument(
+        chapterHref: 'ch.xhtml',
+        blocks: [
+          _paragraphBlock(
+            inlines: [
+              rust_epub.ReaderInline(
+                kind: rust_epub.ReaderInlineKind.image,
+                resource: const rust_epub.ResourceRef(
+                  href: 'images/logo.png',
+                  mediaType: 'image/png',
+                  kind: rust_epub.ResourceKind.image,
                 ),
-              ],
-              source: _source(fragment: 'span-1'),
-            ),
-          ],
-          fragment: 'para-1',
-        ),
-      ],
-    );
+                alt: 'Logo',
+                presentation: const rust_epub.ImagePresentation(
+                  width: rust_epub.ImageLength(
+                    valueMilli: 24000,
+                    unit: rust_epub.ImageLengthUnit.px,
+                  ),
+                ),
+                styleHints: const [],
+                children: const [],
+                source: _source(fragment: 'inline-logo'),
+              ),
+              rust_epub.ReaderInline(
+                kind: rust_epub.ReaderInlineKind.image,
+                resource: const rust_epub.ResourceRef(
+                  href: 'images/plain.png',
+                  mediaType: 'image/png',
+                  kind: rust_epub.ResourceKind.image,
+                ),
+                alt: 'Plain',
+                presentation: const rust_epub.ImagePresentation(),
+                styleHints: const [],
+                children: const [],
+                source: _source(fragment: 'inline-plain'),
+              ),
+            ],
+          ),
+        ],
+      );
 
-    final adapted = adaptReaderDocument(document);
-    final paragraph = adapted.blocks.whereType<ParagraphBlock>().first;
-    final span = paragraph.inlines.whereType<SpanInline>().first;
-    final link = span.children.whereType<LinkInline>().first;
+      final adapted = adaptReaderDocument(document);
+      final paragraph = adapted.blocks.whereType<ParagraphBlock>().first;
+      final logo = paragraph.inlines.first as InlineImage;
+      final plain = paragraph.inlines.last as InlineImage;
 
-    expect(span.styleHints, containsAll(<SpanStyleHint>[
-      SpanStyleHint.italic,
-      SpanStyleHint.bold,
-      SpanStyleHint.code,
-    ]));
-    expect(span.source?.fragment, 'span-1');
+      expect(logo.presentation?.width?.valueMilli, 24000);
+      expect(logo.presentation?.width?.unit, ReaderImageLengthUnit.px);
+      expect(logo.source?.fragment, 'inline-logo');
 
-    expect(link.target.kind, ReaderLinkTargetKind.internal);
-    expect(link.target.href, 'ch2.xhtml#next');
-    expect(link.target.sectionId, 'section-2');
-    expect(link.target.sectionIndex, 1);
-    expect(link.target.fragment, 'next');
-    expect(link.source?.fragment, 'link-1');
-  });
+      expect(plain.presentation, isNull);
+      expect(plain.source?.fragment, 'inline-plain');
+    },
+  );
 }
 
 rust_epub.ReaderBlock _headingBlock({

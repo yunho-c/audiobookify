@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `from_render_model`, `map_runtime_error`, `to_i32`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// Open an EPUB file from path and parse runtime reader sections.
 Future<ParsedEpubBook> openEpub({required String path}) =>
@@ -77,6 +77,54 @@ class EpubMetadata {
           identifier == other.identifier &&
           publisher == other.publisher &&
           description == other.description;
+}
+
+class ImageLength {
+  final int valueMilli;
+  final ImageLengthUnit unit;
+
+  const ImageLength({required this.valueMilli, required this.unit});
+
+  @override
+  int get hashCode => valueMilli.hashCode ^ unit.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImageLength &&
+          runtimeType == other.runtimeType &&
+          valueMilli == other.valueMilli &&
+          unit == other.unit;
+}
+
+enum ImageLengthUnit { percent, px, em, rem, auto }
+
+class ImagePresentation {
+  final ImageLength? width;
+  final ImageLength? height;
+  final ImageLength? maxWidth;
+  final ImageLength? maxHeight;
+
+  const ImagePresentation({
+    this.width,
+    this.height,
+    this.maxWidth,
+    this.maxHeight,
+  });
+
+  @override
+  int get hashCode =>
+      width.hashCode ^ height.hashCode ^ maxWidth.hashCode ^ maxHeight.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImagePresentation &&
+          runtimeType == other.runtimeType &&
+          width == other.width &&
+          height == other.height &&
+          maxWidth == other.maxWidth &&
+          maxHeight == other.maxHeight;
 }
 
 class LinkTarget {
@@ -170,6 +218,7 @@ class ReaderBlock {
   final ResourceRef? resource;
   final String? alt;
   final String? caption;
+  final ImagePresentation? presentation;
   final List<TableRow> rows;
   final String? codeText;
   final SourceMap source;
@@ -184,6 +233,7 @@ class ReaderBlock {
     this.resource,
     this.alt,
     this.caption,
+    this.presentation,
     required this.rows,
     this.codeText,
     required this.source,
@@ -200,6 +250,7 @@ class ReaderBlock {
       resource.hashCode ^
       alt.hashCode ^
       caption.hashCode ^
+      presentation.hashCode ^
       rows.hashCode ^
       codeText.hashCode ^
       source.hashCode;
@@ -218,6 +269,7 @@ class ReaderBlock {
           resource == other.resource &&
           alt == other.alt &&
           caption == other.caption &&
+          presentation == other.presentation &&
           rows == other.rows &&
           codeText == other.codeText &&
           source == other.source;
@@ -259,6 +311,7 @@ class ReaderInline {
   final LinkTarget? target;
   final ResourceRef? resource;
   final String? alt;
+  final ImagePresentation? presentation;
   final List<SpanStyleHint> styleHints;
   final List<ReaderInline> children;
   final SourceMap source;
@@ -269,6 +322,7 @@ class ReaderInline {
     this.target,
     this.resource,
     this.alt,
+    this.presentation,
     required this.styleHints,
     required this.children,
     required this.source,
@@ -281,6 +335,7 @@ class ReaderInline {
       target.hashCode ^
       resource.hashCode ^
       alt.hashCode ^
+      presentation.hashCode ^
       styleHints.hashCode ^
       children.hashCode ^
       source.hashCode;
@@ -295,6 +350,7 @@ class ReaderInline {
           target == other.target &&
           resource == other.resource &&
           alt == other.alt &&
+          presentation == other.presentation &&
           styleHints == other.styleHints &&
           children == other.children &&
           source == other.source;

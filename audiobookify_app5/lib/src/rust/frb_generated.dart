@@ -260,6 +260,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ImageLength dco_decode_box_autoadd_image_length(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_image_length(raw);
+  }
+
+  @protected
+  ImagePresentation dco_decode_box_autoadd_image_presentation(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_image_presentation(raw);
+  }
+
+  @protected
   LinkTarget dco_decode_box_autoadd_link_target(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_link_target(raw);
@@ -300,6 +312,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
+  }
+
+  @protected
+  ImageLength dco_decode_image_length(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ImageLength(
+      valueMilli: dco_decode_i_32(arr[0]),
+      unit: dco_decode_image_length_unit(arr[1]),
+    );
+  }
+
+  @protected
+  ImageLengthUnit dco_decode_image_length_unit(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ImageLengthUnit.values[raw as int];
+  }
+
+  @protected
+  ImagePresentation dco_decode_image_presentation(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ImagePresentation(
+      width: dco_decode_opt_box_autoadd_image_length(arr[0]),
+      height: dco_decode_opt_box_autoadd_image_length(arr[1]),
+      maxWidth: dco_decode_opt_box_autoadd_image_length(arr[2]),
+      maxHeight: dco_decode_opt_box_autoadd_image_length(arr[3]),
+    );
   }
 
   @protected
@@ -408,6 +452,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ImageLength? dco_decode_opt_box_autoadd_image_length(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_image_length(raw);
+  }
+
+  @protected
+  ImagePresentation? dco_decode_opt_box_autoadd_image_presentation(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_image_presentation(raw);
+  }
+
+  @protected
   LinkTarget? dco_decode_opt_box_autoadd_link_target(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_link_target(raw);
@@ -442,8 +500,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ReaderBlock dco_decode_reader_block(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return ReaderBlock(
       kind: dco_decode_reader_block_kind(arr[0]),
       level: dco_decode_i_32(arr[1]),
@@ -454,9 +512,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       resource: dco_decode_opt_box_autoadd_resource_ref(arr[6]),
       alt: dco_decode_opt_String(arr[7]),
       caption: dco_decode_opt_String(arr[8]),
-      rows: dco_decode_list_table_row(arr[9]),
-      codeText: dco_decode_opt_String(arr[10]),
-      source: dco_decode_source_map(arr[11]),
+      presentation: dco_decode_opt_box_autoadd_image_presentation(arr[9]),
+      rows: dco_decode_list_table_row(arr[10]),
+      codeText: dco_decode_opt_String(arr[11]),
+      source: dco_decode_source_map(arr[12]),
     );
   }
 
@@ -482,17 +541,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ReaderInline dco_decode_reader_inline(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return ReaderInline(
       kind: dco_decode_reader_inline_kind(arr[0]),
       text: dco_decode_opt_String(arr[1]),
       target: dco_decode_opt_box_autoadd_link_target(arr[2]),
       resource: dco_decode_opt_box_autoadd_resource_ref(arr[3]),
       alt: dco_decode_opt_String(arr[4]),
-      styleHints: dco_decode_list_span_style_hint(arr[5]),
-      children: dco_decode_list_reader_inline(arr[6]),
-      source: dco_decode_source_map(arr[7]),
+      presentation: dco_decode_opt_box_autoadd_image_presentation(arr[5]),
+      styleHints: dco_decode_list_span_style_hint(arr[6]),
+      children: dco_decode_list_reader_inline(arr[7]),
+      source: dco_decode_source_map(arr[8]),
     );
   }
 
@@ -618,6 +678,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ImageLength sse_decode_box_autoadd_image_length(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_image_length(deserializer));
+  }
+
+  @protected
+  ImagePresentation sse_decode_box_autoadd_image_presentation(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_image_presentation(deserializer));
+  }
+
+  @protected
   LinkTarget sse_decode_box_autoadd_link_target(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_link_target(deserializer));
@@ -661,6 +737,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  ImageLength sse_decode_image_length(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_valueMilli = sse_decode_i_32(deserializer);
+    var var_unit = sse_decode_image_length_unit(deserializer);
+    return ImageLength(valueMilli: var_valueMilli, unit: var_unit);
+  }
+
+  @protected
+  ImageLengthUnit sse_decode_image_length_unit(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ImageLengthUnit.values[inner];
+  }
+
+  @protected
+  ImagePresentation sse_decode_image_presentation(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_width = sse_decode_opt_box_autoadd_image_length(deserializer);
+    var var_height = sse_decode_opt_box_autoadd_image_length(deserializer);
+    var var_maxWidth = sse_decode_opt_box_autoadd_image_length(deserializer);
+    var var_maxHeight = sse_decode_opt_box_autoadd_image_length(deserializer);
+    return ImagePresentation(
+      width: var_width,
+      height: var_height,
+      maxWidth: var_maxWidth,
+      maxHeight: var_maxHeight,
+    );
   }
 
   @protected
@@ -832,6 +940,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ImageLength? sse_decode_opt_box_autoadd_image_length(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_image_length(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ImagePresentation? sse_decode_opt_box_autoadd_image_presentation(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_image_presentation(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   LinkTarget? sse_decode_opt_box_autoadd_link_target(
     SseDeserializer deserializer,
   ) {
@@ -893,6 +1027,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_resource = sse_decode_opt_box_autoadd_resource_ref(deserializer);
     var var_alt = sse_decode_opt_String(deserializer);
     var var_caption = sse_decode_opt_String(deserializer);
+    var var_presentation = sse_decode_opt_box_autoadd_image_presentation(
+      deserializer,
+    );
     var var_rows = sse_decode_list_table_row(deserializer);
     var var_codeText = sse_decode_opt_String(deserializer);
     var var_source = sse_decode_source_map(deserializer);
@@ -906,6 +1043,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       resource: var_resource,
       alt: var_alt,
       caption: var_caption,
+      presentation: var_presentation,
       rows: var_rows,
       codeText: var_codeText,
       source: var_source,
@@ -935,6 +1073,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_target = sse_decode_opt_box_autoadd_link_target(deserializer);
     var var_resource = sse_decode_opt_box_autoadd_resource_ref(deserializer);
     var var_alt = sse_decode_opt_String(deserializer);
+    var var_presentation = sse_decode_opt_box_autoadd_image_presentation(
+      deserializer,
+    );
     var var_styleHints = sse_decode_list_span_style_hint(deserializer);
     var var_children = sse_decode_list_reader_inline(deserializer);
     var var_source = sse_decode_source_map(deserializer);
@@ -944,6 +1085,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       target: var_target,
       resource: var_resource,
       alt: var_alt,
+      presentation: var_presentation,
       styleHints: var_styleHints,
       children: var_children,
       source: var_source,
@@ -1077,6 +1219,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_image_length(
+    ImageLength self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_image_length(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_image_presentation(
+    ImagePresentation self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_image_presentation(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_link_target(
     LinkTarget self,
     SseSerializer serializer,
@@ -1115,6 +1275,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_image_length(ImageLength self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.valueMilli, serializer);
+    sse_encode_image_length_unit(self.unit, serializer);
+  }
+
+  @protected
+  void sse_encode_image_length_unit(
+    ImageLengthUnit self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_image_presentation(
+    ImagePresentation self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_box_autoadd_image_length(self.width, serializer);
+    sse_encode_opt_box_autoadd_image_length(self.height, serializer);
+    sse_encode_opt_box_autoadd_image_length(self.maxWidth, serializer);
+    sse_encode_opt_box_autoadd_image_length(self.maxHeight, serializer);
   }
 
   @protected
@@ -1274,6 +1462,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_image_length(
+    ImageLength? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_image_length(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_image_presentation(
+    ImagePresentation? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_image_presentation(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_link_target(
     LinkTarget? self,
     SseSerializer serializer,
@@ -1335,6 +1549,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_resource_ref(self.resource, serializer);
     sse_encode_opt_String(self.alt, serializer);
     sse_encode_opt_String(self.caption, serializer);
+    sse_encode_opt_box_autoadd_image_presentation(
+      self.presentation,
+      serializer,
+    );
     sse_encode_list_table_row(self.rows, serializer);
     sse_encode_opt_String(self.codeText, serializer);
     sse_encode_source_map(self.source, serializer);
@@ -1367,6 +1585,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_link_target(self.target, serializer);
     sse_encode_opt_box_autoadd_resource_ref(self.resource, serializer);
     sse_encode_opt_String(self.alt, serializer);
+    sse_encode_opt_box_autoadd_image_presentation(
+      self.presentation,
+      serializer,
+    );
     sse_encode_list_span_style_hint(self.styleHints, serializer);
     sse_encode_list_reader_inline(self.children, serializer);
     sse_encode_source_map(self.source, serializer);
