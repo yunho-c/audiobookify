@@ -52,6 +52,97 @@ void main() {
     );
   });
 
+  testWidgets('renders centered paragraphs with centered RichText', (
+    tester,
+  ) async {
+    final renderBlock = ReaderRenderBlock(
+      block: ParagraphBlock([
+        const TextInline('Centered text.'),
+      ], alignment: ReaderBlockAlignment.center),
+      style: const RenderBlockStyle(),
+      ttsIndex: 0,
+    );
+    final ttsData = ReaderTtsParagraph(
+      plainText: 'Centered text.',
+      sentences: const ['Centered text.'],
+      sentenceRuns: const [
+        [TextRun('Centered text.', TextRunStyle())],
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReaderBlockRenderer.buildBlock(
+            renderBlock: renderBlock,
+            theme: _theme(),
+            resolver: EpubResourceResolver.fromMemory(const {}),
+            isActiveParagraph: false,
+            activeSentenceIndex: -1,
+            previousSentenceIndex: -1,
+            transitionValue: 0.0,
+            sentenceRecognizer: null,
+            linkRecognizer: null,
+            onTapParagraph: null,
+            ttsData: ttsData,
+          ),
+        ),
+      ),
+    );
+
+    final richText = tester.widget<RichText>(find.byType(RichText).first);
+    expect(richText.textAlign, TextAlign.center);
+  });
+
+  testWidgets('keeps list marker layout while right-aligning list content', (
+    tester,
+  ) async {
+    final renderBlock = ReaderRenderBlock(
+      block: const ParagraphBlock([
+        TextInline('List item'),
+      ], alignment: ReaderBlockAlignment.right),
+      style: const RenderBlockStyle(listMarker: '1.'),
+      ttsIndex: 0,
+    );
+    final ttsData = ReaderTtsParagraph(
+      plainText: 'List item',
+      sentences: const ['List item'],
+      sentenceRuns: const [
+        [TextRun('List item', TextRunStyle())],
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReaderBlockRenderer.buildBlock(
+            renderBlock: renderBlock,
+            theme: _theme(),
+            resolver: EpubResourceResolver.fromMemory(const {}),
+            isActiveParagraph: false,
+            activeSentenceIndex: -1,
+            previousSentenceIndex: -1,
+            transitionValue: 0.0,
+            sentenceRecognizer: null,
+            linkRecognizer: null,
+            onTapParagraph: null,
+            ttsData: ttsData,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('1.'), findsOneWidget);
+    final richText = tester.widget<RichText>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText &&
+            widget.text.toPlainText().contains('List item'),
+      ),
+    );
+    expect(richText.textAlign, TextAlign.right);
+  });
+
   testWidgets('renders image blocks from resolver', (tester) async {
     final bytes = base64Decode(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAp4XfQAAAABJRU5ErkJggg==',

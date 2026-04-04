@@ -78,9 +78,16 @@ pub enum ReaderBlockKind {
 }
 
 #[derive(Debug, Clone)]
+pub enum BlockAlignment {
+    Center,
+    Right,
+}
+
+#[derive(Debug, Clone)]
 pub struct ReaderBlock {
     pub kind: ReaderBlockKind,
     pub level: i32,
+    pub alignment: Option<BlockAlignment>,
     pub ordered: bool,
     pub inlines: Vec<ReaderInline>,
     pub blocks: Vec<ReaderBlock>,
@@ -288,6 +295,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
             render_ir_epub::Block::Paragraph(paragraph) => Self {
                 kind: ReaderBlockKind::Paragraph,
                 level: 0,
+                alignment: paragraph.alignment.map(BlockAlignment::from),
                 ordered: false,
                 inlines: paragraph
                     .inlines
@@ -307,6 +315,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
             render_ir_epub::Block::Heading(heading) => Self {
                 kind: ReaderBlockKind::Heading,
                 level: i32::from(heading.level),
+                alignment: heading.alignment.map(BlockAlignment::from),
                 ordered: false,
                 inlines: heading
                     .inlines
@@ -326,6 +335,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
             render_ir_epub::Block::Quote(quote) => Self {
                 kind: ReaderBlockKind::BlockQuote,
                 level: 0,
+                alignment: None,
                 ordered: false,
                 inlines: Vec::new(),
                 blocks: quote.blocks.into_iter().map(ReaderBlock::from).collect(),
@@ -341,6 +351,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
             render_ir_epub::Block::List(list) => Self {
                 kind: ReaderBlockKind::List,
                 level: 0,
+                alignment: None,
                 ordered: list.ordered,
                 inlines: Vec::new(),
                 blocks: Vec::new(),
@@ -356,6 +367,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
             render_ir_epub::Block::Table(table) => Self {
                 kind: ReaderBlockKind::Table,
                 level: 0,
+                alignment: None,
                 ordered: false,
                 inlines: Vec::new(),
                 blocks: Vec::new(),
@@ -371,6 +383,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
             render_ir_epub::Block::Image(image) => Self {
                 kind: ReaderBlockKind::Image,
                 level: 0,
+                alignment: None,
                 ordered: false,
                 inlines: Vec::new(),
                 blocks: Vec::new(),
@@ -386,6 +399,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
             render_ir_epub::Block::Rule(rule) => Self {
                 kind: ReaderBlockKind::HorizontalRule,
                 level: 0,
+                alignment: None,
                 ordered: false,
                 inlines: Vec::new(),
                 blocks: Vec::new(),
@@ -401,6 +415,7 @@ impl From<render_ir_epub::Block> for ReaderBlock {
             render_ir_epub::Block::Code(code) => Self {
                 kind: ReaderBlockKind::Code,
                 level: 0,
+                alignment: None,
                 ordered: false,
                 inlines: Vec::new(),
                 blocks: Vec::new(),
@@ -516,6 +531,15 @@ impl From<render_ir_epub::TextStyleHint> for SpanStyleHint {
             render_ir_epub::TextStyleHint::Superscript => Self::Superscript,
             render_ir_epub::TextStyleHint::Subscript => Self::Subscript,
             render_ir_epub::TextStyleHint::Code => Self::Code,
+        }
+    }
+}
+
+impl From<render_ir_epub::BlockAlignment> for BlockAlignment {
+    fn from(value: render_ir_epub::BlockAlignment) -> Self {
+        match value {
+            render_ir_epub::BlockAlignment::Center => Self::Center,
+            render_ir_epub::BlockAlignment::Right => Self::Right,
         }
     }
 }

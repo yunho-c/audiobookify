@@ -248,9 +248,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BlockAlignment dco_decode_block_alignment(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return BlockAlignment.values[raw as int];
+  }
+
+  @protected
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
+  }
+
+  @protected
+  BlockAlignment dco_decode_box_autoadd_block_alignment(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_block_alignment(raw);
   }
 
   @protected
@@ -446,6 +458,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BlockAlignment? dco_decode_opt_box_autoadd_block_alignment(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_block_alignment(raw);
+  }
+
+  @protected
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_i_32(raw);
@@ -500,22 +518,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ReaderBlock dco_decode_reader_block(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 13)
-      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    if (arr.length != 14)
+      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
     return ReaderBlock(
       kind: dco_decode_reader_block_kind(arr[0]),
       level: dco_decode_i_32(arr[1]),
-      ordered: dco_decode_bool(arr[2]),
-      inlines: dco_decode_list_reader_inline(arr[3]),
-      blocks: dco_decode_list_reader_block(arr[4]),
-      items: dco_decode_list_list_item(arr[5]),
-      resource: dco_decode_opt_box_autoadd_resource_ref(arr[6]),
-      alt: dco_decode_opt_String(arr[7]),
-      caption: dco_decode_opt_String(arr[8]),
-      presentation: dco_decode_opt_box_autoadd_image_presentation(arr[9]),
-      rows: dco_decode_list_table_row(arr[10]),
-      codeText: dco_decode_opt_String(arr[11]),
-      source: dco_decode_source_map(arr[12]),
+      alignment: dco_decode_opt_box_autoadd_block_alignment(arr[2]),
+      ordered: dco_decode_bool(arr[3]),
+      inlines: dco_decode_list_reader_inline(arr[4]),
+      blocks: dco_decode_list_reader_block(arr[5]),
+      items: dco_decode_list_list_item(arr[6]),
+      resource: dco_decode_opt_box_autoadd_resource_ref(arr[7]),
+      alt: dco_decode_opt_String(arr[8]),
+      caption: dco_decode_opt_String(arr[9]),
+      presentation: dco_decode_opt_box_autoadd_image_presentation(arr[10]),
+      rows: dco_decode_list_table_row(arr[11]),
+      codeText: dco_decode_opt_String(arr[12]),
+      source: dco_decode_source_map(arr[13]),
     );
   }
 
@@ -666,9 +685,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BlockAlignment sse_decode_block_alignment(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return BlockAlignment.values[inner];
+  }
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  BlockAlignment sse_decode_box_autoadd_block_alignment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_block_alignment(deserializer));
   }
 
   @protected
@@ -929,6 +963,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BlockAlignment? sse_decode_opt_box_autoadd_block_alignment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_block_alignment(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1020,6 +1067,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_kind = sse_decode_reader_block_kind(deserializer);
     var var_level = sse_decode_i_32(deserializer);
+    var var_alignment = sse_decode_opt_box_autoadd_block_alignment(
+      deserializer,
+    );
     var var_ordered = sse_decode_bool(deserializer);
     var var_inlines = sse_decode_list_reader_inline(deserializer);
     var var_blocks = sse_decode_list_reader_block(deserializer);
@@ -1036,6 +1086,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return ReaderBlock(
       kind: var_kind,
       level: var_level,
+      alignment: var_alignment,
       ordered: var_ordered,
       inlines: var_inlines,
       blocks: var_blocks,
@@ -1207,9 +1258,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_block_alignment(
+    BlockAlignment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_block_alignment(
+    BlockAlignment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_block_alignment(self, serializer);
   }
 
   @protected
@@ -1452,6 +1521,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_block_alignment(
+    BlockAlignment? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_block_alignment(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1542,6 +1624,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_reader_block_kind(self.kind, serializer);
     sse_encode_i_32(self.level, serializer);
+    sse_encode_opt_box_autoadd_block_alignment(self.alignment, serializer);
     sse_encode_bool(self.ordered, serializer);
     sse_encode_list_reader_inline(self.inlines, serializer);
     sse_encode_list_reader_block(self.blocks, serializer);

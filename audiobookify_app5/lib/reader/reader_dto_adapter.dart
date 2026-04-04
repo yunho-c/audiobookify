@@ -14,12 +14,14 @@ ReaderBlock adaptReaderBlock(rust_epub.ReaderBlock block) {
     case rust_epub.ReaderBlockKind.paragraph:
       return ParagraphBlock(
         block.inlines.map(adaptReaderInline).toList(),
+        alignment: adaptBlockAlignment(block.alignment),
         source: source,
       );
     case rust_epub.ReaderBlockKind.heading:
       return HeadingBlock(
         level: block.level.clamp(1, 6),
         inlines: block.inlines.map(adaptReaderInline).toList(),
+        alignment: adaptBlockAlignment(block.alignment),
         source: source,
       );
     case rust_epub.ReaderBlockKind.blockQuote:
@@ -197,6 +199,17 @@ ReaderImageLengthUnit adaptImageLengthUnit(rust_epub.ImageLengthUnit unit) {
       return ReaderImageLengthUnit.rem;
     case rust_epub.ImageLengthUnit.auto:
       return ReaderImageLengthUnit.auto;
+  }
+}
+
+ReaderBlockAlignment? adaptBlockAlignment(rust_epub.BlockAlignment? alignment) {
+  switch (alignment) {
+    case rust_epub.BlockAlignment.center:
+      return ReaderBlockAlignment.center;
+    case rust_epub.BlockAlignment.right:
+      return ReaderBlockAlignment.right;
+    case null:
+      return null;
   }
 }
 

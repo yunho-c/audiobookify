@@ -60,6 +60,8 @@ abstract class ReaderBlock {
   const ReaderBlock({this.source});
 }
 
+enum ReaderBlockAlignment { center, right }
+
 enum ReaderImageLengthUnit { percent, px, em, rem, auto }
 
 @immutable
@@ -101,18 +103,21 @@ class ReaderDocument {
 @immutable
 class ParagraphBlock extends ReaderBlock {
   final List<ReaderInline> inlines;
+  final ReaderBlockAlignment? alignment;
 
-  const ParagraphBlock(this.inlines, {super.source});
+  const ParagraphBlock(this.inlines, {this.alignment, super.source});
 }
 
 @immutable
 class HeadingBlock extends ReaderBlock {
   final int level;
   final List<ReaderInline> inlines;
+  final ReaderBlockAlignment? alignment;
 
   const HeadingBlock({
     required this.level,
     required this.inlines,
+    this.alignment,
     super.source,
   });
 }

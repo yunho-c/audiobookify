@@ -19,6 +19,7 @@ void main() {
               fragment: 'heading-1',
             ),
           ],
+          alignment: rust_epub.BlockAlignment.right,
           fragment: 'heading-1',
         ),
         _paragraphBlock(
@@ -110,6 +111,7 @@ void main() {
 
     final heading = adapted.blocks.whereType<HeadingBlock>().first;
     expect(heading.source?.fragment, 'heading-1');
+    expect(heading.alignment, ReaderBlockAlignment.right);
 
     final image = adapted.blocks.whereType<ImageBlock>().first;
     expect(image.resource.href, 'OEBPS/images/pic.png');
@@ -241,15 +243,43 @@ void main() {
       expect(plain.source?.fragment, 'inline-plain');
     },
   );
+
+  test(
+    'adaptReaderDocument maps block alignment for paragraph and heading',
+    () {
+      final document = rust_epub.ReaderDocument(
+        chapterHref: 'ch.xhtml',
+        blocks: [
+          _headingBlock(
+            inlines: [_textInline('Heading')],
+            alignment: rust_epub.BlockAlignment.right,
+          ),
+          _paragraphBlock(
+            inlines: [_textInline('Centered body')],
+            alignment: rust_epub.BlockAlignment.center,
+          ),
+        ],
+      );
+
+      final adapted = adaptReaderDocument(document);
+      final heading = adapted.blocks.whereType<HeadingBlock>().first;
+      final paragraph = adapted.blocks.whereType<ParagraphBlock>().first;
+
+      expect(heading.alignment, ReaderBlockAlignment.right);
+      expect(paragraph.alignment, ReaderBlockAlignment.center);
+    },
+  );
 }
 
 rust_epub.ReaderBlock _headingBlock({
   required List<rust_epub.ReaderInline> inlines,
   String? fragment,
+  rust_epub.BlockAlignment? alignment,
 }) {
   return rust_epub.ReaderBlock(
     kind: rust_epub.ReaderBlockKind.heading,
     level: 1,
+    alignment: alignment,
     ordered: false,
     inlines: inlines,
     blocks: const [],
@@ -262,10 +292,12 @@ rust_epub.ReaderBlock _headingBlock({
 rust_epub.ReaderBlock _paragraphBlock({
   required List<rust_epub.ReaderInline> inlines,
   String? fragment,
+  rust_epub.BlockAlignment? alignment,
 }) {
   return rust_epub.ReaderBlock(
     kind: rust_epub.ReaderBlockKind.paragraph,
     level: 0,
+    alignment: alignment,
     ordered: false,
     inlines: inlines,
     blocks: const [],

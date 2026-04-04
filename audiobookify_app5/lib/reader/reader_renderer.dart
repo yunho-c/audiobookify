@@ -68,6 +68,7 @@ class ReaderBlockRenderer {
       return _buildTextBlock(
         inlines: block.inlines,
         headingLevel: null,
+        alignment: block.alignment,
         renderBlock: renderBlock,
         theme: theme,
         resolver: resolver,
@@ -85,6 +86,7 @@ class ReaderBlockRenderer {
       return _buildTextBlock(
         inlines: block.inlines,
         headingLevel: block.level,
+        alignment: block.alignment,
         renderBlock: renderBlock,
         theme: theme,
         resolver: resolver,
@@ -259,6 +261,7 @@ class ReaderBlockRenderer {
   static Widget _buildTextBlock({
     required List<ReaderInline> inlines,
     required int? headingLevel,
+    required ReaderBlockAlignment? alignment,
     required ReaderRenderBlock renderBlock,
     required ReaderRenderTheme theme,
     required EpubResourceResolver resolver,
@@ -330,8 +333,12 @@ class ReaderBlockRenderer {
 
     final indent = _indentForStyle(theme, style);
     final listMarker = style.listMarker;
+    final textAlign = _toTextAlign(alignment);
 
-    Widget textContent = RichText(text: TextSpan(children: spans));
+    Widget textContent = RichText(
+      text: TextSpan(children: spans),
+      textAlign: textAlign,
+    );
 
     if (listMarker != null) {
       textContent = Row(
@@ -435,6 +442,17 @@ class ReaderBlockRenderer {
         return 1.05;
       default:
         return 1.0;
+    }
+  }
+
+  static TextAlign _toTextAlign(ReaderBlockAlignment? alignment) {
+    switch (alignment) {
+      case ReaderBlockAlignment.center:
+        return TextAlign.center;
+      case ReaderBlockAlignment.right:
+        return TextAlign.right;
+      case null:
+        return TextAlign.start;
     }
   }
 

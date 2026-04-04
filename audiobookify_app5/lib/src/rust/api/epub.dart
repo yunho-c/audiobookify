@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `from_render_model`, `map_runtime_error`, `to_i32`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `from_render_model`, `image_presentation_into_option`, `map_runtime_error`, `to_i32`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// Open an EPUB file from path and parse runtime reader sections.
 Future<ParsedEpubBook> openEpub({required String path}) =>
@@ -21,6 +21,8 @@ Future<Uint8List?> readBookResourceBytes({
   path: path,
   resource: resource,
 );
+
+enum BlockAlignment { center, right }
 
 /// Error type for EPUB operations.
 class EpubError implements FrbException {
@@ -211,6 +213,7 @@ class ParsedEpubBook {
 class ReaderBlock {
   final ReaderBlockKind kind;
   final int level;
+  final BlockAlignment? alignment;
   final bool ordered;
   final List<ReaderInline> inlines;
   final List<ReaderBlock> blocks;
@@ -226,6 +229,7 @@ class ReaderBlock {
   const ReaderBlock({
     required this.kind,
     required this.level,
+    this.alignment,
     required this.ordered,
     required this.inlines,
     required this.blocks,
@@ -243,6 +247,7 @@ class ReaderBlock {
   int get hashCode =>
       kind.hashCode ^
       level.hashCode ^
+      alignment.hashCode ^
       ordered.hashCode ^
       inlines.hashCode ^
       blocks.hashCode ^
@@ -262,6 +267,7 @@ class ReaderBlock {
           runtimeType == other.runtimeType &&
           kind == other.kind &&
           level == other.level &&
+          alignment == other.alignment &&
           ordered == other.ordered &&
           inlines == other.inlines &&
           blocks == other.blocks &&
