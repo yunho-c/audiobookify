@@ -81,4 +81,31 @@ void main() {
     ]);
     expect(paragraph.sentenceRuns.first[1].style.italic, isTrue);
   });
+
+  test('applies a single structural marker to ordered list content', () {
+    final doc = ReaderDocument(
+      chapterHref: 'ch.xhtml',
+      blocks: [
+        ListBlock(
+          ordered: true,
+          items: const [
+            ListItemBlock([
+              ParagraphBlock([
+                TextInline('They possess strength.'),
+              ]),
+            ]),
+          ],
+        ),
+      ],
+    );
+
+    final segmented = segmentReaderDocument(doc);
+
+    expect(segmented.renderBlocks.length, 1);
+    final renderBlock = segmented.renderBlocks.first;
+    expect(renderBlock.style.listMarker, '1.');
+    expect(renderBlock.block, isA<ParagraphBlock>());
+    expect(segmented.ttsParagraphs.single.plainText, 'They possess strength.');
+    expect(segmented.ttsParagraphs.single.sentences, ['They possess strength.']);
+  });
 }
