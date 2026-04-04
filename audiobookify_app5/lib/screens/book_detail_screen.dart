@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
@@ -17,6 +18,8 @@ import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
 
 /// Book detail screen with cover, stats, and chapter list
+const bool _warmParsedEpubOnBookDetailOpen = true;
+
 class BookDetailScreen extends ConsumerStatefulWidget {
   final String bookId;
 
@@ -74,7 +77,12 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         _isLoading = !cacheCurrent && cachedSummaries.isEmpty;
       });
 
-      if (cacheCurrent) return;
+      if (cacheCurrent) {
+        if (_warmParsedEpubOnBookDetailOpen && fileExists) {
+          unawaited(_warmParsedEpub(book));
+        }
+        return;
+      }
 
       await _refreshChapterIndex(book);
     } catch (e) {
@@ -112,6 +120,22 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     }
   }
 
+  Future<void> _warmParsedEpub(Book book) async {
+    try {
+      await ref.read(epubServiceProvider).openEpub(book.filePath);
+      if (!mounted || _epubLoadError == null) return;
+      setState(() {
+        _epubLoadError = null;
+      });
+    } catch (e, stackTrace) {
+      reportError(e, stackTrace, context: 'book_detail.warmEpub');
+      if (!mounted) return;
+      setState(() {
+        _epubLoadError = e.toString();
+      });
+    }
+  }
+
   bool _bookFileExists(String path) {
     final normalized = path.trim();
     if (normalized.isEmpty) return false;
@@ -126,14 +150,14 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     if (_book == null) return AppColors.emerald700;
     final palette =
         Theme.of(context).extension<AppThemeExtras>()?.bookCoverPalette ??
-            const [
-              AppColors.emerald700,
-              AppColors.indigo700,
-              AppColors.slate700,
-              AppColors.rose700,
-              AppColors.amber800,
-              AppColors.sky700,
-            ];
+        const [
+          AppColors.emerald700,
+          AppColors.indigo700,
+          AppColors.slate700,
+          AppColors.rose700,
+          AppColors.amber800,
+          AppColors.sky700,
+        ];
     return palette[_book!.id % palette.length];
   }
 
@@ -178,8 +202,7 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final textTheme = Theme.of(context).textTheme;
     final debugEnabled = ref.watch(debugModeProvider);
     final resumePositions = ref.watch(bookResumeProvider);
-    final resumePosition =
-        _book == null ? null : resumePositions[_book!.id];
+    final resumePosition = _book == null ? null : resumePositions[_book!.id];
     if (_isLoading) {
       return const LoadingScaffold();
     }
@@ -206,16 +229,15 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final metadata = <String>[
       if (book.language?.trim().isNotEmpty ?? false)
         book.language!.trim().toUpperCase(),
-      if (book.publisher?.trim().isNotEmpty ?? false)
-        book.publisher!.trim(),
+      if (book.publisher?.trim().isNotEmpty ?? false) book.publisher!.trim(),
       'Added ${book.addedAt.year}',
     ];
     final progress = (book.progress.clamp(0, 100)) / 100;
     final resumePath = resumePosition == null
         ? '/player/${book.id}'
         : '/player/${book.id}?chapter=${resumePosition.chapterIndex + 1}'
-            '&paragraph=${resumePosition.paragraphIndex + 1}'
-            '&sentence=${resumePosition.sentenceIndex + 1}';
+              '&paragraph=${resumePosition.paragraphIndex + 1}'
+              '&sentence=${resumePosition.sentenceIndex + 1}';
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
@@ -306,8 +328,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                         child: LinearProgressIndicator(
                           value: progress.clamp(0.0, 1.0),
                           backgroundColor: colorScheme.surfaceVariant,
-                          valueColor:
-                              AlwaysStoppedAnimation(colorScheme.primary),
+                          valueColor: AlwaysStoppedAnimation(
+                            colorScheme.primary,
+                          ),
                           minHeight: 6,
                         ),
                       ),
@@ -367,9 +390,9 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: Theme.of(context)
-                                    .shadowColor
-                                    .withAlpha(50),
+                                color: Theme.of(
+                                  context,
+                                ).shadowColor.withAlpha(50),
                                 blurRadius: 20,
                                 offset: const Offset(0, 8),
                               ),
@@ -647,8 +670,8 @@ class _ChapterList extends ConsumerWidget {
             Text(
               'No chapters available',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -674,31 +697,22 @@ class _ChapterList extends ConsumerWidget {
           Text(
             'Chapters',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 16),
-          ...chapters
-              .asMap()
-              .entries
-              .map(
-            (entry) {
-              final index = entry.key + 1;
-              final title = entry.value.title.trim();
-              return _TocItem(
-                index: index,
-                title: title.isEmpty ? 'Chapter $index' : title,
-                bookId: bookId,
-                status: _chapterStatus(
-                  index,
-                  chapters.length,
-                  progress,
-                ),
-                bucketCount: bucketCount,
-              );
-            },
-          ),
+          ...chapters.asMap().entries.map((entry) {
+            final index = entry.key + 1;
+            final title = entry.value.title.trim();
+            return _TocItem(
+              index: index,
+              title: title.isEmpty ? 'Chapter $index' : title,
+              bookId: bookId,
+              status: _chapterStatus(index, chapters.length, progress),
+              bucketCount: bucketCount,
+            );
+          }),
         ],
       ),
     );
@@ -1040,9 +1054,7 @@ class _DetailBackdrop extends StatelessWidget {
             ),
           ),
         DecoratedBox(
-          decoration: BoxDecoration(
-            color: fallbackColor.withAlpha(170),
-          ),
+          decoration: BoxDecoration(color: fallbackColor.withAlpha(170)),
         ),
         DecoratedBox(
           decoration: BoxDecoration(
