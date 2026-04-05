@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
 import '../core/app_theme.dart';
+import '../core/description_formatter.dart';
 import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../models/open_library_work.dart';
@@ -1941,7 +1942,11 @@ class _PublicBookDetailsSheetState
                               future: _workFuture,
                               builder: (context, snapshot) {
                                 final work = snapshot.data;
-                                final description = work?.description;
+                                final description = work?.description == null
+                                    ? ''
+                                    : formatDescriptionForDisplay(
+                                        work!.description!,
+                                      );
                                 return Column(
                                   crossAxisAlignment:
                                       CrossAxisAlignment.start,
@@ -1962,8 +1967,7 @@ class _PublicBookDetailsSheetState
                                               colorScheme.onSurfaceVariant,
                                         ),
                                       )
-                                    else if (description == null ||
-                                        description.isEmpty)
+                                    else if (description.isEmpty)
                                       Text(
                                         'No description available yet.',
                                         style: textTheme.bodyMedium?.copyWith(

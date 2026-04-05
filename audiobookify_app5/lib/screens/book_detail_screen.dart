@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
+import '../core/description_formatter.dart';
 import '../core/error_reporter.dart';
 import '../core/providers.dart';
 import '../models/book.dart';
@@ -223,9 +224,12 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final bookAuthor = (book.author?.trim().isNotEmpty ?? false)
         ? book.author!.trim()
         : 'Unknown author';
-    final bookDescription = (book.description?.trim().isNotEmpty ?? false)
-        ? book.description!.trim()
-        : null;
+    final formattedDescription = book.description == null
+        ? ''
+        : formatDescriptionForDisplay(book.description!);
+    final bookDescription = formattedDescription.isEmpty
+        ? null
+        : formattedDescription;
     final metadata = <String>[
       if (book.language?.trim().isNotEmpty ?? false)
         book.language!.trim().toUpperCase(),
