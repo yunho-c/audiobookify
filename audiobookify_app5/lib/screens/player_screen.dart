@@ -30,6 +30,30 @@ import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
 
+class _PlayerPreviousSentenceIntent extends Intent {
+  const _PlayerPreviousSentenceIntent();
+}
+
+class _PlayerNextSentenceIntent extends Intent {
+  const _PlayerNextSentenceIntent();
+}
+
+class _PlayerPreviousChapterIntent extends Intent {
+  const _PlayerPreviousChapterIntent();
+}
+
+class _PlayerNextChapterIntent extends Intent {
+  const _PlayerNextChapterIntent();
+}
+
+class _PlayerTogglePlayPauseIntent extends Intent {
+  const _PlayerTogglePlayPauseIntent();
+}
+
+class _PlayerDismissIntent extends Intent {
+  const _PlayerDismissIntent();
+}
+
 /// Player screen with text reader, TTS audio controls, and settings
 class PlayerScreen extends ConsumerStatefulWidget {
   final String bookId;
@@ -42,7 +66,10 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
     with RouteAware, SingleTickerProviderStateMixin {
+  static const _keyboardFocusKey = ValueKey<String>('playerKeyboardFocus');
+
   final ScrollController _scrollController = ScrollController();
+  late final FocusNode _keyboardFocusNode;
   List<GlobalKey> _blockKeys = [];
   final List<List<TapGestureRecognizer>> _sentenceRecognizers = [];
   final Map<String, TapGestureRecognizer> _linkRecognizers = {};
@@ -78,6 +105,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    _keyboardFocusNode = FocusNode(debugLabel: 'PlayerScreenKeyboardFocus');
     _bookService = ref.read(bookServiceProvider);
     _ttsService = ref.read(ttsProvider.notifier);
     _audioHandler = ref.read(audioHandlerProvider);
@@ -108,6 +136,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _initTts();
     _loadContent();
+    _requestKeyboardFocus();
   }
 
   @override
@@ -117,6 +146,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (route is PageRoute) {
       routeObserver.subscribe(this, route);
     }
+  }
+
+  @override
+  void didPush() {
+    _requestKeyboardFocus();
+    super.didPush();
+  }
+
+  @override
+  void didPopNext() {
+    _requestKeyboardFocus();
+    super.didPopNext();
   }
 
   @override
@@ -284,6 +325,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     setState(() => _showSettings = true);
   }
 
+  void _closeSettings() {
+    if (!_showSettings || !mounted) return;
+    setState(() => _showSettings = false);
+    _requestKeyboardFocus();
+  }
+
+  bool get _desktopHotkeysEnabled {
+    if (kIsWeb) return false;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return true;
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
+  void _requestKeyboardFocus() {
+    if (!_desktopHotkeysEnabled || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _keyboardFocusNode.hasFocus) return;
+      _keyboardFocusNode.requestFocus();
+    });
+  }
+
   void _scrollToBlock(int index) {
     if (index < 0 || index >= _blockKeys.length) return;
     final targetContext = _blockKeys[index].currentContext;
@@ -333,6 +402,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  void _keyboardTogglePlayPause() {
+    _togglePlayPause();
+  }
+
   void _previousChapter({bool haptic = true}) {
     if (haptic) {
       HapticFeedback.selectionClick();
@@ -340,6 +413,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_currentChapterIndex > 0) {
       _loadChapter(_currentChapterIndex - 1);
     }
+  }
+
+  void _keyboardPreviousChapter() {
+    _previousChapter(haptic: false);
   }
 
   void _nextChapter({bool haptic = true}) {
@@ -351,6 +428,154 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _loadChapter(_currentChapterIndex + 1);
     }
   }
+
+  void _keyboardNextChapter() {
+    _nextChapter(haptic: false);
+  }
+
+  Future<void> _jumpSentenceRelative(int delta) async {
+    if (delta == 0 || _ttsParagraphs.isEmpty) return;
+
+    final ttsState = _ttsService.state;
+    final sentences = ttsState.sentencesPerParagraph;
+    if (sentences.isEmpty) return;
+
+    final positions = <(int paragraphIndex, int sentenceIndex)>[];
+    for (
+      var paragraphIndex = 0;
+      paragraphIndex < sentences.length;
+      paragraphIndex++
+    ) {
+      final paragraphSentences = sentences[paragraphIndex];
+      for (
+        var sentenceIndex = 0;
+        sentenceIndex < paragraphSentences.length;
+        sentenceIndex++
+      ) {
+        positions.add((paragraphIndex, sentenceIndex));
+      }
+    }
+    if (positions.isEmpty) return;
+
+    final currentParagraph = ttsState.paragraphIndex
+        .clamp(0, sentences.length - 1)
+        .toInt();
+    final currentSentenceCount = sentences[currentParagraph].length;
+    final currentSentence = currentSentenceCount == 0
+        ? -1
+        : ttsState.sentenceIndex.clamp(0, currentSentenceCount - 1).toInt();
+
+    var currentIndex = positions.indexWhere(
+      (position) =>
+          position.$1 == currentParagraph && position.$2 == currentSentence,
+    );
+
+    if (currentIndex < 0) {
+      if (delta > 0) {
+        currentIndex = positions.lastIndexWhere(
+          (position) =>
+              position.$1 < currentParagraph ||
+              (position.$1 == currentParagraph &&
+                  position.$2 < currentSentence),
+        );
+      } else {
+        currentIndex = positions.indexWhere(
+          (position) =>
+              position.$1 > currentParagraph ||
+              (position.$1 == currentParagraph &&
+                  position.$2 > currentSentence),
+        );
+      }
+      if (currentIndex < 0) {
+        currentIndex = delta > 0 ? -1 : positions.length;
+      }
+    }
+
+    final targetIndex = currentIndex + delta;
+    if (targetIndex < 0 || targetIndex >= positions.length) return;
+
+    final target = positions[targetIndex];
+    await _ttsService.jumpToSentence(target.$1, target.$2);
+    if (!mounted) return;
+    _scrollToBlock(_blockIndexForTts(target.$1));
+  }
+
+  void _handleKeyboardBack() {
+    if (_showSettings) {
+      _closeSettings();
+      return;
+    }
+    _saveProgress();
+    context.pop();
+  }
+
+  Map<ShortcutActivator, Intent> get _keyboardShortcuts {
+    if (!_desktopHotkeysEnabled) {
+      return const <ShortcutActivator, Intent>{};
+    }
+
+    final shortcuts = <ShortcutActivator, Intent>{
+      const SingleActivator(LogicalKeyboardKey.escape):
+          const _PlayerDismissIntent(),
+    };
+
+    if (_showSettings) {
+      return shortcuts;
+    }
+
+    shortcuts.addAll(const <ShortcutActivator, Intent>{
+      SingleActivator(LogicalKeyboardKey.arrowUp):
+          _PlayerPreviousSentenceIntent(),
+      SingleActivator(LogicalKeyboardKey.arrowDown):
+          _PlayerNextSentenceIntent(),
+      SingleActivator(LogicalKeyboardKey.arrowLeft):
+          _PlayerPreviousChapterIntent(),
+      SingleActivator(LogicalKeyboardKey.arrowRight):
+          _PlayerNextChapterIntent(),
+      SingleActivator(LogicalKeyboardKey.space): _PlayerTogglePlayPauseIntent(),
+    });
+    return shortcuts;
+  }
+
+  Map<Type, Action<Intent>> get _keyboardActions => <Type, Action<Intent>>{
+    _PlayerPreviousSentenceIntent:
+        CallbackAction<_PlayerPreviousSentenceIntent>(
+          onInvoke: (_) {
+            _jumpSentenceRelative(-1);
+            return null;
+          },
+        ),
+    _PlayerNextSentenceIntent: CallbackAction<_PlayerNextSentenceIntent>(
+      onInvoke: (_) {
+        _jumpSentenceRelative(1);
+        return null;
+      },
+    ),
+    _PlayerPreviousChapterIntent: CallbackAction<_PlayerPreviousChapterIntent>(
+      onInvoke: (_) {
+        _keyboardPreviousChapter();
+        return null;
+      },
+    ),
+    _PlayerNextChapterIntent: CallbackAction<_PlayerNextChapterIntent>(
+      onInvoke: (_) {
+        _keyboardNextChapter();
+        return null;
+      },
+    ),
+    _PlayerTogglePlayPauseIntent: CallbackAction<_PlayerTogglePlayPauseIntent>(
+      onInvoke: (_) {
+        _keyboardTogglePlayPause();
+        return null;
+      },
+    ),
+    _PlayerDismissIntent: CallbackAction<_PlayerDismissIntent>(
+      onInvoke: (_) {
+        _handleKeyboardBack();
+        return null;
+      },
+    ),
+  };
 
   void _saveProgress() {
     if (_book == null || _epubBook == null) return;
@@ -368,8 +593,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final sentences = ttsState.sentencesPerParagraph;
     if (sentences.isEmpty) {
       if (_ttsParagraphs.length <= 1) return 0.0;
-      return (ttsState.paragraphIndex / (_ttsParagraphs.length - 1))
-          .clamp(0.0, 1.0);
+      return (ttsState.paragraphIndex / (_ttsParagraphs.length - 1)).clamp(
+        0.0,
+        1.0,
+      );
     }
 
     var totalSentences = 0;
@@ -379,8 +606,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (totalSentences <= 1) return 0.0;
 
     var sentencesBefore = 0;
-    final currentParagraph =
-        ttsState.paragraphIndex.clamp(0, sentences.length - 1).toInt();
+    final currentParagraph = ttsState.paragraphIndex
+        .clamp(0, sentences.length - 1)
+        .toInt();
     for (var i = 0; i < currentParagraph; i++) {
       sentencesBefore += sentences[i].length;
     }
@@ -388,8 +616,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final currentSentence = currentParagraphSentences == 0
         ? 0
         : ttsState.sentenceIndex
-            .clamp(0, currentParagraphSentences - 1)
-            .toInt();
+              .clamp(0, currentParagraphSentences - 1)
+              .toInt();
     final globalSentenceIndex = sentencesBefore + currentSentence;
     return (globalSentenceIndex / (totalSentences - 1)).clamp(0.0, 1.0);
   }
@@ -458,14 +686,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final chapterIndex = _currentChapterIndex
         .clamp(0, _epubBook!.sections.length - 1)
         .toInt();
-    final paragraphIndex =
-        ttsState.paragraphIndex.clamp(0, _ttsParagraphs.length - 1).toInt();
+    final paragraphIndex = ttsState.paragraphIndex
+        .clamp(0, _ttsParagraphs.length - 1)
+        .toInt();
     var sentenceIndex = ttsState.sentenceIndex;
     final sentences = ttsState.sentencesPerParagraph;
     if (paragraphIndex < sentences.length) {
       final count = sentences[paragraphIndex].length;
-      sentenceIndex =
-          count > 0 ? sentenceIndex.clamp(0, count - 1).toInt() : 0;
+      sentenceIndex = count > 0 ? sentenceIndex.clamp(0, count - 1).toInt() : 0;
     } else {
       sentenceIndex = 0;
     }
@@ -478,7 +706,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _lastResumeChapter = chapterIndex;
     _lastResumeParagraph = paragraphIndex;
     _lastResumeSentence = sentenceIndex;
-    ref.read(bookResumeProvider.notifier).setPosition(
+    ref
+        .read(bookResumeProvider.notifier)
+        .setPosition(
           bookId: book.id,
           chapterIndex: chapterIndex,
           paragraphIndex: paragraphIndex,
@@ -502,6 +732,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     Future.microtask(_audioHandler.stop);
     _clearSentenceRecognizers();
     _scrollController.dispose();
+    _keyboardFocusNode.dispose();
     _sentenceHighlightController.dispose();
     super.dispose();
   }
@@ -569,10 +800,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _sentenceHighlightController.forward();
   }
 
-  TapGestureRecognizer _sentenceRecognizerFor(
-    int ttsIndex,
-    int sentenceIndex,
-  ) {
+  TapGestureRecognizer _sentenceRecognizerFor(int ttsIndex, int sentenceIndex) {
     while (_sentenceRecognizers.length <= ttsIndex) {
       _sentenceRecognizers.add(<TapGestureRecognizer>[]);
     }
@@ -696,6 +924,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  Widget _wrapWithKeyboardScope(Widget child) {
+    if (!_desktopHotkeysEnabled) {
+      return child;
+    }
+
+    return Shortcuts(
+      shortcuts: _keyboardShortcuts,
+      child: Actions(
+        actions: _keyboardActions,
+        child: Focus(
+          key: _keyboardFocusKey,
+          focusNode: _keyboardFocusNode,
+          autofocus: true,
+          canRequestFocus: true,
+          child: child,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -733,8 +980,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         extras?.glassBorder ?? colorScheme.onSurface.withAlpha(40);
     final glassShadow =
         extras?.glassShadow ?? Theme.of(context).shadowColor.withAlpha(30);
-    final glassBlur =
-        readerTheme.backgroundBlur < 0 ? 0.0 : readerTheme.backgroundBlur;
+    final glassBlur = readerTheme.backgroundBlur < 0
+        ? 0.0
+        : readerTheme.backgroundBlur;
     final bookTitle = (_book?.title?.trim().isNotEmpty ?? false)
         ? _book!.title!.trim()
         : 'Untitled';
@@ -743,8 +991,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         : 'Unknown author';
     final coverImage = _book?.coverImage;
     BackdropImage? selectedBackdrop;
-    if (readerTheme.backgroundMode ==
-        PlayerThemeBackgroundMode.customImage) {
+    if (readerTheme.backgroundMode == PlayerThemeBackgroundMode.customImage) {
       for (final image in backdrops) {
         if (image.id == backdropSettings.id) {
           selectedBackdrop = image;
@@ -752,20 +999,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       }
     }
-    final safeParagraphSpacing =
-        readerTheme.paragraphSpacing < 0 ? 0.0 : readerTheme.paragraphSpacing;
-    final safeParagraphIndent =
-        readerTheme.paragraphIndent < 0 ? 0.0 : readerTheme.paragraphIndent;
+    final safeParagraphSpacing = readerTheme.paragraphSpacing < 0
+        ? 0.0
+        : readerTheme.paragraphSpacing;
+    final safeParagraphIndent = readerTheme.paragraphIndent < 0
+        ? 0.0
+        : readerTheme.paragraphIndent;
     final safePagePaddingHorizontal = readerTheme.pagePaddingHorizontal < 0
         ? 0.0
         : readerTheme.pagePaddingHorizontal;
     final safePagePaddingVertical = readerTheme.pagePaddingVertical < 0
         ? 0.0
         : readerTheme.pagePaddingVertical;
-    final activeParagraphOpacity =
-        readerTheme.activeParagraphOpacity.clamp(0.0, 1.0);
-    final sentenceHighlightOpacity =
-        (activeParagraphOpacity + 0.12).clamp(0.0, 0.6);
+    final activeParagraphOpacity = readerTheme.activeParagraphOpacity.clamp(
+      0.0,
+      1.0,
+    );
+    final sentenceHighlightOpacity = (activeParagraphOpacity + 0.12).clamp(
+      0.0,
+      0.6,
+    );
     final sentenceHighlightStyle = readerTheme.sentenceHighlightStyle;
     final renderTheme = ReaderRenderTheme(
       readerTheme: readerTheme,
@@ -779,10 +1032,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       sentenceHighlightStyle: sentenceHighlightStyle,
       sentenceHighlightOpacity: sentenceHighlightOpacity,
     );
-    final resolver = _resourceResolver ??
-        EpubResourceResolver(
-          epubPath: _book?.filePath ?? '',
-        );
+    final resolver =
+        _resourceResolver ??
+        EpubResourceResolver(epubPath: _book?.filePath ?? '');
 
     // Auto-scroll when paragraph changes
     if (currentParagraphIndex != _lastScrolledToTtsIndex && isPlaying) {
@@ -807,203 +1059,205 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     if (_isLoading) {
-      return const LoadingScaffold();
+      return _wrapWithKeyboardScope(const LoadingScaffold());
     }
 
     if (_error != null) {
-      return ErrorScaffold(
-        title: 'Error loading book',
-        message: _error!,
-        onBack: () => context.pop(),
-        messagePadding: const EdgeInsets.symmetric(horizontal: 32),
-        messageAlign: TextAlign.center,
+      return _wrapWithKeyboardScope(
+        ErrorScaffold(
+          title: 'Error loading book',
+          message: _error!,
+          onBack: () => context.pop(),
+          messagePadding: const EdgeInsets.symmetric(horizontal: 32),
+          messageAlign: TextAlign.center,
+        ),
       );
     }
 
     const bucketCount = 64;
-    final debugBuckets =
-        debugEnabled && _book != null
-            ? ref
-                    .watch(
-                      bucketProgressProvider(
-                        BucketProgressArgs(
-                          bookId: _book!.id,
-                          chapterIndex: _currentChapterIndex + 1,
-                          bucketCount: bucketCount,
-                        ),
+    final debugBuckets = debugEnabled && _book != null
+        ? ref
+                  .watch(
+                    bucketProgressProvider(
+                      BucketProgressArgs(
+                        bookId: _book!.id,
+                        chapterIndex: _currentChapterIndex + 1,
+                        bucketCount: bucketCount,
                       ),
-                    )
-                    .value ??
-                Uint8List(bucketCount)
-            : null;
+                    ),
+                  )
+                  .value ??
+              Uint8List(bucketCount)
+        : null;
 
     final progress = _calculateProgress(ttsState);
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          _AmbientBackground(
-            coverImage: coverImage,
-            fallbackColor: Theme.of(context).scaffoldBackgroundColor,
-            backgroundMode: readerTheme.backgroundMode,
-            backdropImage: selectedBackdrop,
-            backdropBrightness: backdropSettings.brightness,
-            backgroundImagePath: readerTheme.backgroundImagePath,
-            backgroundBlur: readerTheme.backgroundBlur,
-            backgroundOpacity: readerTheme.backgroundOpacity,
-          ),
-          // Main content
-          Column(
-            children: [
-              SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  child: Row(
-                    children: [
-                      GlassIconButton(
-                        icon: LucideIcons.arrowLeft,
-                        onTap: () {
-                          _saveProgress();
-                          context.pop();
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              bookTitle,
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: colorScheme.onSurface,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '$bookAuthor \u2022 $_currentChapterTitle',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+    return _wrapWithKeyboardScope(
+      Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            _AmbientBackground(
+              coverImage: coverImage,
+              fallbackColor: Theme.of(context).scaffoldBackgroundColor,
+              backgroundMode: readerTheme.backgroundMode,
+              backdropImage: selectedBackdrop,
+              backdropBrightness: backdropSettings.brightness,
+              backgroundImagePath: readerTheme.backgroundImagePath,
+              backgroundBlur: readerTheme.backgroundBlur,
+              backgroundOpacity: readerTheme.backgroundOpacity,
+            ),
+            // Main content
+            Column(
+              children: [
+                SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: Row(
+                      children: [
+                        GlassIconButton(
+                          icon: LucideIcons.arrowLeft,
+                          onTap: () {
+                            _saveProgress();
+                            context.pop();
+                          },
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      GlassIconButton(
-                        icon: LucideIcons.settings2,
-                        onTap: _openSettings,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Text content
-              Expanded(
-                child: _renderBlocks.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No content available',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                bookTitle,
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: colorScheme.onSurface,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '$bookAuthor \u2022 $_currentChapterTitle',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: EdgeInsets.fromLTRB(
-                          safePagePaddingHorizontal,
-                          safePagePaddingVertical,
-                          safePagePaddingHorizontal,
-                          safePagePaddingVertical + 260,
+                        const SizedBox(width: 12),
+                        GlassIconButton(
+                          icon: LucideIcons.settings2,
+                          onTap: _openSettings,
                         ),
-                        itemCount: _renderBlocks.length,
-                        itemBuilder: (context, index) {
-                          final renderBlock = _renderBlocks[index];
-                          final ttsIndex = renderBlock.ttsIndex;
-                          final blockKey = index < _blockKeys.length
-                              ? _blockKeys[index]
-                              : GlobalKey();
-                          final isActiveParagraph =
-                              ttsIndex != null && ttsIndex == currentParagraphIndex;
-                          final ttsData = ttsIndex != null &&
-                                  ttsIndex < _ttsParagraphs.length
-                              ? _ttsParagraphs[ttsIndex]
-                              : null;
-                          return KeyedSubtree(
-                            key: blockKey,
-                            child: ReaderBlockRenderer.buildBlock(
-                              renderBlock: renderBlock,
-                              theme: renderTheme,
-                              resolver: resolver,
-                              isActiveParagraph: isActiveParagraph,
-                              activeSentenceIndex:
-                                  isActiveParagraph ? currentSentenceIndex : -1,
-                              previousSentenceIndex: isActiveParagraph
-                                  ? _previousSentenceIndex
-                                  : -1,
-                              transitionValue: isActiveParagraph
-                                  ? _sentenceHighlightCurve.value
-                                  : 0.0,
-                              sentenceRecognizer: ttsIndex != null
-                                  ? (sentenceIndex) => _sentenceRecognizerFor(
+                      ],
+                    ),
+                  ),
+                ),
+                // Text content
+                Expanded(
+                  child: _renderBlocks.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No content available',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: EdgeInsets.fromLTRB(
+                            safePagePaddingHorizontal,
+                            safePagePaddingVertical,
+                            safePagePaddingHorizontal,
+                            safePagePaddingVertical + 260,
+                          ),
+                          itemCount: _renderBlocks.length,
+                          itemBuilder: (context, index) {
+                            final renderBlock = _renderBlocks[index];
+                            final ttsIndex = renderBlock.ttsIndex;
+                            final blockKey = index < _blockKeys.length
+                                ? _blockKeys[index]
+                                : GlobalKey();
+                            final isActiveParagraph =
+                                ttsIndex != null &&
+                                ttsIndex == currentParagraphIndex;
+                            final ttsData =
+                                ttsIndex != null &&
+                                    ttsIndex < _ttsParagraphs.length
+                                ? _ttsParagraphs[ttsIndex]
+                                : null;
+                            return KeyedSubtree(
+                              key: blockKey,
+                              child: ReaderBlockRenderer.buildBlock(
+                                renderBlock: renderBlock,
+                                theme: renderTheme,
+                                resolver: resolver,
+                                isActiveParagraph: isActiveParagraph,
+                                activeSentenceIndex: isActiveParagraph
+                                    ? currentSentenceIndex
+                                    : -1,
+                                previousSentenceIndex: isActiveParagraph
+                                    ? _previousSentenceIndex
+                                    : -1,
+                                transitionValue: isActiveParagraph
+                                    ? _sentenceHighlightCurve.value
+                                    : 0.0,
+                                sentenceRecognizer: ttsIndex != null
+                                    ? (sentenceIndex) => _sentenceRecognizerFor(
                                         ttsIndex,
                                         sentenceIndex,
                                       )
-                                  : null,
-                              linkRecognizer: (target) =>
-                                  _linkRecognizerFor(target),
-                              onTapParagraph: ttsIndex != null
-                                  ? () => ref
-                                      .read(ttsProvider.notifier)
-                                      .jumpToParagraph(ttsIndex)
-                                  : null,
-                              ttsData: ttsData,
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-          // Player controls
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _PlayerControlsEnhanced(
-              isPlaying: isPlaying,
-              progress: progress,
-              currentParagraph: currentParagraphIndex + 1,
-              totalParagraphs: _ttsParagraphs.length,
-              glassBackground: glassBackground,
-              glassBorder: glassBorder,
-              glassShadow: glassShadow,
-              glassBlur: glassBlur,
-              debugEnabled: debugEnabled,
-              debugBuckets: debugBuckets,
-              onPlayPause: _togglePlayPause,
-              onPrevious: _previousChapter,
-              onNext: _nextChapter,
-              onScrub: (value) => _scrubToProgress(value, ttsState),
-              canGoPrevious: _currentChapterIndex > 0,
-              canGoNext:
-                  _epubBook != null &&
-                  _currentChapterIndex < _epubBook!.sections.length - 1,
+                                    : null,
+                                linkRecognizer: (target) =>
+                                    _linkRecognizerFor(target),
+                                onTapParagraph: ttsIndex != null
+                                    ? () => ref
+                                          .read(ttsProvider.notifier)
+                                          .jumpToParagraph(ttsIndex)
+                                    : null,
+                                ttsData: ttsData,
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ),
-          // Settings modal
-          if (_showSettings)
-            Positioned.fill(
-              child: SettingsWheel(
-                onClose: () => setState(() => _showSettings = false),
+            // Player controls
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _PlayerControlsEnhanced(
+                isPlaying: isPlaying,
+                progress: progress,
+                currentParagraph: currentParagraphIndex + 1,
+                totalParagraphs: _ttsParagraphs.length,
+                glassBackground: glassBackground,
+                glassBorder: glassBorder,
+                glassShadow: glassShadow,
+                glassBlur: glassBlur,
+                debugEnabled: debugEnabled,
+                debugBuckets: debugBuckets,
+                onPlayPause: _togglePlayPause,
+                onPrevious: _previousChapter,
+                onNext: _nextChapter,
+                onScrub: (value) => _scrubToProgress(value, ttsState),
+                canGoPrevious: _currentChapterIndex > 0,
+                canGoNext:
+                    _epubBook != null &&
+                    _currentChapterIndex < _epubBook!.sections.length - 1,
               ),
             ),
-        ],
+            // Settings modal
+            if (_showSettings)
+              Positioned.fill(child: SettingsWheel(onClose: _closeSettings)),
+          ],
+        ),
       ),
     );
   }
@@ -1077,8 +1331,8 @@ class _PlayerControlsEnhanced extends StatelessWidget {
             final handleLeft = width <= 0
                 ? 0.0
                 : (width * animatedProgress - handleSize / 2)
-                    .clamp(0.0, width - handleSize)
-                    .toDouble();
+                      .clamp(0.0, width - handleSize)
+                      .toDouble();
 
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -1168,10 +1422,7 @@ class _PlayerControlsEnhanced extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  glassTop,
-                  glassBottom,
-                ],
+                colors: [glassTop, glassBottom],
               ),
               border: Border.all(color: glassBorder, width: 1),
               boxShadow: [
@@ -1202,8 +1453,9 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: animatedProgress.clamp(0.0, 1.0),
                             backgroundColor: colorScheme.surfaceVariant,
-                            valueColor:
-                                AlwaysStoppedAnimation(colorScheme.primary),
+                            valueColor: AlwaysStoppedAnimation(
+                              colorScheme.primary,
+                            ),
                             minHeight: 6,
                           ),
                         ),
@@ -1254,9 +1506,7 @@ class _PlayerControlsEnhanced extends StatelessWidget {
                         radius: 18,
                         boxShadow: [
                           BoxShadow(
-                            color: Theme.of(context)
-                                .shadowColor
-                                .withAlpha(50),
+                            color: Theme.of(context).shadowColor.withAlpha(50),
                             blurRadius: 12,
                             offset: const Offset(0, 6),
                           ),
@@ -1327,8 +1577,8 @@ class _AmbientBackground extends StatelessWidget {
     final safeOpacity = backgroundOpacity.clamp(0.0, 1.0);
     final imageLayer = _buildImageLayer();
     final brightness = backdropBrightness.clamp(-1.0, 1.0);
-    final brightnessOverlay = backgroundMode ==
-                PlayerThemeBackgroundMode.customImage &&
+    final brightnessOverlay =
+        backgroundMode == PlayerThemeBackgroundMode.customImage &&
             brightness.abs() > 0.01
         ? DecoratedBox(
             decoration: BoxDecoration(
@@ -1346,15 +1596,12 @@ class _AmbientBackground extends StatelessWidget {
           Opacity(
             opacity: safeOpacity,
             child: ImageFiltered(
-              imageFilter:
-                  ImageFilter.blur(sigmaX: safeBlur, sigmaY: safeBlur),
+              imageFilter: ImageFilter.blur(sigmaX: safeBlur, sigmaY: safeBlur),
               child: imageLayer,
             ),
           ),
         DecoratedBox(
-          decoration: BoxDecoration(
-            color: fallbackColor.withAlpha(110),
-          ),
+          decoration: BoxDecoration(color: fallbackColor.withAlpha(110)),
         ),
         if (backgroundMode != PlayerThemeBackgroundMode.solid)
           DecoratedBox(
@@ -1450,12 +1697,7 @@ class _RoundedControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = child ??
-        Icon(
-          icon,
-          color: iconColor,
-          size: 24,
-        );
+    final content = child ?? Icon(icon, color: iconColor, size: 24);
 
     return Opacity(
       opacity: onTap == null ? 0.45 : 1,
