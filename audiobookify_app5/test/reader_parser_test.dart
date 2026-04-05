@@ -269,16 +269,43 @@ void main() {
       expect(paragraph.alignment, ReaderBlockAlignment.center);
     },
   );
+
+  test('adaptReaderDocument preserves recovered heading blocks', () {
+    final document = rust_epub.ReaderDocument(
+      chapterHref: 'ch.xhtml',
+      blocks: [
+        _headingBlock(
+          level: 1,
+          inlines: [
+            _textInline('Recovered Chapter Title', fragment: 'recovered-h1'),
+          ],
+          fragment: 'recovered-h1',
+        ),
+        _paragraphBlock(inlines: [_textInline('Body paragraph.')]),
+      ],
+    );
+
+    final adapted = adaptReaderDocument(document);
+    final heading = adapted.blocks.whereType<HeadingBlock>().single;
+
+    expect(heading.level, 1);
+    expect(
+      heading.inlines.whereType<TextInline>().single.text,
+      'Recovered Chapter Title',
+    );
+    expect(heading.source?.fragment, 'recovered-h1');
+  });
 }
 
 rust_epub.ReaderBlock _headingBlock({
   required List<rust_epub.ReaderInline> inlines,
+  int level = 1,
   String? fragment,
   rust_epub.BlockAlignment? alignment,
 }) {
   return rust_epub.ReaderBlock(
     kind: rust_epub.ReaderBlockKind.heading,
-    level: 1,
+    level: level,
     alignment: alignment,
     ordered: false,
     inlines: inlines,
