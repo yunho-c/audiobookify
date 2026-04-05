@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/app_theme.dart';
 import '../core/nav_transition.dart';
+import 'shared/pressable.dart';
 
 /// Bottom navigation bar with glassmorphism panel and raised create button
 class BottomNav extends StatelessWidget {
@@ -209,8 +209,9 @@ class _NavItem extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color:
-              isActive ? colorScheme.primary.withAlpha(20) : Colors.transparent,
+          color: isActive
+              ? colorScheme.primary.withAlpha(20)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Icon(
@@ -223,7 +224,7 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class _NavButton extends StatefulWidget {
+class _NavButton extends StatelessWidget {
   final Widget child;
   final bool isActive;
   final bool isPrimary;
@@ -237,42 +238,14 @@ class _NavButton extends StatefulWidget {
   });
 
   @override
-  State<_NavButton> createState() => _NavButtonState();
-}
-
-class _NavButtonState extends State<_NavButton> {
-  bool _isPressed = false;
-
-  void _setPressed(bool value) {
-    if (_isPressed == value) return;
-    setState(() => _isPressed = value);
-  }
-
-  void _handleTap() {
-    if (widget.isPrimary) {
-      HapticFeedback.mediumImpact();
-    } else {
-      HapticFeedback.selectionClick();
-    }
-    widget.onTap();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
-      onTap: _handleTap,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 120),
-        opacity: _isPressed ? 0.85 : 1,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 120),
-          scale: _isPressed ? 0.96 : 1,
-          child: widget.child,
-        ),
-      ),
+    return Pressable(
+      onTap: onTap,
+      haptic: isPrimary ? PressableHaptic.medium : PressableHaptic.selection,
+      pressedOpacity: 0.85,
+      pressedScale: 0.96,
+      duration: const Duration(milliseconds: 120),
+      child: child,
     );
   }
 }

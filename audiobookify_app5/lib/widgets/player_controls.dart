@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'shared/pressable.dart';
 
 /// Audio player controls with progress bar and playback buttons
 class PlayerControls extends StatelessWidget {
@@ -111,8 +112,11 @@ class PlayerControls extends StatelessWidget {
                 color: colorScheme.onSurface,
               ),
               // Play/Pause
-              GestureDetector(
+              Pressable(
                 onTap: onPlayPause,
+                haptic: PressableHaptic.medium,
+                pressedOpacity: 0.9,
+                pressedScale: 0.96,
                 child: Container(
                   width: 64,
                   height: 64,

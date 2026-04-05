@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
+import '../widgets/shared/pressable.dart';
 
 /// Settings screen with profile card and menu items
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -178,9 +179,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'When enabled, crash reports include:',
-                  ),
+                  Text('When enabled, crash reports include:'),
                   SizedBox(height: 8),
                   Text('• App version and build'),
                   Text('• Device model and OS version'),
@@ -296,10 +295,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         // Ignore file size errors.
       }
     }
-    return _StorageSnapshot(
-      bookCount: books.length,
-      totalBytes: totalBytes,
-    );
+    return _StorageSnapshot(bookCount: books.length, totalBytes: totalBytes);
   }
 
   Future<void> _showStorageDetails(BuildContext context) async {
@@ -654,7 +650,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       icon: LucideIcons.trash2,
                       title: 'Clear App Data',
                       subtitle: 'Remove downloads and history',
-                      trailingLabel: _isClearingAppData ? 'Clearing...' : 'Clear',
+                      trailingLabel: _isClearingAppData
+                          ? 'Clearing...'
+                          : 'Clear',
                       showDivider: false,
                       isDestructive: true,
                       onTap: _isClearingAppData
@@ -998,9 +996,10 @@ class _MenuItem extends StatelessWidget {
         if (onTap == null)
           row
         else
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          Pressable(
             onTap: onTap,
+            pressedOpacity: 0.92,
+            pressedScale: 1,
             child: row,
           ),
         if (showDivider) const Divider(height: 1, indent: 16, endIndent: 16),
@@ -1044,8 +1043,7 @@ class _InfoRow extends StatelessWidget {
         ? colorScheme.error
         : colorScheme.outline;
     final isAction = onTap != null;
-    final actionColor =
-        isDestructive ? colorScheme.error : colorScheme.primary;
+    final actionColor = isDestructive ? colorScheme.error : colorScheme.primary;
     final actionBackground = isDestructive
         ? colorScheme.error.withAlpha(18)
         : colorScheme.primary.withAlpha(18);
@@ -1076,11 +1074,7 @@ class _InfoRow extends StatelessWidget {
           Text(trailingLabel, style: trailingTextStyle),
           if (showExternalIcon) ...[
             const SizedBox(width: 6),
-            Icon(
-              LucideIcons.externalLink,
-              size: 14,
-              color: actionColor,
-            ),
+            Icon(LucideIcons.externalLink, size: 14, color: actionColor),
           ],
         ],
       ),
@@ -1122,9 +1116,10 @@ class _InfoRow extends StatelessWidget {
         if (onTap == null)
           row
         else
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          Pressable(
             onTap: onTap,
+            pressedOpacity: 0.92,
+            pressedScale: 1,
             child: row,
           ),
         if (showDivider) const Divider(height: 1, indent: 16, endIndent: 16),
@@ -1137,10 +1132,7 @@ class _StorageSnapshot {
   final int bookCount;
   final int totalBytes;
 
-  const _StorageSnapshot({
-    required this.bookCount,
-    required this.totalBytes,
-  });
+  const _StorageSnapshot({required this.bookCount, required this.totalBytes});
 }
 
 class _NotificationSettingsRow extends StatelessWidget {

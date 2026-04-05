@@ -92,30 +92,33 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final extras = Theme.of(context).extension<AppThemeExtras>();
-    final accentPalette = extras?.accentPalette ??
+    final accentPalette =
+        extras?.accentPalette ??
         const [
           AppColors.rose600,
           AppColors.amber600,
           AppColors.blue600,
           AppColors.emerald600,
         ];
-    final accentSoftPalette = extras?.accentSoftPalette ??
+    final accentSoftPalette =
+        extras?.accentSoftPalette ??
         const [
           AppColors.rose100,
           AppColors.amber100,
           AppColors.blue100,
           AppColors.emerald100,
         ];
-    final modalHeight =
-        (MediaQuery.of(context).size.height * 0.82).clamp(0.0, 620.0);
+    final modalHeight = (MediaQuery.of(context).size.height * 0.82).clamp(
+      0.0,
+      620.0,
+    );
 
     return GestureDetector(
       onTap: widget.onClose,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        color:
-            colorScheme.scrim.withAlpha(_isSliderDragging ? 0 : 120),
+        color: colorScheme.scrim.withAlpha(_isSliderDragging ? 0 : 120),
         child: Center(
           child: GestureDetector(
             onTap: () {}, // Prevent tap-through
@@ -137,13 +140,10 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
                             boxShadow: [
                               BoxShadow(
                                 color: Theme.of(context).shadowColor.withAlpha(
-                                      _isSliderDragging ? 204 : 50,
-                                    ),
-                                blurRadius: _isSliderDragging ? 20 : 40,
-                                offset: Offset(
-                                  0,
-                                  _isSliderDragging ? 18 : 10,
+                                  _isSliderDragging ? 204 : 50,
                                 ),
+                                blurRadius: _isSliderDragging ? 20 : 40,
+                                offset: Offset(0, _isSliderDragging ? 18 : 10),
                               ),
                             ],
                           ),
@@ -156,95 +156,110 @@ class _SettingsWheelState extends ConsumerState<SettingsWheel> {
                         padding: const EdgeInsets.fromLTRB(14, 20, 14, 16),
                         child: Column(
                           children: [
-                    // Header
-                    FadeOnSliderDrag(
-                      isDragging: _isSliderDragging,
-                      activeSliderId: _activeSliderId,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Settings',
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: widget.onClose,
-                            child: Icon(
-                              LucideIcons.x,
-                              size: 20,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    FadeOnSliderDrag(
-                      isDragging: _isSliderDragging,
-                      activeSliderId: _activeSliderId,
-                      child: TabBar(
-                        labelColor: colorScheme.onSurface,
-                        unselectedLabelColor: colorScheme.onSurfaceVariant,
-                        indicatorColor: colorScheme.primary,
-                        tabs: const [
-                          Tab(text: 'Speech'),
-                          Tab(text: 'Visual'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          const tabGutter = 24.0;
-                          const shadowInset = 6.0;
-                          return ClipRect(
-                            child: OverflowBox(
-                              alignment: Alignment.center,
-                              maxWidth: constraints.maxWidth + tabGutter,
-                              child: SizedBox(
-                                width: constraints.maxWidth + tabGutter,
-                                child: TabBarView(
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: tabGutter / 2 + shadowInset,
-                                      ),
-                                      child: _AudioSettingsTab(
-                                        isDragging: _isSliderDragging,
-                                        activeSliderId: _activeSliderId,
-                                        onSliderDragStart:
-                                            _handleSliderDragStart,
-                                        onSliderDragEnd: _handleSliderDragEnd,
-                                        accentPalette: accentPalette,
-                                        accentSoftPalette: accentSoftPalette,
-                                      ),
+                            // Header
+                            FadeOnSliderDrag(
+                              isDragging: _isSliderDragging,
+                              activeSliderId: _activeSliderId,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Settings',
+                                    style: textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface,
                                     ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: tabGutter / 2 + shadowInset,
-                                      ),
-                                      child: _ReaderSettingsTab(
-                                        isDragging: _isSliderDragging,
-                                        activeSliderId: _activeSliderId,
-                                        onSliderDragStart:
-                                            _handleSliderDragStart,
-                                        onSliderDragEnd: _handleSliderDragEnd,
-                                        accentPalette: accentPalette,
-                                        accentSoftPalette: accentSoftPalette,
-                                      ),
+                                  ),
+                                  Pressable(
+                                    onTap: widget.onClose,
+                                    pressedOpacity: 0.8,
+                                    pressedScale: 0.92,
+                                    child: Icon(
+                                      LucideIcons.x,
+                                      size: 20,
+                                      color: colorScheme.onSurfaceVariant,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
+                            const SizedBox(height: 16),
+                            FadeOnSliderDrag(
+                              isDragging: _isSliderDragging,
+                              activeSliderId: _activeSliderId,
+                              child: TabBar(
+                                labelColor: colorScheme.onSurface,
+                                unselectedLabelColor:
+                                    colorScheme.onSurfaceVariant,
+                                indicatorColor: colorScheme.primary,
+                                tabs: const [
+                                  Tab(text: 'Speech'),
+                                  Tab(text: 'Visual'),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  const tabGutter = 24.0;
+                                  const shadowInset = 6.0;
+                                  return ClipRect(
+                                    child: OverflowBox(
+                                      alignment: Alignment.center,
+                                      maxWidth:
+                                          constraints.maxWidth + tabGutter,
+                                      child: SizedBox(
+                                        width: constraints.maxWidth + tabGutter,
+                                        child: TabBarView(
+                                          children: [
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal:
+                                                        tabGutter / 2 +
+                                                        shadowInset,
+                                                  ),
+                                              child: _AudioSettingsTab(
+                                                isDragging: _isSliderDragging,
+                                                activeSliderId: _activeSliderId,
+                                                onSliderDragStart:
+                                                    _handleSliderDragStart,
+                                                onSliderDragEnd:
+                                                    _handleSliderDragEnd,
+                                                accentPalette: accentPalette,
+                                                accentSoftPalette:
+                                                    accentSoftPalette,
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal:
+                                                        tabGutter / 2 +
+                                                        shadowInset,
+                                                  ),
+                                              child: _ReaderSettingsTab(
+                                                isDragging: _isSliderDragging,
+                                                activeSliderId: _activeSliderId,
+                                                onSliderDragStart:
+                                                    _handleSliderDragStart,
+                                                onSliderDragEnd:
+                                                    _handleSliderDragEnd,
+                                                accentPalette: accentPalette,
+                                                accentSoftPalette:
+                                                    accentSoftPalette,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -365,9 +380,7 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
               onChangeEnd: (_) {
                 _editingSpeed = false;
                 final notifier = ref.read(playerSettingsProvider.notifier);
-                _scheduleProviderUpdate(
-                  () => notifier.setSpeed(_speedValue),
-                );
+                _scheduleProviderUpdate(() => notifier.setSpeed(_speedValue));
               },
             ),
             sliderId: 'audio_speed',
@@ -393,9 +406,7 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
               onChangeEnd: (_) {
                 _editingPitch = false;
                 final notifier = ref.read(playerSettingsProvider.notifier);
-                _scheduleProviderUpdate(
-                  () => notifier.setPitch(_pitchValue),
-                );
+                _scheduleProviderUpdate(() => notifier.setPitch(_pitchValue));
               },
             ),
             sliderId: 'audio_pitch',
@@ -495,8 +506,7 @@ class _ReaderSettingsTab extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_ReaderSettingsTab> createState() =>
-      _ReaderSettingsTabState();
+  ConsumerState<_ReaderSettingsTab> createState() => _ReaderSettingsTabState();
 }
 
 class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
@@ -553,8 +563,10 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
     final sourceBytes = await _loadImageBytes(image);
     if (sourceBytes == null) return null;
 
-    final thumbnailBytes =
-        await _createThumbnailBytes(sourceBytes, _thumbnailTargetWidth);
+    final thumbnailBytes = await _createThumbnailBytes(
+      sourceBytes,
+      _thumbnailTargetWidth,
+    );
     if (thumbnailBytes == null) return null;
 
     await file.writeAsBytes(thumbnailBytes, flush: true);
@@ -594,8 +606,7 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
         targetWidth: targetWidth,
       );
       final frame = await codec.getNextFrame();
-      final data = await frame.image
-          .toByteData(format: ui.ImageByteFormat.png);
+      final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
       frame.image.dispose();
       return data?.buffer.asUint8List();
     } catch (_) {
@@ -774,10 +785,10 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
       ref.read(playerThemeProvider.notifier).setTheme(settings);
     }
 
-    final selectedBackdrop =
-        _findBackdrop(backdrops, backdropSettings.id);
-    final selectedMetadata =
-        BackdropImage.decodeMetadata(selectedBackdrop?.metadata);
+    final selectedBackdrop = _findBackdrop(backdrops, backdropSettings.id);
+    final selectedMetadata = BackdropImage.decodeMetadata(
+      selectedBackdrop?.metadata,
+    );
     final selectedAuthor = selectedMetadata['author'];
 
     return SingleChildScrollView(
@@ -932,13 +943,16 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
               value: readerTheme.pagePaddingHorizontal,
               min: 12,
               max: 48,
-              displayValue: readerTheme.pagePaddingHorizontal.toStringAsFixed(0),
+              displayValue: readerTheme.pagePaddingHorizontal.toStringAsFixed(
+                0,
+              ),
               bgColor: accentSoftPalette[0],
               fgColor: accentPalette[0],
               onChanged: (value) {
                 updateTheme(readerTheme.copyWith(pagePaddingHorizontal: value));
               },
-              onChangeStart: (_) => onSliderDragStart('reader_padding_horizontal'),
+              onChangeStart: (_) =>
+                  onSliderDragStart('reader_padding_horizontal'),
               onChangeEnd: (_) => onSliderDragEnd('reader_padding_horizontal'),
             ),
             sliderId: 'reader_padding_horizontal',
@@ -957,7 +971,8 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
               onChanged: (value) {
                 updateTheme(readerTheme.copyWith(pagePaddingVertical: value));
               },
-              onChangeStart: (_) => onSliderDragStart('reader_padding_vertical'),
+              onChangeStart: (_) =>
+                  onSliderDragStart('reader_padding_vertical'),
               onChangeEnd: (_) => onSliderDragEnd('reader_padding_vertical'),
             ),
             sliderId: 'reader_padding_vertical',
@@ -999,12 +1014,15 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
               value: readerTheme.activeParagraphOpacity,
               min: 0.05,
               max: 0.4,
-              displayValue:
-                  readerTheme.activeParagraphOpacity.toStringAsFixed(2),
+              displayValue: readerTheme.activeParagraphOpacity.toStringAsFixed(
+                2,
+              ),
               bgColor: accentSoftPalette[2],
               fgColor: accentPalette[2],
               onChanged: (value) {
-                updateTheme(readerTheme.copyWith(activeParagraphOpacity: value));
+                updateTheme(
+                  readerTheme.copyWith(activeParagraphOpacity: value),
+                );
               },
               onChangeStart: (_) =>
                   onSliderDragStart('reader_highlight_opacity'),
@@ -1080,56 +1098,59 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
             fade(
               SizedBox(
                 height: 128,
-                child: Builder(builder: (context) {
-                  const showUnsplashButton = false; // Don't delete.
-                  return ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: backdrops.length + 1 + (showUnsplashButton ? 1 : 0),
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (context, index) {
-                    if (index < backdrops.length) {
-                      final image = backdrops[index];
-                      final selected = image.id == backdropSettings.id;
-                      return _BackdropTile(
-                        selected: selected,
-                        child: _buildBackdropPreview(image),
-                        onTap: () {
-                          _setBackdropSelection(image.id);
-                          _triggerBackdropPeek();
-                        },
-                        onLongPressStart: () {
-                          _setBackdropSelection(image.id);
-                          _startBackdropHold();
-                        },
-                        onLongPressEnd: _endBackdropHold,
-                      );
-                    }
-                    final unsplashIndex = backdrops.length;
-                    final uploadIndex =
-                        backdrops.length + (showUnsplashButton ? 1 : 0);
-                    if (showUnsplashButton && index == unsplashIndex) {
-                      return _BackdropAddTile(
-                        label: 'Unsplash',
-                        icon: LucideIcons.search,
-                        onTap: () {
-                          _showBackdropMessage(
-                            context,
-                            'Unsplash search coming soon.',
+                child: Builder(
+                  builder: (context) {
+                    const showUnsplashButton = false; // Don't delete.
+                    return ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount:
+                          backdrops.length + 1 + (showUnsplashButton ? 1 : 0),
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (context, index) {
+                        if (index < backdrops.length) {
+                          final image = backdrops[index];
+                          final selected = image.id == backdropSettings.id;
+                          return _BackdropTile(
+                            selected: selected,
+                            child: _buildBackdropPreview(image),
+                            onTap: () {
+                              _setBackdropSelection(image.id);
+                              _triggerBackdropPeek();
+                            },
+                            onLongPressStart: () {
+                              _setBackdropSelection(image.id);
+                              _startBackdropHold();
+                            },
+                            onLongPressEnd: _endBackdropHold,
                           );
-                        },
-                      );
-                    }
-                    if (index == uploadIndex) {
-                      return _BackdropAddTile(
-                        label: 'Upload',
-                        icon: LucideIcons.upload,
-                        onTap: _handleUploadTap,
-                      );
-                    }
-                    return const SizedBox.shrink();
+                        }
+                        final unsplashIndex = backdrops.length;
+                        final uploadIndex =
+                            backdrops.length + (showUnsplashButton ? 1 : 0);
+                        if (showUnsplashButton && index == unsplashIndex) {
+                          return _BackdropAddTile(
+                            label: 'Unsplash',
+                            icon: LucideIcons.search,
+                            onTap: () {
+                              _showBackdropMessage(
+                                context,
+                                'Unsplash search coming soon.',
+                              );
+                            },
+                          );
+                        }
+                        if (index == uploadIndex) {
+                          return _BackdropAddTile(
+                            label: 'Upload',
+                            icon: LucideIcons.upload,
+                            onTap: _handleUploadTap,
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    );
                   },
-                );
-                }),
+                ),
               ),
               sliderId: 'backdrop_gallery',
             ),
@@ -1158,10 +1179,7 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _PresetChip(
-                    label: 'Dim',
-                    onTap: () => _setBrightness(-0.25),
-                  ),
+                  _PresetChip(label: 'Dim', onTap: () => _setBrightness(-0.25)),
                   _PresetChip(
                     label: 'Neutral',
                     onTap: () => _setBrightness(0.0),
@@ -1174,8 +1192,7 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
               ),
             ),
             if (selectedBackdrop != null &&
-                selectedBackdrop.sourceType ==
-                    BackdropSourceType.unsplash &&
+                selectedBackdrop.sourceType == BackdropSourceType.unsplash &&
                 selectedAuthor != null) ...[
               const SizedBox(height: 8),
               fade(
@@ -1375,7 +1392,6 @@ class _ReaderSettingsTabState extends ConsumerState<_ReaderSettingsTab> {
     );
   }
 
-
   String _fontWeightLabel(int weight) {
     final normalized = ((weight / 100).round() * 100).clamp(300, 700);
     switch (normalized) {
@@ -1440,12 +1456,15 @@ class _SettingSliderState extends State<_SettingSlider> {
     final canIncrease = widget.value < widget.max - 0.0001;
 
     void updateByStep(int direction) {
-      final target =
-          (widget.value + step * direction).clamp(widget.min, widget.max);
+      final target = (widget.value + step * direction).clamp(
+        widget.min,
+        widget.max,
+      );
       final snapped =
           widget.min + (((target - widget.min) / step).round()) * step;
       widget.onChanged(snapped.clamp(widget.min, widget.max).toDouble());
     }
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
@@ -1455,9 +1474,9 @@ class _SettingSliderState extends State<_SettingSlider> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context)
-                .shadowColor
-                .withAlpha(_isDragging ? 160 : 12),
+            color: Theme.of(
+              context,
+            ).shadowColor.withAlpha(_isDragging ? 160 : 12),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -1507,8 +1526,9 @@ class _SettingSliderState extends State<_SettingSlider> {
                     thumbColor: widget.fgColor,
                     overlayColor: widget.fgColor.withAlpha(30),
                     trackHeight: 2.5,
-                    thumbShape:
-                        const RoundSliderThumbShape(enabledThumbRadius: 7),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 7,
+                    ),
                   ),
                   child: Slider(
                     value: widget.value,
@@ -1663,9 +1683,7 @@ class _PresetChip extends StatelessWidget {
       onPressed: onTap,
       backgroundColor: colorScheme.surfaceVariant.withAlpha(140),
       labelStyle: TextStyle(color: colorScheme.onSurface),
-      shape: StadiumBorder(
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
+      shape: StadiumBorder(side: BorderSide(color: colorScheme.outlineVariant)),
     );
   }
 }
@@ -1730,8 +1748,10 @@ class _ColorSwatchRow extends StatelessWidget {
       runSpacing: 10,
       children: colors.map((color) {
         final isSelected = selected?.value == color.value;
-        return GestureDetector(
+        return Pressable(
           onTap: () => onChanged(color),
+          pressedOpacity: 0.9,
+          pressedScale: 0.92,
           child: Container(
             width: 28,
             height: 28,
@@ -1744,11 +1764,7 @@ class _ColorSwatchRow extends StatelessWidget {
               ),
             ),
             child: isSelected
-                ? Icon(
-                    LucideIcons.check,
-                    size: 14,
-                    color: colorScheme.primary,
-                  )
+                ? Icon(LucideIcons.check, size: 14, color: colorScheme.primary)
                 : null,
           ),
         );
@@ -1777,8 +1793,9 @@ class _BackdropTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     const width = 88.0;
     const height = 120.0;
-    final borderColor =
-        selected ? colorScheme.primary : colorScheme.outlineVariant;
+    final borderColor = selected
+        ? colorScheme.primary
+        : colorScheme.outlineVariant;
     return GestureDetector(
       onLongPressStart: (_) => onLongPressStart(),
       onLongPressEnd: (_) => onLongPressEnd(),
@@ -1866,9 +1883,9 @@ class _BackdropAddTile extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -1920,8 +1937,9 @@ class _FontFamilyPicker extends StatelessWidget {
       _FontOption('Source Sans 3', 'Source Sans 3'),
       _FontOption('Inter', 'Inter'),
     ];
-    final normalizedValue =
-        (value == null || value!.trim().isEmpty) ? null : value;
+    final normalizedValue = (value == null || value!.trim().isEmpty)
+        ? null
+        : value;
     final selectedLabel = options
         .firstWhere(
           (option) => option.value == normalizedValue,
@@ -1993,7 +2011,8 @@ class _FontFamilyPicker extends StatelessWidget {
     required TextTheme textTheme,
     required Color color,
   }) {
-    final baseStyle = textTheme.bodyMedium?.copyWith(
+    final baseStyle =
+        textTheme.bodyMedium?.copyWith(
           fontWeight: _resolveFontWeight(fontWeight),
           color: color,
         ) ??
@@ -2007,7 +2026,6 @@ class _FontFamilyPicker extends StatelessWidget {
       return baseStyle.copyWith(fontFamily: family);
     }
   }
-
 
   static void _showFontPicker(
     BuildContext context, {
@@ -2081,10 +2099,8 @@ class _FontPickerSheet extends StatelessWidget {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: options.length,
-                separatorBuilder: (_, __) => Divider(
-                  color: colorScheme.outlineVariant,
-                  height: 16,
-                ),
+                separatorBuilder: (_, __) =>
+                    Divider(color: colorScheme.outlineVariant, height: 16),
                 itemBuilder: (context, index) {
                   final option = options[index];
                   final isSelected = option.value == selected;
@@ -2106,10 +2122,7 @@ class _FontPickerSheet extends StatelessWidget {
                       ),
                     ),
                     trailing: isSelected
-                        ? Icon(
-                            LucideIcons.check,
-                            color: colorScheme.primary,
-                          )
+                        ? Icon(LucideIcons.check, color: colorScheme.primary)
                         : null,
                     onTap: () {
                       onChanged(option.value);
@@ -2131,14 +2144,12 @@ class _FontPickerSheet extends StatelessWidget {
     Color color,
     int fontWeight,
   ) {
-    final baseStyle = textTheme.bodySmall?.copyWith(
+    final baseStyle =
+        textTheme.bodySmall?.copyWith(
           fontWeight: _resolveFontWeight(fontWeight),
           color: color,
         ) ??
-        TextStyle(
-          fontWeight: _resolveFontWeight(fontWeight),
-          color: color,
-        );
+        TextStyle(fontWeight: _resolveFontWeight(fontWeight), color: color);
     if (family == null || family.trim().isEmpty) {
       return baseStyle;
     }
@@ -2179,8 +2190,10 @@ class _SettingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
-    return GestureDetector(
+    return Pressable(
       onTap: onTap,
+      pressedOpacity: 0.92,
+      pressedScale: 0.98,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -2284,15 +2297,11 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
         children: [
           Text(
             'Select Voice',
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           if (_isLoading)
-            Center(
-              child: CircularProgressIndicator(color: colorScheme.primary),
-            )
+            Center(child: CircularProgressIndicator(color: colorScheme.primary))
           else if (_voices.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
@@ -2317,10 +2326,7 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
                     title: Text(voice['name'] ?? 'Unknown'),
                     subtitle: Text(voice['locale'] ?? ''),
                     trailing: isSelected
-                        ? Icon(
-                            LucideIcons.check,
-                            color: colorScheme.primary,
-                          )
+                        ? Icon(LucideIcons.check, color: colorScheme.primary)
                         : null,
                     onTap: () {
                       widget.ref
@@ -2342,10 +2348,7 @@ class _WheelPainter extends CustomPainter {
   final List<Color> colors;
   final Color borderColor;
 
-  _WheelPainter({
-    required this.colors,
-    required this.borderColor,
-  });
+  _WheelPainter({required this.colors, required this.borderColor});
 
   @override
   void paint(Canvas canvas, Size size) {
