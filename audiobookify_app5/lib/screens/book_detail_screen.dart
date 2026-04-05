@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,7 @@ import '../core/app_theme.dart';
 import '../core/description_formatter.dart';
 import '../core/error_reporter.dart';
 import '../core/providers.dart';
+import '../core/route_observer.dart';
 import '../models/book.dart';
 import '../models/book_chapter_index.dart';
 import '../widgets/book_actions_sheet.dart';
@@ -21,6 +23,10 @@ import '../widgets/shared/state_scaffolds.dart';
 /// Book detail screen with cover, stats, and chapter list
 const bool _warmParsedEpubOnBookDetailOpen = true;
 
+class _BookDetailDismissIntent extends Intent {
+  const _BookDetailDismissIntent();
+}
+
 class BookDetailScreen extends ConsumerStatefulWidget {
   final String bookId;
 
@@ -30,7 +36,11 @@ class BookDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<BookDetailScreen> createState() => _BookDetailScreenState();
 }
 
-class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
+class _BookDetailScreenState extends ConsumerState<BookDetailScreen>
+    with RouteAware {
+  static const _keyboardFocusKey = ValueKey<String>('bookDetailKeyboardFocus');
+
+  late final FocusNode _keyboardFocusNode;
   Book? _book;
   List<BookChapterSummary> _chapterSummaries = const [];
   bool _isLoading = true;
@@ -40,7 +50,37 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _keyboardFocusNode = FocusNode(debugLabel: 'BookDetailScreenKeyboardFocus');
     _loadBook();
+    _requestKeyboardFocus();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPush() {
+    _requestKeyboardFocus();
+    super.didPush();
+  }
+
+  @override
+  void didPopNext() {
+    _requestKeyboardFocus();
+    super.didPopNext();
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    _keyboardFocusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _loadBook() async {
@@ -147,6 +187,60 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     }
   }
 
+  bool get _desktopHotkeysEnabled {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux;
+  }
+
+  void _requestKeyboardFocus() {
+    if (!_desktopHotkeysEnabled || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _keyboardFocusNode.hasFocus) return;
+      _keyboardFocusNode.requestFocus();
+    });
+  }
+
+  void _handleKeyboardBack() {
+    if (!mounted) return;
+    context.pop();
+  }
+
+  Map<ShortcutActivator, Intent> get _keyboardShortcuts {
+    if (!_desktopHotkeysEnabled) return const <ShortcutActivator, Intent>{};
+    return const <ShortcutActivator, Intent>{
+      SingleActivator(LogicalKeyboardKey.escape): _BookDetailDismissIntent(),
+    };
+  }
+
+  Map<Type, Action<Intent>> get _keyboardActions {
+    return <Type, Action<Intent>>{
+      _BookDetailDismissIntent: CallbackAction<_BookDetailDismissIntent>(
+        onInvoke: (_) {
+          _handleKeyboardBack();
+          return null;
+        },
+      ),
+    };
+  }
+
+  Widget _wrapWithKeyboardScope(Widget child) {
+    if (!_desktopHotkeysEnabled) return child;
+    return Shortcuts(
+      shortcuts: _keyboardShortcuts,
+      child: Actions(
+        actions: _keyboardActions,
+        child: Focus(
+          key: _keyboardFocusKey,
+          focusNode: _keyboardFocusNode,
+          autofocus: true,
+          child: child,
+        ),
+      ),
+    );
+  }
+
   Color _getColor(BuildContext context) {
     if (_book == null) return AppColors.emerald700;
     final palette =
@@ -205,14 +299,16 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
     final resumePositions = ref.watch(bookResumeProvider);
     final resumePosition = _book == null ? null : resumePositions[_book!.id];
     if (_isLoading) {
-      return const LoadingScaffold();
+      return _wrapWithKeyboardScope(const LoadingScaffold());
     }
 
     if (_error != null || _book == null) {
-      return ErrorScaffold(
-        message: _error ?? 'Book not found',
-        onBack: () => context.pop(),
-        messageAlign: TextAlign.center,
+      return _wrapWithKeyboardScope(
+        ErrorScaffold(
+          message: _error ?? 'Book not found',
+          onBack: () => context.pop(),
+          messageAlign: TextAlign.center,
+        ),
       );
     }
 
@@ -242,202 +338,204 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         : '/player/${book.id}?chapter=${resumePosition.chapterIndex + 1}'
               '&paragraph=${resumePosition.paragraphIndex + 1}'
               '&sentence=${resumePosition.sentenceIndex + 1}';
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Stack(
-        children: [
-          _DetailBackdrop(
-            coverImage: book.coverImage,
-            fallbackColor: colorScheme.background,
-          ),
-          SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 120),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: Row(
+    return _wrapWithKeyboardScope(
+      Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Stack(
+          children: [
+            _DetailBackdrop(
+              coverImage: book.coverImage,
+              fallbackColor: colorScheme.background,
+            ),
+            SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: Row(
+                        children: [
+                          GlassIconButton(
+                            icon: LucideIcons.arrowLeft,
+                            onTap: () => context.pop(),
+                          ),
+                          const Spacer(),
+                          GlassIconButton(
+                            icon: LucideIcons.moreVertical,
+                            onTap: () => _showBookActions(context),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        GlassIconButton(
-                          icon: LucideIcons.arrowLeft,
-                          onTap: () => context.pop(),
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0.96, end: 1),
+                          duration: const Duration(milliseconds: 420),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, child) {
+                            return Transform.scale(scale: value, child: child);
+                          },
+                          child: _BookCover3D(book: book, color: color),
                         ),
-                        const Spacer(),
-                        GlassIconButton(
-                          icon: LucideIcons.moreVertical,
-                          onTap: () => _showBookActions(context),
+                        const SizedBox(height: 20),
+                        _StatsRow(book: book),
+                        const SizedBox(height: 24),
+                        Text(
+                          bookTitle,
+                          style: textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
+                        const SizedBox(height: 8),
+                        Text(
+                          bookAuthor,
+                          style: textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (metadata.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: metadata
+                                .map((item) => _MetaChip(label: item))
+                                .toList(),
+                          ),
+                        ],
+                        if (bookDescription != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            bookDescription,
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: progress.clamp(0.0, 1.0),
+                            backgroundColor: colorScheme.surfaceVariant,
+                            valueColor: AlwaysStoppedAnimation(
+                              colorScheme.primary,
+                            ),
+                            minHeight: 6,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${book.progress}% listened',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (debugEnabled && _epubLoadError != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: colorScheme.errorContainer,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: colorScheme.error.withAlpha(80),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  LucideIcons.alertTriangle,
+                                  size: 18,
+                                  color: colorScheme.onErrorContainer,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'EPUB load failed: $_epubLoadError',
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onErrorContainer,
+                                    ),
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        Pressable(
+                          onTap: () => context.push(resumePath),
+                          pressedScale: 1,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Theme.of(
+                                    context,
+                                  ).shadowColor.withAlpha(50),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  LucideIcons.playCircle,
+                                  color: colorScheme.onPrimary,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  (resumePosition != null || book.progress > 0)
+                                      ? 'Resume'
+                                      : 'Start',
+                                  style: textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        _ChapterList(
+                          bookId: book.id,
+                          chapters: _chapterSummaries,
+                          progress: book.progress,
+                        ),
+                        const SizedBox(height: 48),
                       ],
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0.96, end: 1),
-                        duration: const Duration(milliseconds: 420),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, value, child) {
-                          return Transform.scale(scale: value, child: child);
-                        },
-                        child: _BookCover3D(book: book, color: color),
-                      ),
-                      const SizedBox(height: 20),
-                      _StatsRow(book: book),
-                      const SizedBox(height: 24),
-                      Text(
-                        bookTitle,
-                        style: textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        bookAuthor,
-                        style: textTheme.bodyLarge?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (metadata.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: metadata
-                              .map((item) => _MetaChip(label: item))
-                              .toList(),
-                        ),
-                      ],
-                      if (bookDescription != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          bookDescription,
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          maxLines: 4,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: progress.clamp(0.0, 1.0),
-                          backgroundColor: colorScheme.surfaceVariant,
-                          valueColor: AlwaysStoppedAnimation(
-                            colorScheme.primary,
-                          ),
-                          minHeight: 6,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${book.progress}% listened',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (debugEnabled && _epubLoadError != null) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: colorScheme.error.withAlpha(80),
-                            ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                LucideIcons.alertTriangle,
-                                size: 18,
-                                color: colorScheme.onErrorContainer,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'EPUB load failed: $_epubLoadError',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onErrorContainer,
-                                  ),
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      Pressable(
-                        onTap: () => context.push(resumePath),
-                        pressedScale: 1,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Theme.of(
-                                  context,
-                                ).shadowColor.withAlpha(50),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                LucideIcons.playCircle,
-                                color: colorScheme.onPrimary,
-                                size: 22,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                (resumePosition != null || book.progress > 0)
-                                    ? 'Resume'
-                                    : 'Start',
-                                style: textTheme.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      _ChapterList(
-                        bookId: book.id,
-                        chapters: _chapterSummaries,
-                        progress: book.progress,
-                      ),
-                      const SizedBox(height: 48),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
