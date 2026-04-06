@@ -9,6 +9,7 @@ enum DesktopWindowPlatform { none, macos, windows }
 const Size kDesktopWindowInitialSize = Size(1280, 720);
 const Size kDesktopWindowMinimumSize = Size(960, 640);
 const double kDesktopMacTitleBarHeight = 32;
+const double kDesktopMacContentTopInset = 25;
 
 DesktopWindowPlatform get desktopWindowPlatform {
   if (kIsWeb) return DesktopWindowPlatform.none;
