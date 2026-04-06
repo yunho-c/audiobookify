@@ -16,6 +16,7 @@ import '../services/speech_backend.dart';
 import '../services/system_flutter_tts_backend.dart';
 import '../services/open_library_service.dart';
 import '../services/tts_audio_handler.dart';
+import '../services/tts_debug_logging.dart';
 import '../services/tts_service.dart';
 import '../models/book_resume_position.dart';
 import '../models/player_settings.dart';
@@ -23,6 +24,53 @@ import '../models/player_theme_settings.dart';
 import '../models/public_book.dart';
 import 'app_theme.dart';
 import 'error_reporter.dart';
+
+const String _playerSpeedKey = 'player_speed';
+const String _playerPitchKey = 'player_pitch';
+const String _playerBackendKey = 'player_backend';
+const String _playerVoiceIdKey = 'player_voice_id';
+const String _playerVoiceNameKey = 'player_voice_name';
+const String _playerVoiceLocaleKey = 'player_voice_locale';
+
+PlayerSettings loadPlayerSettingsFromPrefs(
+  SharedPreferences prefs, {
+  required bool preferOpenTts,
+}) {
+  final storedVoiceId = prefs.getString(_playerVoiceIdKey);
+  final legacyVoiceName = prefs.getString(_playerVoiceNameKey);
+  final legacyVoiceLocale = prefs.getString(_playerVoiceLocaleKey);
+  final migratedVoiceId =
+      storedVoiceId ??
+      (legacyVoiceName != null && legacyVoiceLocale != null
+          ? SystemFlutterTtsBackend.voiceIdFor(
+              locale: legacyVoiceLocale,
+              name: legacyVoiceName,
+            )
+          : null);
+
+  final SpeechBackendKind backend;
+  if (prefs.containsKey(_playerBackendKey)) {
+    final backendName = prefs.getString(_playerBackendKey);
+    backend = SpeechBackendKind.values.firstWhere(
+      (candidate) => candidate.name == backendName,
+      orElse: () => SpeechBackendKind.system,
+    );
+  } else if (prefs.containsKey(_playerVoiceNameKey) ||
+      prefs.containsKey(_playerVoiceLocaleKey)) {
+    backend = SpeechBackendKind.system;
+  } else {
+    backend = preferOpenTts
+        ? SpeechBackendKind.openTts
+        : SpeechBackendKind.system;
+  }
+
+  return PlayerSettings(
+    speed: prefs.getDouble(_playerSpeedKey) ?? 1.0,
+    pitch: prefs.getDouble(_playerPitchKey) ?? 1.0,
+    backend: backend,
+    voiceId: migratedVoiceId,
+  );
+}
 
 /// ObjectBox Store provider - overridden in main.dart
 final storeProvider = Provider<Store>((ref) {
@@ -138,13 +186,6 @@ final themePreferenceProvider =
 
 /// Player settings notifier with persistence
 class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
-  static const _speedKey = 'player_speed';
-  static const _pitchKey = 'player_pitch';
-  static const _backendKey = 'player_backend';
-  static const _voiceIdKey = 'player_voice_id';
-  static const _voiceNameKey = 'player_voice_name';
-  static const _voiceLocaleKey = 'player_voice_locale';
-
   @override
   PlayerSettings build() {
     return _loadFromPrefs();
@@ -152,44 +193,24 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
 
   PlayerSettings _loadFromPrefs() {
     final prefs = ref.read(sharedPreferencesProvider);
-    final backendName = prefs.getString(_backendKey);
-    final backend = SpeechBackendKind.values.firstWhere(
-      (candidate) => candidate.name == backendName,
-      orElse: () => SpeechBackendKind.system,
-    );
-
-    final storedVoiceId = prefs.getString(_voiceIdKey);
-    final legacyVoiceName = prefs.getString(_voiceNameKey);
-    final legacyVoiceLocale = prefs.getString(_voiceLocaleKey);
-    final migratedVoiceId =
-        storedVoiceId ??
-        (legacyVoiceName != null && legacyVoiceLocale != null
-            ? SystemFlutterTtsBackend.voiceIdFor(
-                locale: legacyVoiceLocale,
-                name: legacyVoiceName,
-              )
-            : null);
-
-    return PlayerSettings(
-      speed: prefs.getDouble(_speedKey) ?? 1.0,
-      pitch: prefs.getDouble(_pitchKey) ?? 1.0,
-      backend: backend,
-      voiceId: migratedVoiceId,
+    return loadPlayerSettingsFromPrefs(
+      prefs,
+      preferOpenTts: ref.read(openTtsFactoryProvider) != null,
     );
   }
 
   Future<void> _saveToPrefs() async {
     final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setDouble(_speedKey, state.speed);
-    await prefs.setDouble(_pitchKey, state.pitch);
-    await prefs.setString(_backendKey, state.backend.name);
+    await prefs.setDouble(_playerSpeedKey, state.speed);
+    await prefs.setDouble(_playerPitchKey, state.pitch);
+    await prefs.setString(_playerBackendKey, state.backend.name);
     if (state.voiceId != null) {
-      await prefs.setString(_voiceIdKey, state.voiceId!);
+      await prefs.setString(_playerVoiceIdKey, state.voiceId!);
     } else {
-      await prefs.remove(_voiceIdKey);
+      await prefs.remove(_playerVoiceIdKey);
     }
-    await prefs.remove(_voiceNameKey);
-    await prefs.remove(_voiceLocaleKey);
+    await prefs.remove(_playerVoiceNameKey);
+    await prefs.remove(_playerVoiceLocaleKey);
   }
 
   void setSpeed(double speed) {
@@ -213,7 +234,11 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
   }
 
   void reset() {
-    state = const PlayerSettings();
+    state = PlayerSettings(
+      backend: ref.read(openTtsFactoryProvider) != null
+          ? SpeechBackendKind.openTts
+          : SpeechBackendKind.system,
+    );
     _saveToPrefs();
   }
 }
@@ -584,6 +609,33 @@ final imageDebugLoggingProvider =
     NotifierProvider<ImageDebugLoggingNotifier, bool>(
       ImageDebugLoggingNotifier.new,
     );
+
+class TtsDebugLoggingNotifier extends Notifier<bool> {
+  static const _ttsDebugKey = 'tts_debug_logging_enabled';
+
+  @override
+  bool build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    return prefs.getBool(_ttsDebugKey) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(_ttsDebugKey, enabled);
+  }
+}
+
+final ttsDebugLoggingProvider = NotifierProvider<TtsDebugLoggingNotifier, bool>(
+  TtsDebugLoggingNotifier.new,
+);
+
+final ttsDebugLoggingSyncProvider = Provider<void>((ref) {
+  setTtsDebugLogsEnabled(ref.read(ttsDebugLoggingProvider));
+  ref.listen<bool>(ttsDebugLoggingProvider, (previous, next) {
+    setTtsDebugLogsEnabled(next);
+  });
+});
 
 // ========================================
 // Crash Reporting

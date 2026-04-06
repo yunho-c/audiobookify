@@ -6,6 +6,7 @@ import '../core/error_reporter.dart';
 import '../models/player_settings.dart';
 import 'speech_backend.dart';
 import 'system_flutter_tts_backend.dart';
+import 'tts_debug_logging.dart';
 
 /// TTS playback status
 enum TtsStatus { stopped, playing, paused }
@@ -96,6 +97,10 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     SpeechBackendKind? backend,
   }) async {
     final targetKind = backend ?? _settings.backend;
+    logTtsDebug(
+      'Listing voices for requested backend=${targetKind.name}',
+      category: 'tts.service',
+    );
     final resolvedBackend = await _resolveBackend(
       targetKind,
       markActive: false,
@@ -122,12 +127,17 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
   /// Start or resume playback
   Future<void> play() async {
     if (state.paragraphs.isEmpty || state.status == TtsStatus.playing) return;
+    logTtsDebug(
+      'Play requested backend=${_settings.backend.name} paragraph=${state.paragraphIndex} sentence=${state.sentenceIndex}',
+      category: 'tts.service',
+    );
     state = state.copyWith(status: TtsStatus.playing);
     await _beginPlaybackLoop();
   }
 
   /// Pause playback. Resume replays the current sentence.
   Future<void> pause() async {
+    logTtsDebug('Pause requested', category: 'tts.service');
     _playbackGeneration += 1;
     state = state.copyWith(status: TtsStatus.paused);
     await _stopCurrentBackend();
@@ -135,6 +145,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
   /// Stop playback
   Future<void> stop() async {
+    logTtsDebug('Stop requested', category: 'tts.service');
     _playbackGeneration += 1;
     state = state.copyWith(status: TtsStatus.stopped);
     await _stopCurrentBackend();
@@ -184,6 +195,10 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
   /// Apply settings from PlayerSettings
   Future<void> applySettings(PlayerSettings settings) async {
     final wasPlaying = state.status == TtsStatus.playing;
+    logTtsDebug(
+      'Applying settings requestedBackend=${settings.backend.name} voiceId=${settings.voiceId ?? "default"} speed=${settings.speed} pitch=${settings.pitch} wasPlaying=$wasPlaying',
+      category: 'tts.service',
+    );
     _settings = settings;
 
     if (wasPlaying) {
@@ -205,6 +220,10 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
   Future<void> _beginPlaybackLoop() async {
     final generation = ++_playbackGeneration;
+    logTtsDebug(
+      'Starting playback loop generation=$generation requestedBackend=${_settings.backend.name}',
+      category: 'tts.service',
+    );
 
     try {
       await _configureActiveBackend(_settings);
@@ -231,6 +250,10 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
       try {
         final backend = await _configureActiveBackend(_settings);
+        logTtsDebug(
+          'Speaking sentence generation=$generation activeBackend=${backend.backendId.name} paragraph=${state.paragraphIndex} sentence=${state.sentenceIndex} text="$sentence"',
+          category: 'tts.service',
+        );
         await backend.speak(sentence);
       } catch (error, stackTrace) {
         if (!_isActiveGeneration(generation)) {
@@ -256,6 +279,10 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
   Future<SpeechBackend> _configureActiveBackend(PlayerSettings settings) async {
     final backend = await _resolveBackend(settings.backend, markActive: true);
+    logTtsDebug(
+      'Configuring backend requested=${settings.backend.name} resolved=${backend.backendId.name} voiceId=${settings.voiceId ?? "default"}',
+      category: 'tts.service',
+    );
 
     final appliedSettings = backend.backendId == settings.backend
         ? settings
@@ -274,13 +301,27 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
   }) async {
     final backend = _backends[requestedBackend];
     if (backend != null) {
+      logTtsDebug(
+        'Initializing requested backend=${requestedBackend.name}',
+        category: 'tts.service',
+      );
       try {
         await backend.initialize();
         if (markActive) {
           _activeBackendKind = backend.backendId;
         }
+        logTtsDebug(
+          'Using requested backend=${backend.backendId.name}',
+          category: 'tts.service',
+        );
         return backend;
       } catch (error, stackTrace) {
+        logTtsDebug(
+          'Requested backend=${requestedBackend.name} failed to initialize; falling back to system',
+          category: 'tts.service',
+          error: error,
+          stackTrace: stackTrace,
+        );
         _handleBackendFailure(
           error,
           stackTrace,
@@ -297,12 +338,17 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     if (markActive) {
       _activeBackendKind = fallback.backendId;
     }
+    logTtsDebug('Using fallback backend=system', category: 'tts.service');
     return fallback;
   }
 
   Future<void> _stopCurrentBackend() async {
     final backend = _backends[_activeBackendKind];
     if (backend == null) return;
+    logTtsDebug(
+      'Stopping active backend=${backend.backendId.name}',
+      category: 'tts.service',
+    );
     try {
       await backend.stop();
     } catch (error, stackTrace) {
@@ -357,6 +403,12 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     StackTrace stackTrace, {
     required String context,
   }) {
+    logTtsDebug(
+      'Backend failure context=$context activeBackend=${_activeBackendKind.name} requestedBackend=${_settings.backend.name}',
+      category: 'tts.service',
+      error: error,
+      stackTrace: stackTrace,
+    );
     reportError(error, stackTrace, context: 'tts:$context');
   }
 

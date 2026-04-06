@@ -5,6 +5,7 @@ import 'package:kokoro_flutter/kokoro_flutter.dart';
 import '../models/player_settings.dart';
 import 'just_audio_sentence_renderer.dart';
 import 'speech_backend.dart';
+import 'tts_debug_logging.dart';
 
 typedef OpenTtsFactory =
     Future<OpenTts> Function(OpenTtsAudioRenderer renderer);
@@ -44,12 +45,14 @@ class OpenTtsBackend implements SpeechBackend {
   @override
   Future<void> initialize() async {
     if (_initialized) return;
+    logTtsDebug('Initializing OpenTTS backend', category: 'tts.open_tts');
     final openTts = await _createOpenTts(_renderer);
     await openTts.awaitSpeakCompletion(true);
     await openTts.init(warmup: false);
     _eventSubscription = openTts.events.listen(_handleEvent);
     _openTts = openTts;
     _initialized = true;
+    logTtsDebug('OpenTTS backend initialized', category: 'tts.open_tts');
   }
 
   @override
@@ -69,12 +72,20 @@ class OpenTtsBackend implements SpeechBackend {
         )
         .toList();
     mapped.sort((a, b) => a.label.compareTo(b.label));
+    logTtsDebug(
+      'OpenTTS listed ${mapped.length} voices',
+      category: 'tts.open_tts',
+    );
     return mapped;
   }
 
   @override
   Future<void> applySettings(PlayerSettings settings) async {
     await initialize();
+    logTtsDebug(
+      'OpenTTS applySettings voiceId=${settings.voiceId ?? "default"} speed=${settings.speed}',
+      category: 'tts.open_tts',
+    );
     final openTts = _openTts!;
     await openTts.setRate(settings.speed);
     await openTts.setVolume(1.0);
@@ -88,6 +99,7 @@ class OpenTtsBackend implements SpeechBackend {
   @override
   Future<void> speak(String text) async {
     await initialize();
+    logTtsDebug('OpenTTS speak "$text"', category: 'tts.open_tts');
     final result = await _openTts!.speak(text, queueMode: QueueMode.flush);
     if (result == SpeakResult.rejected) {
       throw StateError('OpenTTS rejected the utterance.');
@@ -102,6 +114,7 @@ class OpenTtsBackend implements SpeechBackend {
   @override
   Future<void> stop() async {
     if (!_initialized) return;
+    logTtsDebug('OpenTTS stop', category: 'tts.open_tts');
     await _openTts!.stop();
   }
 
@@ -118,6 +131,11 @@ class OpenTtsBackend implements SpeechBackend {
   }
 
   void _handleEvent(TtsEvent event) {
+    logTtsDebug(
+      'OpenTTS event=${event.type.name} requestId=${event.requestId}',
+      category: 'tts.open_tts',
+      error: event.error,
+    );
     switch (event.type) {
       case TtsEventType.start:
         _events.add(

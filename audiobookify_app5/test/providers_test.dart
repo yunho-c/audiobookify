@@ -80,6 +80,42 @@ void main() {
     );
   });
 
+  test(
+    'PlayerSettingsNotifier defaults fresh installs to OpenTTS when ready',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          openTtsFactoryProvider.overrideWithValue(_fakeOpenTtsFactory),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final settings = container.read(playerSettingsProvider);
+      expect(settings.backend, SpeechBackendKind.openTts);
+    },
+  );
+
+  test(
+    'PlayerSettingsNotifier preserves persisted backend over OpenTTS default',
+    () async {
+      SharedPreferences.setMockInitialValues({'player_backend': 'system'});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          openTtsFactoryProvider.overrideWithValue(_fakeOpenTtsFactory),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final settings = container.read(playerSettingsProvider);
+      expect(settings.backend, SpeechBackendKind.system);
+    },
+  );
+
   test('CrashReportingNotifier defaults to opt-in and persists', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -95,4 +131,24 @@ void main() {
     expect(container.read(crashReportingProvider), isTrue);
     expect(prefs.getBool(crashReportingPrefsKey), isTrue);
   });
+
+  test('TtsDebugLoggingNotifier defaults to off and persists', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    expect(container.read(ttsDebugLoggingProvider), isFalse);
+
+    await container.read(ttsDebugLoggingProvider.notifier).setEnabled(true);
+
+    expect(container.read(ttsDebugLoggingProvider), isTrue);
+    expect(prefs.getBool('tts_debug_logging_enabled'), isTrue);
+  });
+}
+
+Future<Never> _fakeOpenTtsFactory(_) {
+  throw UnimplementedError();
 }

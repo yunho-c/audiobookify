@@ -4,6 +4,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 
 import '../models/player_settings.dart';
 import 'speech_backend.dart';
+import 'tts_debug_logging.dart';
 
 class SystemFlutterTtsBackend implements SpeechBackend {
   SystemFlutterTtsBackend({FlutterTts? flutterTts})
@@ -37,6 +38,7 @@ class SystemFlutterTtsBackend implements SpeechBackend {
   @override
   Future<void> initialize() async {
     if (_initialized) return;
+    logTtsDebug('Initializing system TTS backend', category: 'tts.system');
 
     await _flutterTts.setLanguage(defaultLocale);
     await _flutterTts.setSpeechRate(0.5);
@@ -64,6 +66,7 @@ class SystemFlutterTtsBackend implements SpeechBackend {
     });
 
     _initialized = true;
+    logTtsDebug('System TTS backend initialized', category: 'tts.system');
   }
 
   @override
@@ -94,12 +97,20 @@ class SystemFlutterTtsBackend implements SpeechBackend {
     }
 
     voices.sort((a, b) => a.label.compareTo(b.label));
+    logTtsDebug(
+      'System TTS listed ${voices.length} voices',
+      category: 'tts.system',
+    );
     return voices;
   }
 
   @override
   Future<void> applySettings(PlayerSettings settings) async {
     await initialize();
+    logTtsDebug(
+      'System TTS applySettings voiceId=${settings.voiceId ?? "default"} speed=${settings.speed} pitch=${settings.pitch}',
+      category: 'tts.system',
+    );
     final ttsRate = (settings.speed * 0.5).clamp(0.1, 1.0);
     await _flutterTts.setSpeechRate(ttsRate);
     await _flutterTts.setPitch(settings.pitch);
@@ -124,6 +135,7 @@ class SystemFlutterTtsBackend implements SpeechBackend {
   @override
   Future<void> speak(String text) async {
     await initialize();
+    logTtsDebug('System TTS speak "$text"', category: 'tts.system');
     await stop();
     final completer = Completer<void>();
     _speakCompleter = completer;
@@ -138,6 +150,7 @@ class SystemFlutterTtsBackend implements SpeechBackend {
 
   @override
   Future<void> stop() async {
+    logTtsDebug('System TTS stop', category: 'tts.system');
     _completeSpeak();
     await _flutterTts.stop();
   }

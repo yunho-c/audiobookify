@@ -23,6 +23,7 @@ import 'screens/book_detail_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/bundled_kokoro_onnx.dart';
 import 'services/open_tts_backend.dart';
 import 'services/system_flutter_tts_backend.dart';
 import 'services/tts_audio_handler.dart';
@@ -88,13 +89,18 @@ Future<void> _startApp(SharedPreferences prefs) async {
     await _maybeRequestAndroidNotificationPermission(prefs);
 
     // Initialize audio handler + TTS service for background controls.
-    final openTtsFactory = _buildOpenTtsFactory();
+    final openTtsFactory = await _buildOpenTtsFactory();
+    final initialPlayerSettings = loadPlayerSettingsFromPrefs(
+      prefs,
+      preferOpenTts: openTtsFactory != null,
+    );
     final ttsService = TtsService(
       backends: [
         SystemFlutterTtsBackend(),
         if (openTtsFactory != null)
           OpenTtsBackend(createOpenTts: openTtsFactory),
       ],
+      initialSettings: initialPlayerSettings,
     );
     final audioHandler = await AudioService.init(
       builder: () => TtsAudioHandler(ttsService),
@@ -112,6 +118,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
         overrides: [
           storeProvider.overrideWithValue(store),
           sharedPreferencesProvider.overrideWithValue(prefs),
+          openTtsFactoryProvider.overrideWithValue(openTtsFactory),
           ttsProvider.overrideWith((ref) => ttsService),
           audioHandlerProvider.overrideWithValue(audioHandler),
         ],
@@ -126,9 +133,8 @@ Future<void> _startApp(SharedPreferences prefs) async {
   }
 }
 
-OpenTtsFactory? _buildOpenTtsFactory() {
-  // Supply an OpenTtsFactory here once Kokoro runtime config/assets are available.
-  return null;
+Future<OpenTtsFactory?> _buildOpenTtsFactory() {
+  return buildBundledKokoroOnnxFactory();
 }
 
 Future<void> _maybeRequestAndroidNotificationPermission(
@@ -212,6 +218,7 @@ class AudiobookifyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(ttsSettingsSyncProvider);
+    ref.watch(ttsDebugLoggingSyncProvider);
     ref.watch(crashReportingSyncProvider);
     final themePreference = ref.watch(themePreferenceProvider);
     return MaterialApp.router(
