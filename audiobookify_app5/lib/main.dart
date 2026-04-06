@@ -12,6 +12,7 @@ import 'package:audiobookify/src/rust/frb_generated.dart';
 import 'package:audiobookify/objectbox.g.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'core/app_theme.dart';
+import 'core/desktop_window.dart';
 import 'core/error_reporter.dart';
 import 'core/nav_transition.dart';
 import 'core/providers.dart';
@@ -24,12 +25,14 @@ import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
+import 'widgets/shared/desktop_window_frame.dart';
 
 Future<void> main() async {
   return runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       _initErrorHandling();
+      await configureDesktopWindow();
 
       final prefs = await SharedPreferences.getInstance();
       setCrashReportingEnabled(
@@ -42,31 +45,27 @@ Future<void> main() async {
         return;
       }
 
-      await SentryFlutter.init(
-        (options) {
-          options.dsn = dsn;
-          final environment = const String.fromEnvironment('APP_ENV');
-          options.environment =
-              environment.isNotEmpty
-                  ? environment
-                  : (kReleaseMode ? 'production' : 'development');
-          final release = const String.fromEnvironment('APP_RELEASE');
-          if (release.isNotEmpty) {
-            options.release = release;
-          }
-          final crashReportingEnabled = isCrashReportingEnabled;
-          options.tracesSampleRate = crashReportingEnabled ? 0.1 : 0.0;
-          options.enableAutoSessionTracking = crashReportingEnabled;
-          options.enableAutoPerformanceTracing = crashReportingEnabled;
-          options.beforeSend = (event, hint) {
-            return isCrashReportingEnabled ? event : null;
-          };
-          options.beforeSendTransaction = (transaction, hint) {
-            return isCrashReportingEnabled ? transaction : null;
-          };
-        },
-        appRunner: () => _startApp(prefs),
-      );
+      await SentryFlutter.init((options) {
+        options.dsn = dsn;
+        final environment = const String.fromEnvironment('APP_ENV');
+        options.environment = environment.isNotEmpty
+            ? environment
+            : (kReleaseMode ? 'production' : 'development');
+        final release = const String.fromEnvironment('APP_RELEASE');
+        if (release.isNotEmpty) {
+          options.release = release;
+        }
+        final crashReportingEnabled = isCrashReportingEnabled;
+        options.tracesSampleRate = crashReportingEnabled ? 0.1 : 0.0;
+        options.enableAutoSessionTracking = crashReportingEnabled;
+        options.enableAutoPerformanceTracing = crashReportingEnabled;
+        options.beforeSend = (event, hint) {
+          return isCrashReportingEnabled ? event : null;
+        };
+        options.beforeSendTransaction = (transaction, hint) {
+          return isCrashReportingEnabled ? transaction : null;
+        };
+      }, appRunner: () => _startApp(prefs));
     },
     (error, stackTrace) {
       reportError(error, stackTrace, context: 'zone');
@@ -105,9 +104,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
           storeProvider.overrideWithValue(store),
           sharedPreferencesProvider.overrideWithValue(prefs),
           ttsProvider.overrideWith((ref) => ttsService),
-          audioHandlerProvider.overrideWithValue(
-            audioHandler as TtsAudioHandler,
-          ),
+          audioHandlerProvider.overrideWithValue(audioHandler),
         ],
         child: const AudiobookifyApp(),
       ),
@@ -115,9 +112,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
   } catch (error, stackTrace) {
     reportError(error, stackTrace, context: 'startup');
     runApp(
-      _BootstrapErrorApp(
-        message: _startupErrorMessage(error, stackTrace),
-      ),
+      _BootstrapErrorApp(message: _startupErrorMessage(error, stackTrace)),
     );
   }
 }
@@ -171,6 +166,7 @@ class _BootstrapErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      builder: _wrapWithDesktopWindowFrame,
       home: Scaffold(
         body: Center(
           child: Padding(
@@ -186,10 +182,7 @@ class _BootstrapErrorApp extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                ),
+                Text(message, textAlign: TextAlign.center),
               ],
             ),
           ),
@@ -213,9 +206,14 @@ class AudiobookifyApp extends ConsumerWidget {
       theme: AppTheme.themeFor(themePreference),
       darkTheme: AppTheme.dark,
       themeMode: AppTheme.modeFor(themePreference),
+      builder: _wrapWithDesktopWindowFrame,
       routerConfig: _router,
     );
   }
+}
+
+Widget _wrapWithDesktopWindowFrame(BuildContext context, Widget? child) {
+  return DesktopWindowFrame(child: child ?? const SizedBox.shrink());
 }
 
 /// Shell widget that wraps pages with the bottom navigation bar
@@ -289,8 +287,7 @@ CustomTransitionPage<void> _navTransitionPage(
   Widget child,
 ) {
   final extra = state.extra;
-  final isForward =
-      extra is NavTransitionData ? extra.isForward : true;
+  final isForward = extra is NavTransitionData ? extra.isForward : true;
   final isCreateRoute = state.uri.path.startsWith('/create');
   final beginOffset = isCreateRoute
       ? (isForward ? const Offset(0, 0.12) : const Offset(0, -0.12))

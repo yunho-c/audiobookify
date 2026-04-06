@@ -295,6 +295,35 @@ void main() {
     );
     expect(heading.source?.fragment, 'recovered-h1');
   });
+
+  test(
+    'adaptReaderDocument preserves recovered level-three heading blocks',
+    () {
+      final document = rust_epub.ReaderDocument(
+        chapterHref: 'ch.xhtml',
+        blocks: [
+          _headingBlock(
+            level: 3,
+            inlines: [
+              _textInline('The Deeper Problem', fragment: 'recovered-h3'),
+            ],
+            fragment: 'recovered-h3',
+          ),
+          _paragraphBlock(inlines: [_textInline('Body paragraph.')]),
+        ],
+      );
+
+      final adapted = adaptReaderDocument(document);
+      final heading = adapted.blocks.whereType<HeadingBlock>().single;
+
+      expect(heading.level, 3);
+      expect(
+        heading.inlines.whereType<TextInline>().single.text,
+        'The Deeper Problem',
+      );
+      expect(heading.source?.fragment, 'recovered-h3');
+    },
+  );
 }
 
 rust_epub.ReaderBlock _headingBlock({

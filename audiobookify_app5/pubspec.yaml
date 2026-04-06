@@ -57,6 +57,7 @@ dependencies:
   url_launcher: ^6.2.6
   package_info_plus: ^8.0.3
   state_notifier: ^1.0.0
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:
