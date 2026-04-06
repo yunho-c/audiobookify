@@ -94,6 +94,60 @@ void main() {
     expect(richText.textAlign, TextAlign.center);
   });
 
+  testWidgets('fades previous sentence text brightness during transition', (
+    tester,
+  ) async {
+    final renderBlock = ReaderRenderBlock(
+      block: ParagraphBlock([
+        const TextInline('First sentence. Second sentence.'),
+      ]),
+      style: const RenderBlockStyle(),
+      ttsIndex: 0,
+    );
+    final ttsData = ReaderTtsParagraph(
+      plainText: 'First sentence. Second sentence.',
+      sentences: const ['First sentence.', 'Second sentence.'],
+      sentenceRuns: const [
+        [TextRun('First sentence.', TextRunStyle())],
+        [TextRun('Second sentence.', TextRunStyle())],
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReaderBlockRenderer.buildBlock(
+            renderBlock: renderBlock,
+            theme: _theme(
+              readerTheme: const PlayerThemeSettings(
+                textColorMode: PlayerThemeTextColorMode.fixed,
+                textColor: Colors.white,
+              ),
+            ),
+            resolver: EpubResourceResolver.fromMemory(const {}),
+            isActiveParagraph: true,
+            activeSentenceIndex: 1,
+            previousSentenceIndex: 0,
+            transitionValue: 0.5,
+            sentenceRecognizer: null,
+            linkRecognizer: null,
+            onTapParagraph: null,
+            ttsData: ttsData,
+          ),
+        ),
+      ),
+    );
+
+    final richText = tester.widget<RichText>(find.byType(RichText).first);
+    final rootSpan = richText.text as TextSpan;
+    final previousSentenceSpan = _findTextSpan(rootSpan, 'First sentence.');
+    final currentSentenceSpan = _findTextSpan(rootSpan, 'Second sentence.');
+
+    expect(previousSentenceSpan.style?.color?.a, closeTo(0.89, 0.01));
+    expect(previousSentenceSpan.style?.color, isNot(Colors.white));
+    expect(currentSentenceSpan.style?.color, Colors.white);
+  });
+
   testWidgets('keeps list marker layout while right-aligning list content', (
     tester,
   ) async {
@@ -399,9 +453,11 @@ void main() {
   });
 }
 
-ReaderRenderTheme _theme() {
+ReaderRenderTheme _theme({
+  PlayerThemeSettings readerTheme = const PlayerThemeSettings(),
+}) {
   return ReaderRenderTheme(
-    readerTheme: const PlayerThemeSettings(),
+    readerTheme: readerTheme,
     textTheme: const TextTheme(),
     colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
     shadowColor: Colors.black45,
@@ -412,4 +468,24 @@ ReaderRenderTheme _theme() {
     sentenceHighlightStyle: PlayerThemeSentenceHighlightStyle.background,
     sentenceHighlightOpacity: 0.2,
   );
+}
+
+TextSpan _findTextSpan(TextSpan span, String text) {
+  if (span.text == text) return span;
+  for (final child in span.children ?? const <InlineSpan>[]) {
+    if (child is! TextSpan) continue;
+    final match = _findTextSpanOrNull(child, text);
+    if (match != null) return match;
+  }
+  throw StateError('No TextSpan found for "$text".');
+}
+
+TextSpan? _findTextSpanOrNull(TextSpan span, String text) {
+  if (span.text == text) return span;
+  for (final child in span.children ?? const <InlineSpan>[]) {
+    if (child is! TextSpan) continue;
+    final match = _findTextSpanOrNull(child, text);
+    if (match != null) return match;
+  }
+  return null;
 }

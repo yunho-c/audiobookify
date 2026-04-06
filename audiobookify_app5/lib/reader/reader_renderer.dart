@@ -501,6 +501,16 @@ class ReaderBlockRenderer {
     linkRecognizer,
   }) {
     final spans = <InlineSpan>[];
+    final activeSentenceColor = _resolveReaderTextColor(
+      theme.readerTheme,
+      theme.colorScheme,
+      isActive: true,
+    );
+    final inactiveSentenceColor = _resolveReaderTextColor(
+      theme.readerTheme,
+      theme.colorScheme,
+      isActive: false,
+    );
     for (var sentenceIdx = 0; sentenceIdx < sentences.length; sentenceIdx++) {
       final isCurrentSentence =
           isActiveParagraph && sentenceIdx == activeSentenceIndex;
@@ -511,11 +521,16 @@ class ReaderBlockRenderer {
           : isPreviousSentence
           ? 1 - transitionValue
           : 0.0;
-      final sentenceColor = _resolveReaderTextColor(
-        theme.readerTheme,
-        theme.colorScheme,
-        isActive: isCurrentSentence || isPreviousSentence,
-      );
+      final sentenceColor = isCurrentSentence
+          ? activeSentenceColor
+          : isPreviousSentence
+          ? Color.lerp(
+                  inactiveSentenceColor,
+                  activeSentenceColor,
+                  highlightIntensity.clamp(0.0, 1.0),
+                ) ??
+                inactiveSentenceColor
+          : inactiveSentenceColor;
       final highlightColor = theme.colorScheme.primary.withOpacity(
         theme.sentenceHighlightOpacity * highlightIntensity,
       );
