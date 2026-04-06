@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  flutter_onnxruntime
   objectbox_flutter_libs
   screen_retriever_linux
   sentry_flutter
@@ -12,6 +13,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   jni
+  kokoro_flutter
   rust_lib_audiobookify_app5
 )
 

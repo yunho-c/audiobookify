@@ -1,31 +1,46 @@
 import 'package:flutter/material.dart';
 
+enum SpeechBackendKind { system, openTts }
+
+extension SpeechBackendKindLabel on SpeechBackendKind {
+  String get label {
+    switch (this) {
+      case SpeechBackendKind.system:
+        return 'System';
+      case SpeechBackendKind.openTts:
+        return 'OpenTTS';
+    }
+  }
+}
+
 /// Model for player settings (speed, pitch, voice)
 @immutable
 class PlayerSettings {
   final double speed; // 0.5 - 2.0
   final double pitch; // 0.5 - 2.0
-  final String? voiceName;
-  final String? voiceLocale;
+  final SpeechBackendKind backend;
+  final String? voiceId;
 
   const PlayerSettings({
     this.speed = 1.0,
     this.pitch = 1.0,
-    this.voiceName,
-    this.voiceLocale,
+    this.backend = SpeechBackendKind.system,
+    this.voiceId,
   });
 
   PlayerSettings copyWith({
     double? speed,
     double? pitch,
-    String? voiceName,
-    String? voiceLocale,
+    SpeechBackendKind? backend,
+    Object? voiceId = _sentinel,
   }) {
     return PlayerSettings(
       speed: speed ?? this.speed,
       pitch: pitch ?? this.pitch,
-      voiceName: voiceName ?? this.voiceName,
-      voiceLocale: voiceLocale ?? this.voiceLocale,
+      backend: backend ?? this.backend,
+      voiceId: identical(voiceId, _sentinel)
+          ? this.voiceId
+          : voiceId as String?,
     );
   }
 
@@ -36,13 +51,12 @@ class PlayerSettings {
           runtimeType == other.runtimeType &&
           speed == other.speed &&
           pitch == other.pitch &&
-          voiceName == other.voiceName &&
-          voiceLocale == other.voiceLocale;
+          backend == other.backend &&
+          voiceId == other.voiceId;
 
   @override
   int get hashCode =>
-      speed.hashCode ^
-      pitch.hashCode ^
-      voiceName.hashCode ^
-      voiceLocale.hashCode;
+      speed.hashCode ^ pitch.hashCode ^ backend.hashCode ^ voiceId.hashCode;
 }
+
+const Object _sentinel = Object();

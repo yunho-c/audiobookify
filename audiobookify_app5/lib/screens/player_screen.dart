@@ -290,7 +290,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _updateNowPlaying();
 
     // Load content into TTS provider
-    final wasPlaying = _ttsService.state.status == TtsStatus.playing;
+    final wasPlaying = _ttsService.playbackState.status == TtsStatus.playing;
     final paragraphTexts = _ttsParagraphs.map((p) => p.plainText).toList();
     final sentenceData = _ttsParagraphs.map((p) => p.sentences).toList();
     _ttsService.loadContent(paragraphTexts, sentences: sentenceData);
@@ -393,7 +393,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _togglePlayPause() async {
     HapticFeedback.lightImpact();
-    final ttsState = _ttsService.state;
+    final ttsState = _ttsService.playbackState;
 
     if (ttsState.status == TtsStatus.playing) {
       await _audioHandler.pause();
@@ -436,7 +436,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _jumpSentenceRelative(int delta) async {
     if (delta == 0 || _ttsParagraphs.isEmpty) return;
 
-    final ttsState = _ttsService.state;
+    final ttsState = _ttsService.playbackState;
     final sentences = ttsState.sentencesPerParagraph;
     if (sentences.isEmpty) return;
 

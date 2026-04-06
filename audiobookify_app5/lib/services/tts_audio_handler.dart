@@ -4,8 +4,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'tts_service.dart';
 
-class TtsAudioHandler extends BaseAudioHandler
-    with QueueHandler, SeekHandler {
+class TtsAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final TtsService _ttsService;
   AudioSession? _session;
   bool _sessionActive = false;
@@ -18,8 +17,10 @@ class TtsAudioHandler extends BaseAudioHandler
   VoidCallback? onSkipPrevious;
 
   TtsAudioHandler(this._ttsService) {
-    _removeListener =
-        _ttsService.addListener(_handleTtsState, fireImmediately: true);
+    _removeListener = _ttsService.addListener(
+      _handleTtsState,
+      fireImmediately: true,
+    );
     _initSession();
   }
 
@@ -31,7 +32,7 @@ class TtsAudioHandler extends BaseAudioHandler
     _interruptionSub = session.interruptionEventStream.listen((event) {
       if (event.begin) {
         _resumeAfterInterruption =
-            _ttsService.state.status == TtsStatus.playing;
+            _ttsService.playbackState.status == TtsStatus.playing;
         pause();
         return;
       }

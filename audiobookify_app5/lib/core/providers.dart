@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
+import 'package:flutter_riverpod/legacy.dart' show StateNotifierProvider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod/legacy.dart' show StateNotifierProvider;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify/objectbox.g.dart';
 import '../data/built_in_backdrops.dart';
@@ -11,6 +11,9 @@ import '../models/backdrop_image.dart';
 import '../models/backdrop_settings.dart';
 import '../services/book_service.dart';
 import '../services/epub_service.dart';
+import '../services/open_tts_backend.dart';
+import '../services/speech_backend.dart';
+import '../services/system_flutter_tts_backend.dart';
 import '../services/open_library_service.dart';
 import '../services/tts_audio_handler.dart';
 import '../services/tts_service.dart';
@@ -80,16 +83,16 @@ class OpenLibrarySearchArgs {
 
 /// Search provider for public-domain Open Library results.
 final openLibrarySearchProvider =
-    FutureProvider.family<List<PublicBook>, OpenLibrarySearchArgs>(
-  (ref, args) {
-    return ref.read(openLibraryServiceProvider).searchPublicDomain(
-          query: args.query,
-          page: args.page,
-          limit: args.limit,
-          language: args.language,
-        );
-  },
-);
+    FutureProvider.family<List<PublicBook>, OpenLibrarySearchArgs>((ref, args) {
+      return ref
+          .read(openLibraryServiceProvider)
+          .searchPublicDomain(
+            query: args.query,
+            page: args.page,
+            limit: args.limit,
+            language: args.language,
+          );
+    });
 
 /// SharedPreferences provider - overridden in main.dart
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -137,6 +140,8 @@ final themePreferenceProvider =
 class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
   static const _speedKey = 'player_speed';
   static const _pitchKey = 'player_pitch';
+  static const _backendKey = 'player_backend';
+  static const _voiceIdKey = 'player_voice_id';
   static const _voiceNameKey = 'player_voice_name';
   static const _voiceLocaleKey = 'player_voice_locale';
 
@@ -147,11 +152,29 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
 
   PlayerSettings _loadFromPrefs() {
     final prefs = ref.read(sharedPreferencesProvider);
+    final backendName = prefs.getString(_backendKey);
+    final backend = SpeechBackendKind.values.firstWhere(
+      (candidate) => candidate.name == backendName,
+      orElse: () => SpeechBackendKind.system,
+    );
+
+    final storedVoiceId = prefs.getString(_voiceIdKey);
+    final legacyVoiceName = prefs.getString(_voiceNameKey);
+    final legacyVoiceLocale = prefs.getString(_voiceLocaleKey);
+    final migratedVoiceId =
+        storedVoiceId ??
+        (legacyVoiceName != null && legacyVoiceLocale != null
+            ? SystemFlutterTtsBackend.voiceIdFor(
+                locale: legacyVoiceLocale,
+                name: legacyVoiceName,
+              )
+            : null);
+
     return PlayerSettings(
       speed: prefs.getDouble(_speedKey) ?? 1.0,
       pitch: prefs.getDouble(_pitchKey) ?? 1.0,
-      voiceName: prefs.getString(_voiceNameKey),
-      voiceLocale: prefs.getString(_voiceLocaleKey),
+      backend: backend,
+      voiceId: migratedVoiceId,
     );
   }
 
@@ -159,12 +182,14 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setDouble(_speedKey, state.speed);
     await prefs.setDouble(_pitchKey, state.pitch);
-    if (state.voiceName != null) {
-      await prefs.setString(_voiceNameKey, state.voiceName!);
+    await prefs.setString(_backendKey, state.backend.name);
+    if (state.voiceId != null) {
+      await prefs.setString(_voiceIdKey, state.voiceId!);
+    } else {
+      await prefs.remove(_voiceIdKey);
     }
-    if (state.voiceLocale != null) {
-      await prefs.setString(_voiceLocaleKey, state.voiceLocale!);
-    }
+    await prefs.remove(_voiceNameKey);
+    await prefs.remove(_voiceLocaleKey);
   }
 
   void setSpeed(double speed) {
@@ -177,8 +202,13 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
     _saveToPrefs();
   }
 
-  void setVoice(String name, String locale) {
-    state = state.copyWith(voiceName: name, voiceLocale: locale);
+  void setBackend(SpeechBackendKind backend) {
+    state = state.copyWith(backend: backend, voiceId: null);
+    _saveToPrefs();
+  }
+
+  void setVoice(String? voiceId) {
+    state = state.copyWith(voiceId: voiceId);
     _saveToPrefs();
   }
 
@@ -194,6 +224,17 @@ final playerSettingsProvider =
       () => PlayerSettingsNotifier(),
     );
 
+final openTtsFactoryProvider = Provider<OpenTtsFactory?>((ref) => null);
+
+final speechBackendsProvider = Provider<List<SpeechBackend>>((ref) {
+  final backends = <SpeechBackend>[SystemFlutterTtsBackend()];
+  final openTtsFactory = ref.watch(openTtsFactoryProvider);
+  if (openTtsFactory != null) {
+    backends.add(OpenTtsBackend(createOpenTts: openTtsFactory));
+  }
+  return backends;
+});
+
 /// Player theme settings notifier with persistence.
 class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
   static const _fontFamilyKey = 'player_theme_font_family';
@@ -202,7 +243,8 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
   static const _lineHeightKey = 'player_theme_line_height';
   static const _paragraphSpacingKey = 'player_theme_paragraph_spacing';
   static const _paragraphIndentKey = 'player_theme_paragraph_indent';
-  static const _pagePaddingHorizontalKey = 'player_theme_page_padding_horizontal';
+  static const _pagePaddingHorizontalKey =
+      'player_theme_page_padding_horizontal';
   static const _pagePaddingVerticalKey = 'player_theme_page_padding_vertical';
   static const _backgroundModeKey = 'player_theme_background_mode';
   static const _backgroundImagePathKey = 'player_theme_background_image_path';
@@ -228,8 +270,9 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
     final textColorValue = prefs.getInt(_textColorKey);
 
     return PlayerThemeSettings(
-      fontFamily:
-          (fontFamily == null || fontFamily.trim().isEmpty) ? null : fontFamily,
+      fontFamily: (fontFamily == null || fontFamily.trim().isEmpty)
+          ? null
+          : fontFamily,
       fontSize: prefs.getDouble(_fontSizeKey) ?? defaultTheme.fontSize,
       fontWeight: _sanitizeFontWeight(
         prefs.getInt(_fontWeightKey) ?? defaultTheme.fontWeight,
@@ -237,15 +280,15 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
       lineHeight: prefs.getDouble(_lineHeightKey) ?? defaultTheme.lineHeight,
       paragraphSpacing:
           prefs.getDouble(_paragraphSpacingKey) ??
-              defaultTheme.paragraphSpacing,
+          defaultTheme.paragraphSpacing,
       paragraphIndent:
           prefs.getDouble(_paragraphIndentKey) ?? defaultTheme.paragraphIndent,
       pagePaddingHorizontal:
           prefs.getDouble(_pagePaddingHorizontalKey) ??
-              defaultTheme.pagePaddingHorizontal,
+          defaultTheme.pagePaddingHorizontal,
       pagePaddingVertical:
           prefs.getDouble(_pagePaddingVerticalKey) ??
-              defaultTheme.pagePaddingVertical,
+          defaultTheme.pagePaddingVertical,
       backgroundMode: _readEnum<PlayerThemeBackgroundMode>(
         prefs.getString(_backgroundModeKey),
         PlayerThemeBackgroundMode.values,
@@ -256,7 +299,7 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
           prefs.getDouble(_backgroundBlurKey) ?? defaultTheme.backgroundBlur,
       backgroundOpacity:
           prefs.getDouble(_backgroundOpacityKey) ??
-              defaultTheme.backgroundOpacity,
+          defaultTheme.backgroundOpacity,
       textColorMode: _readEnum<PlayerThemeTextColorMode>(
         prefs.getString(_textColorModeKey),
         PlayerThemeTextColorMode.values,
@@ -270,7 +313,7 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
       ),
       activeParagraphOpacity:
           prefs.getDouble(_activeParagraphOpacityKey) ??
-              defaultTheme.activeParagraphOpacity,
+          defaultTheme.activeParagraphOpacity,
       sentenceHighlightStyle: _readEnum<PlayerThemeSentenceHighlightStyle>(
         prefs.getString(_sentenceHighlightStyleKey),
         PlayerThemeSentenceHighlightStyle.values,
@@ -296,8 +339,7 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
 
   Future<void> _saveToPrefs(PlayerThemeSettings settings) async {
     final prefs = ref.read(sharedPreferencesProvider);
-    if (settings.fontFamily == null ||
-        settings.fontFamily!.trim().isEmpty) {
+    if (settings.fontFamily == null || settings.fontFamily!.trim().isEmpty) {
       await prefs.remove(_fontFamilyKey);
     } else {
       await prefs.setString(_fontFamilyKey, settings.fontFamily!.trim());
@@ -334,7 +376,7 @@ class PlayerThemeSettingsNotifier extends Notifier<PlayerThemeSettings> {
     if (settings.textColor == null) {
       await prefs.remove(_textColorKey);
     } else {
-      await prefs.setInt(_textColorKey, settings.textColor!.value);
+      await prefs.setInt(_textColorKey, settings.textColor!.toARGB32());
     }
     await prefs.setString(
       _activeParagraphStyleKey,
@@ -394,9 +436,7 @@ class BackdropLibraryNotifier extends Notifier<List<BackdropImage>> {
                 custom.add(BackdropImage.fromJson(entry));
               } else if (entry is Map) {
                 custom.add(
-                  BackdropImage.fromJson(
-                    Map<String, dynamic>.from(entry),
-                  ),
+                  BackdropImage.fromJson(Map<String, dynamic>.from(entry)),
                 );
               }
             } catch (_) {
@@ -421,26 +461,20 @@ class BackdropLibraryNotifier extends Notifier<List<BackdropImage>> {
 
   Future<void> _saveCustom(List<BackdropImage> images) async {
     final prefs = ref.read(sharedPreferencesProvider);
-    final custom =
-        images.where((image) => !_isBuiltIn(image.id)).toList();
-    final payload =
-        jsonEncode(custom.map((image) => image.toJson()).toList());
+    final custom = images.where((image) => !_isBuiltIn(image.id)).toList();
+    final payload = jsonEncode(custom.map((image) => image.toJson()).toList());
     await prefs.setString(_libraryKey, payload);
   }
 
   void addImage(BackdropImage image) {
-    final updated = [
-      ...state.where((entry) => entry.id != image.id),
-      image,
-    ];
+    final updated = [...state.where((entry) => entry.id != image.id), image];
     state = List.unmodifiable(updated);
     _saveCustom(state);
   }
 
   void removeImage(String id) {
     if (_isBuiltIn(id)) return;
-    state =
-        List.unmodifiable(state.where((entry) => entry.id != id));
+    state = List.unmodifiable(state.where((entry) => entry.id != id));
     _saveCustom(state);
   }
 
@@ -468,14 +502,10 @@ class BackdropSettingsNotifier extends Notifier<BackdropSettings> {
 
   BackdropSettings _loadFromPrefs() {
     final prefs = ref.read(sharedPreferencesProvider);
-    final defaultId =
-        builtInBackdrops.isEmpty ? '' : builtInBackdrops.first.id;
+    final defaultId = builtInBackdrops.isEmpty ? '' : builtInBackdrops.first.id;
     final id = prefs.getString(_backdropIdKey) ?? defaultId;
     final brightness = prefs.getDouble(_brightnessKey) ?? 0.0;
-    return BackdropSettings(
-      id: id,
-      brightness: brightness.clamp(-1.0, 1.0),
-    );
+    return BackdropSettings(id: id, brightness: brightness.clamp(-1.0, 1.0));
   }
 
   Future<void> _saveToPrefs() async {
@@ -499,8 +529,7 @@ class BackdropSettingsNotifier extends Notifier<BackdropSettings> {
   }
 
   void reset() {
-    final defaultId =
-        builtInBackdrops.isEmpty ? '' : builtInBackdrops.first.id;
+    final defaultId = builtInBackdrops.isEmpty ? '' : builtInBackdrops.first.id;
     state = BackdropSettings(id: defaultId, brightness: 0.0);
     _saveToPrefs();
   }
@@ -531,8 +560,9 @@ class DebugModeNotifier extends Notifier<bool> {
   }
 }
 
-final debugModeProvider =
-    NotifierProvider<DebugModeNotifier, bool>(DebugModeNotifier.new);
+final debugModeProvider = NotifierProvider<DebugModeNotifier, bool>(
+  DebugModeNotifier.new,
+);
 
 class ImageDebugLoggingNotifier extends Notifier<bool> {
   static const _imageDebugKey = 'image_debug_logging_enabled';
@@ -578,10 +608,9 @@ class CrashReportingNotifier extends Notifier<bool> {
   }
 }
 
-final crashReportingProvider =
-    NotifierProvider<CrashReportingNotifier, bool>(
-      CrashReportingNotifier.new,
-    );
+final crashReportingProvider = NotifierProvider<CrashReportingNotifier, bool>(
+  CrashReportingNotifier.new,
+);
 
 final crashReportingSyncProvider = Provider<void>((ref) {
   setCrashReportingEnabled(ref.read(crashReportingProvider));
@@ -610,8 +639,9 @@ class LabsModeNotifier extends Notifier<bool> {
   }
 }
 
-final labsModeProvider =
-    NotifierProvider<LabsModeNotifier, bool>(LabsModeNotifier.new);
+final labsModeProvider = NotifierProvider<LabsModeNotifier, bool>(
+  LabsModeNotifier.new,
+);
 
 // ========================================
 // TTS Playback State Management
@@ -619,7 +649,10 @@ final labsModeProvider =
 
 /// TTS Provider - single source of truth for playback
 final ttsProvider = StateNotifierProvider<TtsService, TtsPlaybackState>((ref) {
-  final service = TtsService();
+  final service = TtsService(
+    backends: ref.read(speechBackendsProvider),
+    initialSettings: ref.read(playerSettingsProvider),
+  );
   ref.onDispose(service.dispose);
   return service;
 });
@@ -668,12 +701,14 @@ class BucketProgressArgs {
 
 final bucketProgressProvider =
     StreamProvider.family<Uint8List, BucketProgressArgs>((ref, args) {
-  return ref.watch(bookServiceProvider).watchBucketProgress(
-        bookId: args.bookId,
-        chapterIndex: args.chapterIndex,
-        bucketCount: args.bucketCount,
-      );
-});
+      return ref
+          .watch(bookServiceProvider)
+          .watchBucketProgress(
+            bookId: args.bookId,
+            chapterIndex: args.chapterIndex,
+            bucketCount: args.bucketCount,
+          );
+    });
 
 // ========================================
 // Resume Position
@@ -684,16 +719,19 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
   static const _saveDebounce = Duration(milliseconds: 500);
   Timer? _saveTimer;
   late final SharedPreferences _prefs;
+  Map<int, BookResumePosition> _latestState = const <int, BookResumePosition>{};
 
   @override
   Map<int, BookResumePosition> build() {
     _prefs = ref.read(sharedPreferencesProvider);
+    final initialState = _loadFromPrefs();
+    _latestState = initialState;
     ref.onDispose(() {
       _saveTimer?.cancel();
       _saveTimer = null;
-      unawaited(_saveToPrefs(state));
+      unawaited(_saveToPrefs(_latestState));
     });
-    return _loadFromPrefs();
+    return initialState;
   }
 
   Map<int, BookResumePosition> _loadFromPrefs() {
@@ -732,7 +770,7 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
     _saveTimer?.cancel();
     _saveTimer = Timer(_saveDebounce, () {
       _saveTimer = null;
-      unawaited(_saveToPrefs(state));
+      unawaited(_saveToPrefs(_latestState));
     });
   }
 
@@ -748,29 +786,29 @@ class BookResumeNotifier extends Notifier<Map<int, BookResumePosition>> {
       sentenceIndex: sentenceIndex.clamp(0, 1 << 30).toInt(),
       updatedAt: DateTime.now(),
     );
-    final next = Map<int, BookResumePosition>.from(state)
-      ..[bookId] = position;
+    final next = Map<int, BookResumePosition>.from(state)..[bookId] = position;
     state = Map.unmodifiable(next);
+    _latestState = state;
     _scheduleSave();
   }
 
   void clearPosition(int bookId) {
     if (!state.containsKey(bookId)) return;
-    final next = Map<int, BookResumePosition>.from(state)
-      ..remove(bookId);
+    final next = Map<int, BookResumePosition>.from(state)..remove(bookId);
     state = Map.unmodifiable(next);
-    _saveToPrefs(state);
+    _latestState = state;
+    unawaited(_saveToPrefs(_latestState));
   }
 
   void clearAll() {
     if (state.isEmpty) return;
     state = const <int, BookResumePosition>{};
-    _saveToPrefs(state);
+    _latestState = state;
+    unawaited(_saveToPrefs(_latestState));
   }
-
 }
 
 final bookResumeProvider =
     NotifierProvider<BookResumeNotifier, Map<int, BookResumePosition>>(
-  BookResumeNotifier.new,
-);
+      BookResumeNotifier.new,
+    );

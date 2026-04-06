@@ -1,6 +1,11 @@
-import 'package:riverpod/legacy.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:async';
+
+import 'package:state_notifier/state_notifier.dart';
+
+import '../core/error_reporter.dart';
 import '../models/player_settings.dart';
+import 'speech_backend.dart';
+import 'system_flutter_tts_backend.dart';
 
 /// TTS playback status
 enum TtsStatus { stopped, playing, paused }
@@ -46,48 +51,64 @@ class TtsPlaybackState {
   }
 }
 
-/// Service wrapper for FlutterTts with sentence-level tracking
+/// Sentence-level TTS controller with pluggable speech backends.
 class TtsService extends StateNotifier<TtsPlaybackState> {
-  TtsService() : super(const TtsPlaybackState()) {
-    _flutterTts = FlutterTts();
-    _initTts();
+  TtsService({
+    Iterable<SpeechBackend>? backends,
+    PlayerSettings initialSettings = const PlayerSettings(),
+  }) : _backends = {
+         for (final backend in backends ?? [SystemFlutterTtsBackend()])
+           backend.backendId: backend,
+       },
+       _settings = initialSettings,
+       super(const TtsPlaybackState()) {
+    _activeBackendKind = _backends.containsKey(initialSettings.backend)
+        ? initialSettings.backend
+        : SpeechBackendKind.system;
   }
 
-  late final FlutterTts _flutterTts;
+  final Map<SpeechBackendKind, SpeechBackend> _backends;
+  PlayerSettings _settings;
+
   Function()? onComplete;
-  bool _isJumping = false; // Suppress completion callbacks during jumps
 
-  Future<void> _initTts() async {
-    await _flutterTts.setLanguage('en-US');
-    await _flutterTts.setSpeechRate(0.5);
-    await _flutterTts.setVolume(1.0);
-    await _flutterTts.setPitch(1.0);
+  SpeechBackendKind _activeBackendKind = SpeechBackendKind.system;
+  int _playbackGeneration = 0;
+  bool _isDisposed = false;
 
-    _flutterTts.setStartHandler(() {
-      if (_isJumping) {
-        _isJumping = false;
-      }
-    });
+  List<SpeechBackendKind> get availableBackends =>
+      _backends.keys.toList(growable: false);
 
-    _flutterTts.setCompletionHandler(() {
-      _onSentenceComplete();
-    });
+  SpeechBackendKind get activeBackendKind => _activeBackendKind;
 
-    _flutterTts.setErrorHandler((message) {
-      _isJumping = false;
-      state = state.copyWith(status: TtsStatus.stopped);
-    });
+  TtsPlaybackState get playbackState => state;
+
+  SpeechBackendCapabilities capabilitiesFor(SpeechBackendKind backend) {
+    return _backends[backend]?.capabilities ??
+        const SpeechBackendCapabilities(
+          supportsPitch: true,
+          supportsVoiceSelection: true,
+          supportsPause: true,
+        );
+  }
+
+  Future<List<SpeechVoiceOption>> listVoices({
+    SpeechBackendKind? backend,
+  }) async {
+    final targetKind = backend ?? _settings.backend;
+    final resolvedBackend = await _resolveBackend(
+      targetKind,
+      markActive: false,
+    );
+    return resolvedBackend.listVoices();
   }
 
   /// Load content for playback
-  void loadContent(
-    List<String> paragraphs, {
-    List<List<String>>? sentences,
-  }) {
+  void loadContent(List<String> paragraphs, {List<List<String>>? sentences}) {
     final sentencesPerParagraph =
         sentences != null && sentences.length == paragraphs.length
-            ? sentences
-            : paragraphs.map((p) => _splitIntoSentences(p)).toList();
+        ? sentences
+        : paragraphs.map((p) => _splitIntoSentences(p)).toList();
 
     state = TtsPlaybackState(
       paragraphs: paragraphs,
@@ -100,25 +121,23 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
   /// Start or resume playback
   Future<void> play() async {
-    if (state.paragraphs.isEmpty) return;
+    if (state.paragraphs.isEmpty || state.status == TtsStatus.playing) return;
     state = state.copyWith(status: TtsStatus.playing);
-    await _speakCurrentSentence();
+    await _beginPlaybackLoop();
   }
 
-  /// Pause playback
+  /// Pause playback. Resume replays the current sentence.
   Future<void> pause() async {
-    _isJumping = true;
+    _playbackGeneration += 1;
     state = state.copyWith(status: TtsStatus.paused);
-    await _flutterTts.stop();
-    _isJumping = false;
+    await _stopCurrentBackend();
   }
 
   /// Stop playback
   Future<void> stop() async {
-    _isJumping = true;
+    _playbackGeneration += 1;
     state = state.copyWith(status: TtsStatus.stopped);
-    await _flutterTts.stop();
-    _isJumping = false;
+    await _stopCurrentBackend();
   }
 
   /// Jump to specific paragraph (resets to first sentence)
@@ -126,8 +145,8 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     if (index < 0 || index >= state.paragraphs.length) return;
 
     final wasPlaying = state.status == TtsStatus.playing;
-    _isJumping = true;
-    await _flutterTts.stop();
+    _playbackGeneration += 1;
+    await _stopCurrentBackend();
 
     state = state.copyWith(
       paragraphIndex: index,
@@ -136,9 +155,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     );
 
     if (wasPlaying) {
-      await _speakCurrentSentence();
-    } else {
-      _isJumping = false;
+      await _beginPlaybackLoop();
     }
   }
 
@@ -147,10 +164,8 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     if (paragraphIndex < 0 || paragraphIndex >= state.paragraphs.length) return;
 
     final wasPlaying = state.status == TtsStatus.playing;
-    _isJumping = true;
-
-    // Stop immediately and update state atomically
-    await _flutterTts.stop();
+    _playbackGeneration += 1;
+    await _stopCurrentBackend();
 
     final sentences = state.sentencesPerParagraph[paragraphIndex];
     final validSentenceIndex = sentenceIndex.clamp(0, sentences.length - 1);
@@ -162,70 +177,187 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     );
 
     if (wasPlaying) {
-      await _speakCurrentSentence();
-    } else {
-      _isJumping = false;
+      await _beginPlaybackLoop();
     }
   }
 
   /// Apply settings from PlayerSettings
   Future<void> applySettings(PlayerSettings settings) async {
-    final ttsRate = (settings.speed * 0.5).clamp(0.1, 1.0);
-    await _flutterTts.setSpeechRate(ttsRate);
-    await _flutterTts.setPitch(settings.pitch);
-    if (settings.voiceName != null && settings.voiceLocale != null) {
-      await _flutterTts.setVoice({
-        'name': settings.voiceName!,
-        'locale': settings.voiceLocale!,
-      });
+    final wasPlaying = state.status == TtsStatus.playing;
+    _settings = settings;
+
+    if (wasPlaying) {
+      _playbackGeneration += 1;
+      await _stopCurrentBackend();
+    }
+
+    try {
+      await _configureActiveBackend(settings);
+    } catch (error, stackTrace) {
+      _handleBackendFailure(error, stackTrace, context: 'applySettings');
+    }
+
+    if (wasPlaying && !_isDisposed) {
+      state = state.copyWith(status: TtsStatus.playing);
+      await _beginPlaybackLoop();
     }
   }
 
-  Future<void> _speakCurrentSentence() async {
-    if (state.paragraphIndex >= state.paragraphs.length) {
+  Future<void> _beginPlaybackLoop() async {
+    final generation = ++_playbackGeneration;
+
+    try {
+      await _configureActiveBackend(_settings);
+    } catch (error, stackTrace) {
+      _handleBackendFailure(error, stackTrace, context: 'play');
+      if (!_isActiveGeneration(generation)) return;
       state = state.copyWith(status: TtsStatus.stopped);
-      onComplete?.call();
       return;
+    }
+
+    unawaited(_runPlaybackLoop(generation));
+  }
+
+  Future<void> _runPlaybackLoop(int generation) async {
+    while (_isActiveGeneration(generation) &&
+        state.status == TtsStatus.playing &&
+        !_isDisposed) {
+      final sentence = _currentSentence();
+      if (sentence == null) {
+        state = state.copyWith(status: TtsStatus.stopped);
+        onComplete?.call();
+        return;
+      }
+
+      try {
+        final backend = await _configureActiveBackend(_settings);
+        await backend.speak(sentence);
+      } catch (error, stackTrace) {
+        if (!_isActiveGeneration(generation)) {
+          return;
+        }
+        _handleBackendFailure(error, stackTrace, context: 'speak');
+        state = state.copyWith(status: TtsStatus.stopped);
+        return;
+      }
+
+      if (!_isActiveGeneration(generation) ||
+          state.status != TtsStatus.playing) {
+        return;
+      }
+
+      if (!_advanceAfterSentence()) {
+        state = state.copyWith(status: TtsStatus.stopped);
+        onComplete?.call();
+        return;
+      }
+    }
+  }
+
+  Future<SpeechBackend> _configureActiveBackend(PlayerSettings settings) async {
+    final backend = await _resolveBackend(settings.backend, markActive: true);
+
+    final appliedSettings = backend.backendId == settings.backend
+        ? settings
+        : PlayerSettings(
+            speed: settings.speed,
+            pitch: settings.pitch,
+            backend: backend.backendId,
+          );
+    await backend.applySettings(appliedSettings);
+    return backend;
+  }
+
+  Future<SpeechBackend> _resolveBackend(
+    SpeechBackendKind requestedBackend, {
+    required bool markActive,
+  }) async {
+    final backend = _backends[requestedBackend];
+    if (backend != null) {
+      try {
+        await backend.initialize();
+        if (markActive) {
+          _activeBackendKind = backend.backendId;
+        }
+        return backend;
+      } catch (error, stackTrace) {
+        _handleBackendFailure(
+          error,
+          stackTrace,
+          context: 'initialize-${requestedBackend.name}',
+        );
+      }
+    }
+
+    final fallback = _backends[SpeechBackendKind.system];
+    if (fallback == null) {
+      throw StateError('No speech backends are registered.');
+    }
+    await fallback.initialize();
+    if (markActive) {
+      _activeBackendKind = fallback.backendId;
+    }
+    return fallback;
+  }
+
+  Future<void> _stopCurrentBackend() async {
+    final backend = _backends[_activeBackendKind];
+    if (backend == null) return;
+    try {
+      await backend.stop();
+    } catch (error, stackTrace) {
+      _handleBackendFailure(error, stackTrace, context: 'stop');
+    }
+  }
+
+  String? _currentSentence() {
+    if (state.paragraphIndex >= state.paragraphs.length) {
+      return null;
     }
 
     final sentences = state.sentencesPerParagraph[state.paragraphIndex];
     if (state.sentenceIndex >= sentences.length) {
-      // Move to next paragraph
       final nextParagraph = state.paragraphIndex + 1;
       if (nextParagraph >= state.paragraphs.length) {
-        state = state.copyWith(status: TtsStatus.stopped);
-        onComplete?.call();
-        return;
+        return null;
       }
       state = state.copyWith(paragraphIndex: nextParagraph, sentenceIndex: 0);
+      return state.sentencesPerParagraph[state.paragraphIndex][state
+          .sentenceIndex];
     }
 
-    final text =
-        state.sentencesPerParagraph[state.paragraphIndex][state.sentenceIndex];
-    await _flutterTts.speak(text);
+    return sentences[state.sentenceIndex];
   }
 
-  void _onSentenceComplete() {
-    if (_isJumping) return;
-    if (state.status != TtsStatus.playing) return;
-
+  bool _advanceAfterSentence() {
+    if (state.paragraphIndex >= state.sentencesPerParagraph.length) {
+      return false;
+    }
     final sentences = state.sentencesPerParagraph[state.paragraphIndex];
     final nextSentence = state.sentenceIndex + 1;
-
-    if (nextSentence >= sentences.length) {
-      // Move to next paragraph
-      final nextParagraph = state.paragraphIndex + 1;
-      if (nextParagraph >= state.paragraphs.length) {
-        state = state.copyWith(status: TtsStatus.stopped);
-        onComplete?.call();
-        return;
-      }
-      state = state.copyWith(paragraphIndex: nextParagraph, sentenceIndex: 0);
-    } else {
+    if (nextSentence < sentences.length) {
       state = state.copyWith(sentenceIndex: nextSentence);
+      return true;
     }
 
-    _speakCurrentSentence();
+    final nextParagraph = state.paragraphIndex + 1;
+    if (nextParagraph >= state.paragraphs.length) {
+      return false;
+    }
+    state = state.copyWith(paragraphIndex: nextParagraph, sentenceIndex: 0);
+    return true;
+  }
+
+  bool _isActiveGeneration(int generation) {
+    return !_isDisposed && generation == _playbackGeneration;
+  }
+
+  void _handleBackendFailure(
+    Object error,
+    StackTrace stackTrace, {
+    required String context,
+  }) {
+    reportError(error, stackTrace, context: 'tts:$context');
   }
 
   List<String> _splitIntoSentences(String text) {
@@ -262,7 +394,11 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
   @override
   void dispose() {
-    _flutterTts.stop();
+    _isDisposed = true;
+    _playbackGeneration += 1;
+    for (final backend in _backends.values) {
+      unawaited(backend.dispose());
+    }
     super.dispose();
   }
 }

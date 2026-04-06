@@ -23,6 +23,8 @@ import 'screens/book_detail_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/open_tts_backend.dart';
+import 'services/system_flutter_tts_backend.dart';
 import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
 import 'widgets/shared/desktop_window_frame.dart';
@@ -86,7 +88,14 @@ Future<void> _startApp(SharedPreferences prefs) async {
     await _maybeRequestAndroidNotificationPermission(prefs);
 
     // Initialize audio handler + TTS service for background controls.
-    final ttsService = TtsService();
+    final openTtsFactory = _buildOpenTtsFactory();
+    final ttsService = TtsService(
+      backends: [
+        SystemFlutterTtsBackend(),
+        if (openTtsFactory != null)
+          OpenTtsBackend(createOpenTts: openTtsFactory),
+      ],
+    );
     final audioHandler = await AudioService.init(
       builder: () => TtsAudioHandler(ttsService),
       config: const AudioServiceConfig(
@@ -115,6 +124,11 @@ Future<void> _startApp(SharedPreferences prefs) async {
       _BootstrapErrorApp(message: _startupErrorMessage(error, stackTrace)),
     );
   }
+}
+
+OpenTtsFactory? _buildOpenTtsFactory() {
+  // Supply an OpenTtsFactory here once Kokoro runtime config/assets are available.
+  return null;
 }
 
 Future<void> _maybeRequestAndroidNotificationPermission(

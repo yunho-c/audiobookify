@@ -1,4 +1,4 @@
-platform :osx, '11.0'
+platform :osx, '14.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -26,8 +26,23 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_macos_podfile_setup
 
+pre_install do |installer|
+  Pod::Installer::Xcode::TargetValidator.send(
+    :define_method,
+    :verify_no_static_framework_transitive_dependencies,
+  ) {}
+
+  installer.pod_targets.each do |pod|
+    next unless pod.name == 'rust_lib_audiobookify_app5'
+
+    def pod.build_type
+      Pod::BuildType.dynamic_framework
+    end
+  end
+end
+
 target 'Runner' do
-  use_frameworks!
+  use_frameworks! :linkage => :static
 
   flutter_install_all_macos_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
