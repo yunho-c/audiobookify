@@ -42,11 +42,46 @@ void main() {
       expect(backend.capabilities.supportsPitch, isFalse);
     },
   );
+
+  test('OpenTtsBackend shares concurrent initialize work', () async {
+    final engine = _FakeKokoroEngine(initializeCompleter: Completer<void>());
+    var createCalls = 0;
+    final backend = OpenTtsBackend(
+      createOpenTts: (renderer) async {
+        createCalls += 1;
+        return OpenTts(
+          engine: engine,
+          renderer: renderer,
+          useStreamingForSpeak: false,
+        );
+      },
+      renderer: _FakeOpenTtsRenderer(),
+    );
+    addTearDown(backend.dispose);
+
+    final first = backend.initialize();
+    final second = backend.initialize();
+    expect(createCalls, 1);
+
+    engine.completeInitialize();
+    await Future.wait([first, second]);
+
+    expect(createCalls, 1);
+    expect(engine.initializeCalls, 1);
+  });
 }
 
 class _FakeKokoroEngine implements KokoroEngine {
+  _FakeKokoroEngine({this.initializeCompleter});
+
+  final Completer<void>? initializeCompleter;
+  int initializeCalls = 0;
+
   @override
-  Future<void> initialize() async {}
+  Future<void> initialize() async {
+    initializeCalls += 1;
+    await initializeCompleter?.future;
+  }
 
   @override
   Future<void> warmup() async {}
@@ -120,6 +155,13 @@ class _FakeKokoroEngine implements KokoroEngine {
 
   String? lastVoiceId;
   double? lastSpeed;
+
+  void completeInitialize() {
+    final completer = initializeCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
+  }
 }
 
 class _FakeCancelToken implements KokoroCancelToken {

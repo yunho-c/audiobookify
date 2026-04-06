@@ -25,6 +25,7 @@ class OpenTtsBackend implements SpeechBackend {
   OpenTts? _openTts;
   StreamSubscription<TtsEvent>? _eventSubscription;
   bool _initialized = false;
+  Future<void>? _initializeFuture;
 
   @override
   SpeechBackendKind get backendId => SpeechBackendKind.openTts;
@@ -45,14 +46,35 @@ class OpenTtsBackend implements SpeechBackend {
   @override
   Future<void> initialize() async {
     if (_initialized) return;
+    final inFlight = _initializeFuture;
+    if (inFlight != null) {
+      return inFlight;
+    }
+    final future = _initializeImpl();
+    _initializeFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_initializeFuture, future)) {
+        _initializeFuture = null;
+      }
+    }
+  }
+
+  Future<void> _initializeImpl() async {
     logTtsDebug('Initializing OpenTTS backend', category: 'tts.open_tts');
     final openTts = await _createOpenTts(_renderer);
-    await openTts.awaitSpeakCompletion(true);
-    await openTts.init(warmup: false);
-    _eventSubscription = openTts.events.listen(_handleEvent);
-    _openTts = openTts;
-    _initialized = true;
-    logTtsDebug('OpenTTS backend initialized', category: 'tts.open_tts');
+    try {
+      await openTts.awaitSpeakCompletion(true);
+      await openTts.init(warmup: false);
+      _eventSubscription = openTts.events.listen(_handleEvent);
+      _openTts = openTts;
+      _initialized = true;
+      logTtsDebug('OpenTTS backend initialized', category: 'tts.open_tts');
+    } catch (_) {
+      openTts.dispose();
+      rethrow;
+    }
   }
 
   @override
