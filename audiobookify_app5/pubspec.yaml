@@ -89,6 +89,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/us_gold.json
+    - assets/us_silver.json
+    - assets/gb_gold.json
+    - assets/gb_silver.json
+    - assets/kokoro/
     - test/assets/test_ebook.epub
 
   # To add assets to your application, add an assets section, like this:

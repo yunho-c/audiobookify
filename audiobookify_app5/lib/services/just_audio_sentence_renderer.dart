@@ -7,6 +7,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:kokoro_flutter/kokoro_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'tts_debug_logging.dart';
+
 class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
   JustAudioSentenceRenderer({AudioPlayer? player, Directory? tempDirectory})
     : _player = player ?? AudioPlayer(),
@@ -15,9 +17,6 @@ class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
   final AudioPlayer _player;
   final Directory? _tempDirectory;
 
-  Completer<void>? _playCompleter;
-  StreamSubscription<PlayerState>? _playerStateSubscription;
-  StreamSubscription<Object>? _errorSubscription;
   File? _currentFile;
 
   @override
@@ -30,28 +29,26 @@ class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
 
     final file = await _writeWavFile(audio, sampleRate, requestId);
     _currentFile = file;
-    final completer = Completer<void>();
-    _playCompleter = completer;
-
-    _playerStateSubscription = _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed &&
-          !completer.isCompleted) {
-        completer.complete();
-      }
-    });
-    _errorSubscription = _player.playbackEventStream.listen(
-      (_) {},
-      onError: (Object error, StackTrace stackTrace) {
-        if (!completer.isCompleted) {
-          completer.completeError(error, stackTrace);
-        }
-      },
+    logTtsDebug(
+      'JustAudio renderer starting playback requestId=$requestId samples=${audio.length} sampleRate=$sampleRate',
+      category: 'tts.renderer',
     );
 
     try {
       await _player.setFilePath(file.path);
       await _player.play();
-      await completer.future;
+      logTtsDebug(
+        'JustAudio renderer completed playback requestId=$requestId',
+        category: 'tts.renderer',
+      );
+    } on Object catch (error, stackTrace) {
+      logTtsDebug(
+        'JustAudio renderer playback failed requestId=$requestId',
+        category: 'tts.renderer',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
     } finally {
       await _clearCurrentPlayback();
     }
@@ -59,9 +56,10 @@ class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
 
   @override
   Future<void> stop({String? requestId}) async {
-    if (_playCompleter != null && !_playCompleter!.isCompleted) {
-      _playCompleter!.complete();
-    }
+    logTtsDebug(
+      'JustAudio renderer stop requestId=${requestId ?? "current"}',
+      category: 'tts.renderer',
+    );
     await _player.stop();
     await _clearCurrentPlayback();
   }
@@ -133,12 +131,6 @@ class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
   }
 
   Future<void> _clearCurrentPlayback() async {
-    await _playerStateSubscription?.cancel();
-    _playerStateSubscription = null;
-    await _errorSubscription?.cancel();
-    _errorSubscription = null;
-    _playCompleter = null;
-
     final file = _currentFile;
     _currentFile = null;
     if (file != null && await file.exists()) {
