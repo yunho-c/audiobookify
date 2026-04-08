@@ -19,6 +19,40 @@ const List<String> _requiredKokoroAssetPaths = <String>[
   kokoroLexiconAssetPath,
 ];
 
+@visibleForTesting
+List<OrtProvider> bundledKokoroProvidersForPlatform(String operatingSystem) {
+  switch (operatingSystem) {
+    case 'ios':
+    case 'macos':
+      return const <OrtProvider>[OrtProvider.CORE_ML, OrtProvider.CPU];
+    case 'android':
+      return const <OrtProvider>[
+        OrtProvider.QNN,
+        OrtProvider.NNAPI,
+        OrtProvider.XNNPACK,
+        OrtProvider.CPU,
+      ];
+    case 'windows':
+      return const <OrtProvider>[OrtProvider.DIRECT_ML, OrtProvider.CPU];
+    case 'linux':
+    default:
+      return const <OrtProvider>[OrtProvider.CPU];
+  }
+}
+
+@visibleForTesting
+KokoroOnnxConfig buildBundledKokoroOnnxConfig({String? operatingSystem}) {
+  final String os = operatingSystem ?? Platform.operatingSystem;
+  return KokoroOnnxConfig(
+    modelPath: kokoroModelAssetPath,
+    voicesPath: kokoroVoicesAssetPath,
+    vocabPath: kokoroVocabAssetPath,
+    lexiconPath: kokoroLexiconAssetPath,
+    baseDir: _desktopFlutterAssetsBaseDir(),
+    providers: bundledKokoroProvidersForPlatform(os),
+  );
+}
+
 Future<OpenTtsFactory?> buildBundledKokoroOnnxFactory({
   AssetBundle? bundle,
 }) async {
@@ -31,13 +65,7 @@ Future<OpenTtsFactory?> buildBundledKokoroOnnxFactory({
     return null;
   }
 
-  final config = KokoroOnnxConfig(
-    modelPath: kokoroModelAssetPath,
-    voicesPath: kokoroVoicesAssetPath,
-    vocabPath: kokoroVocabAssetPath,
-    lexiconPath: kokoroLexiconAssetPath,
-    baseDir: _desktopFlutterAssetsBaseDir(),
-  );
+  final config = buildBundledKokoroOnnxConfig();
 
   return (renderer) async => OpenTts(
     engine: KokoroOnnx(config: config),

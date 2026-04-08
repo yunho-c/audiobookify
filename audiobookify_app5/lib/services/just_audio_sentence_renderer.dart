@@ -25,25 +25,49 @@ class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
     int sampleRate, {
     required String requestId,
   }) async {
+    final totalStopwatch = Stopwatch()..start();
     await stop(requestId: requestId);
 
+    final writeStopwatch = Stopwatch()..start();
     final file = await _writeWavFile(audio, sampleRate, requestId);
+    writeStopwatch.stop();
     _currentFile = file;
+    final double audioDurationMs = (audio.length / sampleRate) * 1000.0;
     logTtsDebug(
-      'JustAudio renderer starting playback requestId=$requestId samples=${audio.length} sampleRate=$sampleRate',
+      'JustAudio renderer prepared requestId=$requestId '
+      'samples=${audio.length} sampleRate=$sampleRate '
+      'audioDurationMs=${audioDurationMs.toStringAsFixed(1)} '
+      'wavWriteMs=${writeStopwatch.elapsedMilliseconds}',
       category: 'tts.renderer',
     );
 
     try {
+      final setFilePathStopwatch = Stopwatch()..start();
       await _player.setFilePath(file.path);
-      await _player.play();
+      setFilePathStopwatch.stop();
       logTtsDebug(
-        'JustAudio renderer completed playback requestId=$requestId',
+        'JustAudio renderer player ready requestId=$requestId setFilePathMs=${setFilePathStopwatch.elapsedMilliseconds}',
+        category: 'tts.renderer',
+      );
+
+      final playbackStopwatch = Stopwatch()..start();
+      logTtsDebug(
+        'JustAudio renderer starting playback requestId=$requestId',
+        category: 'tts.renderer',
+      );
+      await _player.play();
+      playbackStopwatch.stop();
+      totalStopwatch.stop();
+      logTtsDebug(
+        'JustAudio renderer completed playback requestId=$requestId '
+        'playbackMs=${playbackStopwatch.elapsedMilliseconds} '
+        'totalRendererMs=${totalStopwatch.elapsedMilliseconds}',
         category: 'tts.renderer',
       );
     } on Object catch (error, stackTrace) {
+      totalStopwatch.stop();
       logTtsDebug(
-        'JustAudio renderer playback failed requestId=$requestId',
+        'JustAudio renderer playback failed requestId=$requestId totalRendererMs=${totalStopwatch.elapsedMilliseconds}',
         category: 'tts.renderer',
         error: error,
         stackTrace: stackTrace,

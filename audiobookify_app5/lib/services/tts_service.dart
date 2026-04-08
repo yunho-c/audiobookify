@@ -254,7 +254,13 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
           'Speaking sentence generation=$generation activeBackend=${backend.backendId.name} paragraph=${state.paragraphIndex} sentence=${state.sentenceIndex} text="$sentence"',
           category: 'tts.service',
         );
+        final sentenceStopwatch = Stopwatch()..start();
         await backend.speak(sentence);
+        sentenceStopwatch.stop();
+        logTtsDebug(
+          'Sentence completed generation=$generation activeBackend=${backend.backendId.name} paragraph=${state.paragraphIndex} sentence=${state.sentenceIndex} textLength=${sentence.length} elapsedMs=${sentenceStopwatch.elapsedMilliseconds}',
+          category: 'tts.service',
+        );
       } catch (error, stackTrace) {
         if (!_isActiveGeneration(generation)) {
           return;

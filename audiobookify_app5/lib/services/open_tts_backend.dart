@@ -122,7 +122,13 @@ class OpenTtsBackend implements SpeechBackend {
   Future<void> speak(String text) async {
     await initialize();
     logTtsDebug('OpenTTS speak "$text"', category: 'tts.open_tts');
+    final stopwatch = Stopwatch()..start();
     final result = await _openTts!.speak(text, queueMode: QueueMode.flush);
+    stopwatch.stop();
+    logTtsDebug(
+      'OpenTTS speak completed textLength=${text.length} result=${result.name} elapsedMs=${stopwatch.elapsedMilliseconds}',
+      category: 'tts.open_tts',
+    );
     if (result == SpeakResult.rejected) {
       throw StateError('OpenTTS rejected the utterance.');
     }
@@ -153,8 +159,25 @@ class OpenTtsBackend implements SpeechBackend {
   }
 
   void _handleEvent(TtsEvent event) {
+    final diagnostics = event.diagnostics;
+    final diagnosticsSuffix = diagnostics == null
+        ? ''
+        : ' totalMs=${diagnostics.timings.totalMs} '
+              'g2pMs=${diagnostics.timings.g2PMs} '
+              'vocabMs=${diagnostics.timings.vocabMs} '
+              'pipelineMs=${diagnostics.timings.pipelineMs} '
+              'bertMs=${diagnostics.timings.bertMs} '
+              'durationMs=${diagnostics.timings.durationMs} '
+              'alignBuildMs=${diagnostics.timings.alignmentBuildMs} '
+              'alignGatherMs=${diagnostics.timings.alignmentGatherMs} '
+              'pitchEnergyMs=${diagnostics.timings.pitchEnergyMs} '
+              'textEncoderMs=${diagnostics.timings.textEncoderMs} '
+              'decoderMs=${diagnostics.timings.decoderMs} '
+              'inputKind=${diagnostics.inputKind} '
+              'inputTextLen=${diagnostics.inputTextLen ?? 0} '
+              'phonemeLen=${diagnostics.phonemeLen}';
     logTtsDebug(
-      'OpenTTS event=${event.type.name} requestId=${event.requestId}',
+      'OpenTTS event=${event.type.name} requestId=${event.requestId}$diagnosticsSuffix',
       category: 'tts.open_tts',
       error: event.error,
     );

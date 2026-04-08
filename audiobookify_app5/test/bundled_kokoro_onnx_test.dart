@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kokoro_flutter/kokoro_flutter.dart';
 
 import 'package:audiobookify/services/bundled_kokoro_onnx.dart';
 
@@ -28,6 +30,41 @@ void main() {
       expect(factory, isNull);
     },
   );
+
+  test('bundled Kokoro config uses Apple providers by default', () {
+    final config = buildBundledKokoroOnnxConfig(operatingSystem: 'ios');
+
+    expect(config.providers, const <OrtProvider>[
+      OrtProvider.CORE_ML,
+      OrtProvider.CPU,
+    ]);
+  });
+
+  test('bundled Kokoro config uses Android providers by default', () {
+    final config = buildBundledKokoroOnnxConfig(operatingSystem: 'android');
+
+    expect(config.providers, const <OrtProvider>[
+      OrtProvider.QNN,
+      OrtProvider.NNAPI,
+      OrtProvider.XNNPACK,
+      OrtProvider.CPU,
+    ]);
+  });
+
+  test('bundled Kokoro config uses Windows providers by default', () {
+    final config = buildBundledKokoroOnnxConfig(operatingSystem: 'windows');
+
+    expect(config.providers, const <OrtProvider>[
+      OrtProvider.DIRECT_ML,
+      OrtProvider.CPU,
+    ]);
+  });
+
+  test('bundled Kokoro config uses CPU only on Linux', () {
+    final config = buildBundledKokoroOnnxConfig(operatingSystem: 'linux');
+
+    expect(config.providers, const <OrtProvider>[OrtProvider.CPU]);
+  });
 }
 
 class _FakeAssetBundle extends CachingAssetBundle {
