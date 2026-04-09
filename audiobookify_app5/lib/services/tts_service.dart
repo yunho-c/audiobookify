@@ -4,6 +4,7 @@ import 'package:state_notifier/state_notifier.dart';
 
 import '../core/error_reporter.dart';
 import '../models/player_settings.dart';
+import 'open_tts_backend.dart';
 import 'speech_backend.dart';
 import 'system_flutter_tts_backend.dart';
 import 'tts_debug_logging.dart';
@@ -110,6 +111,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
   /// Load content for playback
   void loadContent(List<String> paragraphs, {List<List<String>>? sentences}) {
+    _clearOpenTtsPrefetch();
     final sentencesPerParagraph =
         sentences != null && sentences.length == paragraphs.length
         ? sentences
@@ -139,6 +141,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
   Future<void> pause() async {
     logTtsDebug('Pause requested', category: 'tts.service');
     _playbackGeneration += 1;
+    _clearOpenTtsPrefetch();
     state = state.copyWith(status: TtsStatus.paused);
     await _stopCurrentBackend();
   }
@@ -147,6 +150,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
   Future<void> stop() async {
     logTtsDebug('Stop requested', category: 'tts.service');
     _playbackGeneration += 1;
+    _clearOpenTtsPrefetch();
     state = state.copyWith(status: TtsStatus.stopped);
     await _stopCurrentBackend();
   }
@@ -157,6 +161,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
     final wasPlaying = state.status == TtsStatus.playing;
     _playbackGeneration += 1;
+    _clearOpenTtsPrefetch();
     await _stopCurrentBackend();
 
     state = state.copyWith(
@@ -176,6 +181,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
     final wasPlaying = state.status == TtsStatus.playing;
     _playbackGeneration += 1;
+    _clearOpenTtsPrefetch();
     await _stopCurrentBackend();
 
     final sentences = state.sentencesPerParagraph[paragraphIndex];
@@ -200,6 +206,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
       category: 'tts.service',
     );
     _settings = settings;
+    _clearOpenTtsPrefetch();
 
     if (wasPlaying) {
       _playbackGeneration += 1;
@@ -250,12 +257,21 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
       try {
         final backend = await _configureActiveBackend(_settings);
+        final String? nextSentence = _peekNextSentence();
         logTtsDebug(
           'Speaking sentence generation=$generation activeBackend=${backend.backendId.name} paragraph=${state.paragraphIndex} sentence=${state.sentenceIndex} text="$sentence"',
           category: 'tts.service',
         );
         final sentenceStopwatch = Stopwatch()..start();
-        await backend.speak(sentence);
+        final Future<void> speakFuture = backend.speak(sentence);
+        if (backend case final OpenTtsBackend openTtsBackend) {
+          if (nextSentence != null) {
+            unawaited(openTtsBackend.prefetch(nextSentence));
+          } else {
+            openTtsBackend.clearPrefetch();
+          }
+        }
+        await speakFuture;
         sentenceStopwatch.stop();
         logTtsDebug(
           'Sentence completed generation=$generation activeBackend=${backend.backendId.name} paragraph=${state.paragraphIndex} sentence=${state.sentenceIndex} textLength=${sentence.length} elapsedMs=${sentenceStopwatch.elapsedMilliseconds}',
@@ -381,6 +397,29 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     return sentences[state.sentenceIndex];
   }
 
+  String? _peekNextSentence() {
+    if (state.paragraphIndex >= state.sentencesPerParagraph.length) {
+      return null;
+    }
+
+    final sentences = state.sentencesPerParagraph[state.paragraphIndex];
+    final nextSentenceIndex = state.sentenceIndex + 1;
+    if (nextSentenceIndex < sentences.length) {
+      return sentences[nextSentenceIndex];
+    }
+
+    final nextParagraph = state.paragraphIndex + 1;
+    if (nextParagraph >= state.paragraphs.length ||
+        nextParagraph >= state.sentencesPerParagraph.length) {
+      return null;
+    }
+    final nextParagraphSentences = state.sentencesPerParagraph[nextParagraph];
+    if (nextParagraphSentences.isEmpty) {
+      return null;
+    }
+    return nextParagraphSentences.first;
+  }
+
   bool _advanceAfterSentence() {
     if (state.paragraphIndex >= state.sentencesPerParagraph.length) {
       return false;
@@ -416,6 +455,14 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
       stackTrace: stackTrace,
     );
     reportError(error, stackTrace, context: 'tts:$context');
+  }
+
+  void _clearOpenTtsPrefetch() {
+    for (final backend in _backends.values) {
+      if (backend case final OpenTtsBackend openTtsBackend) {
+        openTtsBackend.clearPrefetch();
+      }
+    }
   }
 
   List<String> _splitIntoSentences(String text) {

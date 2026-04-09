@@ -16,6 +16,8 @@ class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
 
   final AudioPlayer _player;
   final Directory? _tempDirectory;
+  void Function(String requestId)? onPlaybackStart;
+  void Function(String requestId)? onPlaybackComplete;
 
   File? _currentFile;
 
@@ -55,9 +57,11 @@ class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
         'JustAudio renderer starting playback requestId=$requestId',
         category: 'tts.renderer',
       );
+      onPlaybackStart?.call(requestId);
       await _player.play();
       playbackStopwatch.stop();
       totalStopwatch.stop();
+      onPlaybackComplete?.call(requestId);
       logTtsDebug(
         'JustAudio renderer completed playback requestId=$requestId '
         'playbackMs=${playbackStopwatch.elapsedMilliseconds} '

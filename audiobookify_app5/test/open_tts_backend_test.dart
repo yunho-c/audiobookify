@@ -69,13 +69,118 @@ void main() {
     expect(createCalls, 1);
     expect(engine.initializeCalls, 1);
   });
+
+  test('OpenTtsBackend consumes prefetched audio on exact match', () async {
+    final engine = _FakeKokoroEngine();
+    final renderer = _FakeOpenTtsRenderer();
+    final backend = OpenTtsBackend(
+      createOpenTts: (renderer) async => OpenTts(
+        engine: engine,
+        renderer: renderer,
+        useStreamingForSpeak: false,
+      ),
+      renderer: renderer,
+    );
+    addTearDown(backend.dispose);
+
+    await backend.initialize();
+    await backend.prefetch('hello');
+    await Future<void>.delayed(Duration.zero);
+    await backend.speak('hello');
+
+    expect(engine.synthesizedTexts, <String>['hello']);
+    expect(renderer.playCallCount, 1);
+  });
+
+  test(
+    'OpenTtsBackend discards prefetched audio after settings change',
+    () async {
+      final engine = _FakeKokoroEngine();
+      final renderer = _FakeOpenTtsRenderer();
+      final backend = OpenTtsBackend(
+        createOpenTts: (renderer) async => OpenTts(
+          engine: engine,
+          renderer: renderer,
+          useStreamingForSpeak: false,
+        ),
+        renderer: renderer,
+      );
+      addTearDown(backend.dispose);
+
+      await backend.initialize();
+      await backend.prefetch('hello');
+      await Future<void>.delayed(Duration.zero);
+      await backend.applySettings(
+        const PlayerSettings(
+          backend: SpeechBackendKind.openTts,
+          voiceId: 'voice_b',
+          speed: 1.25,
+        ),
+      );
+      await backend.speak('hello');
+
+      expect(engine.synthesizedTexts, <String>['hello', 'hello']);
+      expect(engine.lastVoiceId, 'voice_b');
+      expect(engine.lastSpeed, 1.25);
+    },
+  );
+
+  test('OpenTtsBackend clearPrefetch drops cached audio', () async {
+    final engine = _FakeKokoroEngine();
+    final backend = OpenTtsBackend(
+      createOpenTts: (renderer) async => OpenTts(
+        engine: engine,
+        renderer: renderer,
+        useStreamingForSpeak: false,
+      ),
+      renderer: _FakeOpenTtsRenderer(),
+    );
+    addTearDown(backend.dispose);
+
+    await backend.initialize();
+    await backend.prefetch('hello');
+    await Future<void>.delayed(Duration.zero);
+    backend.clearPrefetch();
+    await backend.speak('hello');
+
+    expect(engine.synthesizedTexts, <String>['hello', 'hello']);
+  });
+
+  test(
+    'OpenTtsBackend prefetch failure does not break foreground speak',
+    () async {
+      final engine = _FakeKokoroEngine(failSynthesizeCalls: <int>{1});
+      final renderer = _FakeOpenTtsRenderer();
+      final backend = OpenTtsBackend(
+        createOpenTts: (renderer) async => OpenTts(
+          engine: engine,
+          renderer: renderer,
+          useStreamingForSpeak: false,
+        ),
+        renderer: renderer,
+      );
+      addTearDown(backend.dispose);
+
+      await backend.initialize();
+      await backend.prefetch('hello');
+      await Future<void>.delayed(Duration.zero);
+      await backend.speak('hello');
+
+      expect(engine.synthesizedTexts, <String>['hello', 'hello']);
+      expect(renderer.playCallCount, 1);
+    },
+  );
 }
 
 class _FakeKokoroEngine implements KokoroEngine {
-  _FakeKokoroEngine({this.initializeCompleter});
+  _FakeKokoroEngine({this.initializeCompleter, Set<int>? failSynthesizeCalls})
+    : _failSynthesizeCalls = failSynthesizeCalls ?? <int>{};
 
   final Completer<void>? initializeCompleter;
+  final Set<int> _failSynthesizeCalls;
   int initializeCalls = 0;
+  int synthesizeCalls = 0;
+  final List<String> synthesizedTexts = <String>[];
 
   @override
   Future<void> initialize() async {
@@ -93,6 +198,13 @@ class _FakeKokoroEngine implements KokoroEngine {
     int? voiceIndex,
     String? voiceId,
   }) async {
+    synthesizeCalls += 1;
+    if (input case TextSynthesisInput(:final text)) {
+      synthesizedTexts.add(text);
+    }
+    if (_failSynthesizeCalls.contains(synthesizeCalls)) {
+      throw StateError('synthesize failed');
+    }
     lastVoiceId = voiceId;
     lastSpeed = speed;
     return SynthesisResult(
