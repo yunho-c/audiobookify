@@ -191,6 +191,29 @@ void main() {
       expect(renderer.playCallCount, 1);
     },
   );
+
+  test('OpenTtsBackend recreates OpenTTS after engine invalidation', () async {
+    final renderer = _FakeOpenTtsRenderer();
+    var createCalls = 0;
+    final backend = OpenTtsBackend(
+      createOpenTts: (renderer) async {
+        createCalls += 1;
+        return OpenTts(
+          engine: _FakeKokoroEngine(),
+          renderer: renderer,
+          useStreamingForSpeak: false,
+        );
+      },
+      renderer: renderer,
+    );
+    addTearDown(backend.dispose);
+
+    await backend.initialize();
+    await backend.invalidateEngine(reason: 'test');
+    await backend.initialize();
+
+    expect(createCalls, 2);
+  });
 }
 
 class _FakeKokoroEngine implements KokoroEngine {

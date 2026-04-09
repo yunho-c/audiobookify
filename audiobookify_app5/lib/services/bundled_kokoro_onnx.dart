@@ -19,8 +19,111 @@ const List<String> _requiredKokoroAssetPaths = <String>[
   kokoroLexiconAssetPath,
 ];
 
+enum OpenTtsExecutionProviderOverride {
+  auto,
+  coreMl,
+  qnn,
+  nnapi,
+  xnnpack,
+  directMl,
+  cpu,
+}
+
+List<OpenTtsExecutionProviderOverride>
+bundledKokoroProviderOverridesForPlatform(String operatingSystem) {
+  switch (operatingSystem) {
+    case 'ios':
+    case 'macos':
+      return const <OpenTtsExecutionProviderOverride>[
+        OpenTtsExecutionProviderOverride.auto,
+        OpenTtsExecutionProviderOverride.coreMl,
+        OpenTtsExecutionProviderOverride.cpu,
+      ];
+    case 'android':
+      return const <OpenTtsExecutionProviderOverride>[
+        OpenTtsExecutionProviderOverride.auto,
+        OpenTtsExecutionProviderOverride.qnn,
+        OpenTtsExecutionProviderOverride.nnapi,
+        OpenTtsExecutionProviderOverride.xnnpack,
+        OpenTtsExecutionProviderOverride.cpu,
+      ];
+    case 'windows':
+      return const <OpenTtsExecutionProviderOverride>[
+        OpenTtsExecutionProviderOverride.auto,
+        OpenTtsExecutionProviderOverride.directMl,
+        OpenTtsExecutionProviderOverride.cpu,
+      ];
+    case 'linux':
+    default:
+      return const <OpenTtsExecutionProviderOverride>[
+        OpenTtsExecutionProviderOverride.auto,
+      ];
+  }
+}
+
+String bundledKokoroProviderOverrideLabel(
+  OpenTtsExecutionProviderOverride override,
+  String operatingSystem,
+) {
+  switch (override) {
+    case OpenTtsExecutionProviderOverride.auto:
+      return 'Auto';
+    case OpenTtsExecutionProviderOverride.coreMl:
+      return 'CoreML + CPU fallback';
+    case OpenTtsExecutionProviderOverride.qnn:
+      return 'QNN + CPU fallback';
+    case OpenTtsExecutionProviderOverride.nnapi:
+      return 'NNAPI + CPU fallback';
+    case OpenTtsExecutionProviderOverride.xnnpack:
+      return 'XNNPACK + CPU fallback';
+    case OpenTtsExecutionProviderOverride.directMl:
+      return 'DirectML + CPU fallback';
+    case OpenTtsExecutionProviderOverride.cpu:
+      return operatingSystem == 'linux' ? 'CPU' : 'CPU only';
+  }
+}
+
+OpenTtsExecutionProviderOverride loadOpenTtsExecutionProviderOverrideFromName(
+  String? value,
+) {
+  return OpenTtsExecutionProviderOverride.values.firstWhere(
+    (candidate) => candidate.name == value,
+    orElse: () => OpenTtsExecutionProviderOverride.auto,
+  );
+}
+
 @visibleForTesting
-List<OrtProvider> bundledKokoroProvidersForPlatform(String operatingSystem) {
+List<OrtProvider> bundledKokoroProvidersForPlatform(
+  String operatingSystem, {
+  OpenTtsExecutionProviderOverride providerOverride =
+      OpenTtsExecutionProviderOverride.auto,
+}) {
+  if (providerOverride != OpenTtsExecutionProviderOverride.auto) {
+    if (providerOverride == OpenTtsExecutionProviderOverride.cpu) {
+      return const <OrtProvider>[OrtProvider.CPU];
+    }
+    if (providerOverride == OpenTtsExecutionProviderOverride.coreMl &&
+        (operatingSystem == 'ios' || operatingSystem == 'macos')) {
+      return const <OrtProvider>[OrtProvider.CORE_ML, OrtProvider.CPU];
+    }
+    if (providerOverride == OpenTtsExecutionProviderOverride.qnn &&
+        operatingSystem == 'android') {
+      return const <OrtProvider>[OrtProvider.QNN, OrtProvider.CPU];
+    }
+    if (providerOverride == OpenTtsExecutionProviderOverride.nnapi &&
+        operatingSystem == 'android') {
+      return const <OrtProvider>[OrtProvider.NNAPI, OrtProvider.CPU];
+    }
+    if (providerOverride == OpenTtsExecutionProviderOverride.xnnpack &&
+        operatingSystem == 'android') {
+      return const <OrtProvider>[OrtProvider.XNNPACK, OrtProvider.CPU];
+    }
+    if (providerOverride == OpenTtsExecutionProviderOverride.directMl &&
+        operatingSystem == 'windows') {
+      return const <OrtProvider>[OrtProvider.DIRECT_ML, OrtProvider.CPU];
+    }
+  }
+
   switch (operatingSystem) {
     case 'ios':
     case 'macos':
@@ -41,7 +144,11 @@ List<OrtProvider> bundledKokoroProvidersForPlatform(String operatingSystem) {
 }
 
 @visibleForTesting
-KokoroOnnxConfig buildBundledKokoroOnnxConfig({String? operatingSystem}) {
+KokoroOnnxConfig buildBundledKokoroOnnxConfig({
+  String? operatingSystem,
+  OpenTtsExecutionProviderOverride providerOverride =
+      OpenTtsExecutionProviderOverride.auto,
+}) {
   final String os = operatingSystem ?? Platform.operatingSystem;
   return KokoroOnnxConfig(
     modelPath: kokoroModelAssetPath,
@@ -49,12 +156,17 @@ KokoroOnnxConfig buildBundledKokoroOnnxConfig({String? operatingSystem}) {
     vocabPath: kokoroVocabAssetPath,
     lexiconPath: kokoroLexiconAssetPath,
     baseDir: _desktopFlutterAssetsBaseDir(),
-    providers: bundledKokoroProvidersForPlatform(os),
+    providers: bundledKokoroProvidersForPlatform(
+      os,
+      providerOverride: providerOverride,
+    ),
   );
 }
 
 Future<OpenTtsFactory?> buildBundledKokoroOnnxFactory({
   AssetBundle? bundle,
+  OpenTtsExecutionProviderOverride Function()? providerOverrideResolver,
+  String? operatingSystem,
 }) async {
   final assetBundle = bundle ?? rootBundle;
   if (kIsWeb) {
@@ -65,10 +177,15 @@ Future<OpenTtsFactory?> buildBundledKokoroOnnxFactory({
     return null;
   }
 
-  final config = buildBundledKokoroOnnxConfig();
-
   return (renderer) async => OpenTts(
-    engine: KokoroOnnx(config: config),
+    engine: KokoroOnnx(
+      config: buildBundledKokoroOnnxConfig(
+        operatingSystem: operatingSystem,
+        providerOverride:
+            providerOverrideResolver?.call() ??
+            OpenTtsExecutionProviderOverride.auto,
+      ),
+    ),
     renderer: renderer,
     useStreamingForSpeak: false,
   );

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kokoro_flutter/kokoro_flutter.dart';
 
 import 'package:audiobookify/models/player_settings.dart';
+import 'package:audiobookify/services/bundled_kokoro_onnx.dart';
 import 'package:audiobookify/services/open_tts_backend.dart';
 import 'package:audiobookify/services/speech_backend.dart';
 import 'package:audiobookify/services/tts_service.dart';
@@ -154,6 +155,30 @@ void main() {
 
     expect(backend.clearPrefetchCalls, greaterThan(0));
   });
+
+  test('TtsService refreshes OpenTts engine when provider override changes',
+      () async {
+    final backend = _RecordingOpenTtsBackend(
+      createOpenTts: (renderer) async => OpenTts(
+        engine: _TestKokoroEngine(),
+        renderer: renderer,
+        useStreamingForSpeak: false,
+      ),
+      renderer: _TestOpenTtsRenderer(),
+    );
+    final service = TtsService(
+      backends: [_FakeSpeechBackend(SpeechBackendKind.system), backend],
+      initialSettings: const PlayerSettings(backend: SpeechBackendKind.openTts),
+    );
+    addTearDown(service.dispose);
+
+    await service.refreshOpenTtsExecutionProviderOverride(
+      previous: OpenTtsExecutionProviderOverride.auto,
+      next: OpenTtsExecutionProviderOverride.cpu,
+    );
+
+    expect(backend.invalidateEngineCalls, 1);
+  });
 }
 
 class _FakeSpeechBackend implements SpeechBackend {
@@ -255,6 +280,7 @@ class _RecordingOpenTtsBackend extends OpenTtsBackend {
 
   final List<String> prefetchedTexts = <String>[];
   int clearPrefetchCalls = 0;
+  int invalidateEngineCalls = 0;
 
   @override
   Future<void> prefetch(String text) {
@@ -266,6 +292,12 @@ class _RecordingOpenTtsBackend extends OpenTtsBackend {
   void clearPrefetch() {
     clearPrefetchCalls += 1;
     super.clearPrefetch();
+  }
+
+  @override
+  Future<void> invalidateEngine({String? reason}) {
+    invalidateEngineCalls += 1;
+    return super.invalidateEngine(reason: reason);
   }
 }
 

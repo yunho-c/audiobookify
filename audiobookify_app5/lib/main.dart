@@ -89,7 +89,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
     await _maybeRequestAndroidNotificationPermission(prefs);
 
     // Initialize audio handler + TTS service for background controls.
-    final openTtsFactory = await _buildOpenTtsFactory();
+    final openTtsFactory = await _buildOpenTtsFactory(prefs);
     final initialPlayerSettings = loadPlayerSettingsFromPrefs(
       prefs,
       preferOpenTts: openTtsFactory != null,
@@ -133,8 +133,11 @@ Future<void> _startApp(SharedPreferences prefs) async {
   }
 }
 
-Future<OpenTtsFactory?> _buildOpenTtsFactory() {
-  return buildBundledKokoroOnnxFactory();
+Future<OpenTtsFactory?> _buildOpenTtsFactory(SharedPreferences prefs) {
+  return buildBundledKokoroOnnxFactory(
+    providerOverrideResolver: () =>
+        loadOpenTtsExecutionProviderOverrideFromPrefs(prefs),
+  );
 }
 
 Future<void> _maybeRequestAndroidNotificationPermission(
@@ -219,6 +222,7 @@ class AudiobookifyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(ttsSettingsSyncProvider);
     ref.watch(ttsDebugLoggingSyncProvider);
+    ref.watch(openTtsExecutionProviderOverrideSyncProvider);
     ref.watch(crashReportingSyncProvider);
     final themePreference = ref.watch(themePreferenceProvider);
     return MaterialApp.router(

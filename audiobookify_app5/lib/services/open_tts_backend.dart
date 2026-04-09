@@ -39,6 +39,7 @@ class OpenTtsBackend implements SpeechBackend {
   _PrefetchKey? _scheduledPrefetchKey;
   int _prefetchToken = 0;
   int _requestCounter = 0;
+  int _initializeToken = 0;
   bool _speakInProgress = false;
 
   @override
@@ -64,7 +65,8 @@ class OpenTtsBackend implements SpeechBackend {
     if (inFlight != null) {
       return inFlight;
     }
-    final future = _initializeImpl();
+    final int token = _initializeToken;
+    final future = _initializeImpl(token);
     _initializeFuture = future;
     try {
       await future;
@@ -75,12 +77,20 @@ class OpenTtsBackend implements SpeechBackend {
     }
   }
 
-  Future<void> _initializeImpl() async {
+  Future<void> _initializeImpl(int token) async {
     logTtsDebug('Initializing OpenTTS backend', category: 'tts.open_tts');
     final openTts = await _createOpenTts(_renderer);
     try {
       await openTts.awaitSpeakCompletion(true);
       await openTts.init(warmup: false);
+      if (token != _initializeToken) {
+        logTtsDebug(
+          'Discarding stale OpenTTS initialization token=$token',
+          category: 'tts.open_tts',
+        );
+        openTts.dispose();
+        return;
+      }
       _eventSubscription = openTts.events.listen(_handleEvent);
       _openTts = openTts;
       _initialized = true;
@@ -266,6 +276,25 @@ class OpenTtsBackend implements SpeechBackend {
       await renderer.dispose();
     }
     await _events.close();
+  }
+
+  Future<void> invalidateEngine({String? reason}) async {
+    final bool hadEngine = _initialized || _openTts != null;
+    _initializeToken += 1;
+    _initialized = false;
+    _initializeFuture = null;
+    clearPrefetch();
+    await _eventSubscription?.cancel();
+    _eventSubscription = null;
+    final openTts = _openTts;
+    _openTts = null;
+    openTts?.dispose();
+    if (hadEngine) {
+      logTtsDebug(
+        'OpenTTS engine invalidated${reason == null ? "" : " reason=$reason"}',
+        category: 'tts.open_tts',
+      );
+    }
   }
 
   void _handleEvent(TtsEvent event) {

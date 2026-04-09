@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify/core/app_theme.dart';
 import 'package:audiobookify/core/providers.dart';
 import 'package:audiobookify/models/player_settings.dart';
+import 'package:audiobookify/services/bundled_kokoro_onnx.dart';
 import 'package:audiobookify/services/system_flutter_tts_backend.dart';
 
 void main() {
@@ -146,6 +147,31 @@ void main() {
 
     expect(container.read(ttsDebugLoggingProvider), isTrue);
     expect(prefs.getBool('tts_debug_logging_enabled'), isTrue);
+  });
+
+  test('OpenTtsExecutionProviderOverrideNotifier defaults to auto and persists',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    expect(
+      container.read(openTtsExecutionProviderOverrideProvider),
+      OpenTtsExecutionProviderOverride.auto,
+    );
+
+    await container
+        .read(openTtsExecutionProviderOverrideProvider.notifier)
+        .setOverride(OpenTtsExecutionProviderOverride.cpu);
+
+    expect(
+      container.read(openTtsExecutionProviderOverrideProvider),
+      OpenTtsExecutionProviderOverride.cpu,
+    );
+    expect(prefs.getString('open_tts_execution_provider_override'), 'cpu');
   });
 }
 

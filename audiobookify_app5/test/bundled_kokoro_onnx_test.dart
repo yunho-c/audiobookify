@@ -65,6 +65,46 @@ void main() {
 
     expect(config.providers, const <OrtProvider>[OrtProvider.CPU]);
   });
+
+  test('bundled Kokoro config uses CPU only when override requests CPU', () {
+    final config = buildBundledKokoroOnnxConfig(
+      operatingSystem: 'macos',
+      providerOverride: OpenTtsExecutionProviderOverride.cpu,
+    );
+
+    expect(config.providers, const <OrtProvider>[OrtProvider.CPU]);
+  });
+
+  test('bundled Kokoro config uses NNAPI when Android override requests it', () {
+    final config = buildBundledKokoroOnnxConfig(
+      operatingSystem: 'android',
+      providerOverride: OpenTtsExecutionProviderOverride.nnapi,
+    );
+
+    expect(config.providers, const <OrtProvider>[
+      OrtProvider.NNAPI,
+      OrtProvider.CPU,
+    ]);
+  });
+
+  test('bundled Kokoro provider override options are platform specific', () {
+    expect(
+      bundledKokoroProviderOverridesForPlatform('macos'),
+      const <OpenTtsExecutionProviderOverride>[
+        OpenTtsExecutionProviderOverride.auto,
+        OpenTtsExecutionProviderOverride.coreMl,
+        OpenTtsExecutionProviderOverride.cpu,
+      ],
+    );
+    expect(
+      bundledKokoroProviderOverridesForPlatform('windows'),
+      const <OpenTtsExecutionProviderOverride>[
+        OpenTtsExecutionProviderOverride.auto,
+        OpenTtsExecutionProviderOverride.directMl,
+        OpenTtsExecutionProviderOverride.cpu,
+      ],
+    );
+  });
 }
 
 class _FakeAssetBundle extends CachingAssetBundle {

@@ -4,6 +4,7 @@ import 'package:state_notifier/state_notifier.dart';
 
 import '../core/error_reporter.dart';
 import '../models/player_settings.dart';
+import 'bundled_kokoro_onnx.dart';
 import 'open_tts_backend.dart';
 import 'speech_backend.dart';
 import 'system_flutter_tts_backend.dart';
@@ -220,6 +221,53 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     }
 
     if (wasPlaying && !_isDisposed) {
+      state = state.copyWith(status: TtsStatus.playing);
+      await _beginPlaybackLoop();
+    }
+  }
+
+  Future<void> refreshOpenTtsExecutionProviderOverride({
+    required OpenTtsExecutionProviderOverride previous,
+    required OpenTtsExecutionProviderOverride next,
+  }) async {
+    logTtsDebug(
+      'Refreshing OpenTTS execution provider override previous=${previous.name} next=${next.name}',
+      category: 'tts.service',
+    );
+
+    _clearOpenTtsPrefetch();
+    final bool shouldRestartPlayback =
+        state.status == TtsStatus.playing &&
+        _settings.backend == SpeechBackendKind.openTts;
+
+    if (shouldRestartPlayback) {
+      _playbackGeneration += 1;
+      await _stopCurrentBackend();
+    }
+
+    await _invalidateOpenTtsBackends(
+      reason: 'provider override ${previous.name} -> ${next.name}',
+    );
+
+    if (_settings.backend != SpeechBackendKind.openTts || _isDisposed) {
+      return;
+    }
+
+    try {
+      await _configureActiveBackend(_settings);
+    } catch (error, stackTrace) {
+      _handleBackendFailure(
+        error,
+        stackTrace,
+        context: 'refreshOpenTtsExecutionProviderOverride',
+      );
+      if (shouldRestartPlayback && !_isDisposed) {
+        state = state.copyWith(status: TtsStatus.stopped);
+      }
+      return;
+    }
+
+    if (shouldRestartPlayback && !_isDisposed) {
       state = state.copyWith(status: TtsStatus.playing);
       await _beginPlaybackLoop();
     }
@@ -461,6 +509,14 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     for (final backend in _backends.values) {
       if (backend case final OpenTtsBackend openTtsBackend) {
         openTtsBackend.clearPrefetch();
+      }
+    }
+  }
+
+  Future<void> _invalidateOpenTtsBackends({required String reason}) async {
+    for (final backend in _backends.values) {
+      if (backend case final OpenTtsBackend openTtsBackend) {
+        await openTtsBackend.invalidateEngine(reason: reason);
       }
     }
   }

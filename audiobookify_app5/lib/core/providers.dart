@@ -24,6 +24,7 @@ import '../models/player_theme_settings.dart';
 import '../models/public_book.dart';
 import 'app_theme.dart';
 import 'error_reporter.dart';
+import '../services/bundled_kokoro_onnx.dart';
 
 const String _playerSpeedKey = 'player_speed';
 const String _playerPitchKey = 'player_pitch';
@@ -31,6 +32,8 @@ const String _playerBackendKey = 'player_backend';
 const String _playerVoiceIdKey = 'player_voice_id';
 const String _playerVoiceNameKey = 'player_voice_name';
 const String _playerVoiceLocaleKey = 'player_voice_locale';
+const String _openTtsExecutionProviderOverrideKey =
+    'open_tts_execution_provider_override';
 
 PlayerSettings loadPlayerSettingsFromPrefs(
   SharedPreferences prefs, {
@@ -69,6 +72,14 @@ PlayerSettings loadPlayerSettingsFromPrefs(
     pitch: prefs.getDouble(_playerPitchKey) ?? 1.0,
     backend: backend,
     voiceId: migratedVoiceId,
+  );
+}
+
+OpenTtsExecutionProviderOverride loadOpenTtsExecutionProviderOverrideFromPrefs(
+  SharedPreferences prefs,
+) {
+  return loadOpenTtsExecutionProviderOverrideFromName(
+    prefs.getString(_openTtsExecutionProviderOverrideKey),
   );
 }
 
@@ -635,6 +646,44 @@ final ttsDebugLoggingSyncProvider = Provider<void>((ref) {
   ref.listen<bool>(ttsDebugLoggingProvider, (previous, next) {
     setTtsDebugLogsEnabled(next);
   });
+});
+
+class OpenTtsExecutionProviderOverrideNotifier
+    extends Notifier<OpenTtsExecutionProviderOverride> {
+  @override
+  OpenTtsExecutionProviderOverride build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    return loadOpenTtsExecutionProviderOverrideFromPrefs(prefs);
+  }
+
+  Future<void> setOverride(OpenTtsExecutionProviderOverride override) async {
+    state = override;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString(_openTtsExecutionProviderOverrideKey, override.name);
+  }
+}
+
+final openTtsExecutionProviderOverrideProvider = NotifierProvider<
+  OpenTtsExecutionProviderOverrideNotifier,
+  OpenTtsExecutionProviderOverride
+>(OpenTtsExecutionProviderOverrideNotifier.new);
+
+final openTtsExecutionProviderOverrideSyncProvider = Provider<void>((ref) {
+  final tts = ref.read(ttsProvider.notifier);
+  ref.listen<OpenTtsExecutionProviderOverride>(
+    openTtsExecutionProviderOverrideProvider,
+    (previous, next) {
+      if (previous == null || previous == next) {
+        return;
+      }
+      unawaited(
+        tts.refreshOpenTtsExecutionProviderOverride(
+          previous: previous,
+          next: next,
+        ),
+      );
+    },
+  );
 });
 
 // ========================================

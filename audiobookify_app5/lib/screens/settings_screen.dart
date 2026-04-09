@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_theme.dart';
 import '../core/providers.dart';
+import '../services/bundled_kokoro_onnx.dart';
 import '../widgets/shared/pressable.dart';
 
 /// Settings screen with profile card and menu items
@@ -382,6 +383,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   Future<void> _confirmClearAppData(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -407,7 +409,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     if (confirm != true || !mounted) return;
     if (_isClearingAppData) return;
     setState(() => _isClearingAppData = true);
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final service = ref.read(bookServiceProvider);
       final books = service.getAllBooks();
@@ -452,6 +453,73 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
+  Future<void> _showOpenTtsExecutionProviderSelector(
+    BuildContext context,
+  ) async {
+    final String operatingSystem = Platform.operatingSystem;
+    final options = bundledKokoroProviderOverridesForPlatform(operatingSystem);
+    if (options.length <= 1) {
+      return;
+    }
+    final current = ref.read(openTtsExecutionProviderOverrideProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SingleChildScrollView(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'OpenTTS Execution Provider',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Choose the ONNX provider used by bundled Kokoro.',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                for (final option in options)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      bundledKokoroProviderOverrideLabel(
+                        option,
+                        operatingSystem,
+                      ),
+                    ),
+                    trailing: option == current
+                        ? Icon(LucideIcons.check, color: colorScheme.primary)
+                        : null,
+                    onTap: () {
+                      ref
+                          .read(
+                            openTtsExecutionProviderOverrideProvider.notifier,
+                          )
+                          .setOverride(option);
+                      Navigator.of(sheetContext).pop();
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -462,6 +530,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final ttsDebugLoggingEnabled = ref.watch(ttsDebugLoggingProvider);
     final crashReportingEnabled = ref.watch(crashReportingProvider);
     final labsEnabled = ref.watch(labsModeProvider);
+    final openTtsFactoryAvailable = ref.watch(openTtsFactoryProvider) != null;
+    final operatingSystem = Platform.operatingSystem;
+    final openTtsExecutionProviderOverride = ref.watch(
+      openTtsExecutionProviderOverrideProvider,
+    );
+    final openTtsExecutionProviderOptions =
+        bundledKokoroProviderOverridesForPlatform(operatingSystem);
+    final showOpenTtsExecutionProviderSelector =
+        openTtsFactoryAvailable && openTtsExecutionProviderOptions.length > 1;
+    final openTtsExecutionProviderLabel = bundledKokoroProviderOverrideLabel(
+      openTtsExecutionProviderOverride,
+      operatingSystem,
+    );
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
@@ -924,6 +1005,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
+                    if (showOpenTtsExecutionProviderSelector) ...[
+                      _InfoRow(
+                        icon: LucideIcons.cpu,
+                        title: 'OpenTTS Execution Provider',
+                        subtitle: 'Current: $openTtsExecutionProviderLabel',
+                        trailingLabel: 'Select',
+                        showDivider: true,
+                        onTap: () =>
+                            _showOpenTtsExecutionProviderSelector(context),
+                      ),
+                    ],
                     _SettingsToggleRow(
                       icon: LucideIcons.flaskConical,
                       title: 'Labs',
