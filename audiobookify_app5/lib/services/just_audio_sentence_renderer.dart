@@ -4,19 +4,21 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:just_audio/just_audio.dart';
-import 'package:kokoro_flutter/kokoro_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'open_tts_renderer_support.dart';
 import 'tts_debug_logging.dart';
 
-class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
+class JustAudioSentenceRenderer implements ManagedOpenTtsAudioRenderer {
   JustAudioSentenceRenderer({AudioPlayer? player, Directory? tempDirectory})
     : _player = player ?? AudioPlayer(),
       _tempDirectory = tempDirectory;
 
   final AudioPlayer _player;
   final Directory? _tempDirectory;
+  @override
   void Function(String requestId)? onPlaybackStart;
+  @override
   void Function(String requestId)? onPlaybackComplete;
 
   File? _currentFile;
@@ -102,6 +104,7 @@ class JustAudioSentenceRenderer implements OpenTtsAudioRenderer {
     await _player.play();
   }
 
+  @override
   Future<void> dispose() async {
     await stop();
     await _player.dispose();

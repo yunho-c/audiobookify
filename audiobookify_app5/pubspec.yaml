@@ -56,6 +56,7 @@ dependencies:
   audio_service: ^0.18.12
   audio_session: ^0.2.2
   just_audio: ^0.10.5
+  flutter_soloud: ^3.4.9
   permission_handler: ^12.0.1
   url_launcher: ^6.2.6
   package_info_plus: ^8.0.3

@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:kokoro_flutter/kokoro_flutter.dart';
 
 import '../models/player_settings.dart';
-import 'just_audio_sentence_renderer.dart';
+import 'open_tts_renderer_support.dart';
+import 'soloud_sentence_renderer.dart';
 import 'speech_backend.dart';
 import 'tts_debug_logging.dart';
 
@@ -15,8 +16,8 @@ class OpenTtsBackend implements SpeechBackend {
     required OpenTtsFactory createOpenTts,
     OpenTtsAudioRenderer? renderer,
   }) : _createOpenTts = createOpenTts,
-       _renderer = renderer ?? JustAudioSentenceRenderer() {
-    if (_renderer case final JustAudioSentenceRenderer renderer) {
+       _renderer = renderer ?? SoLoudSentenceRenderer() {
+    if (_renderer case final ManagedOpenTtsAudioRenderer renderer) {
       renderer.onPlaybackStart = _handlePlaybackStarted;
     }
   }
@@ -222,7 +223,7 @@ class OpenTtsBackend implements SpeechBackend {
     );
 
     final bool supportsDeferredPrefetch =
-        _renderer is JustAudioSentenceRenderer;
+        _renderer is ManagedOpenTtsAudioRenderer;
     if (!_speakInProgress || !supportsDeferredPrefetch) {
       unawaited(_startScheduledPrefetchIfAny());
     }
@@ -261,7 +262,7 @@ class OpenTtsBackend implements SpeechBackend {
     await _eventSubscription?.cancel();
     _eventSubscription = null;
     _openTts?.dispose();
-    if (_renderer case final JustAudioSentenceRenderer renderer) {
+    if (_renderer case final ManagedOpenTtsAudioRenderer renderer) {
       await renderer.dispose();
     }
     await _events.close();

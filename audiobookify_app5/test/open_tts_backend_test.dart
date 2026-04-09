@@ -6,6 +6,7 @@ import 'package:kokoro_flutter/kokoro_flutter.dart';
 
 import 'package:audiobookify/models/player_settings.dart';
 import 'package:audiobookify/services/open_tts_backend.dart';
+import 'package:audiobookify/services/soloud_sentence_renderer.dart';
 
 void main() {
   test(
@@ -42,6 +43,26 @@ void main() {
       expect(backend.capabilities.supportsPitch, isFalse);
     },
   );
+
+  test('OpenTtsBackend uses the SoLoud renderer by default', () async {
+    final engine = _FakeKokoroEngine();
+    late OpenTtsAudioRenderer receivedRenderer;
+    final backend = OpenTtsBackend(
+      createOpenTts: (renderer) async {
+        receivedRenderer = renderer;
+        return OpenTts(
+          engine: engine,
+          renderer: renderer,
+          useStreamingForSpeak: false,
+        );
+      },
+    );
+    addTearDown(backend.dispose);
+
+    await backend.initialize();
+
+    expect(receivedRenderer, isA<SoLoudSentenceRenderer>());
+  });
 
   test('OpenTtsBackend shares concurrent initialize work', () async {
     final engine = _FakeKokoroEngine(initializeCompleter: Completer<void>());

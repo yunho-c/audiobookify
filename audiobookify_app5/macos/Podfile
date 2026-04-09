@@ -33,7 +33,7 @@ pre_install do |installer|
   ) {}
 
   installer.pod_targets.each do |pod|
-    next unless pod.name == 'rust_lib_audiobookify_app5'
+    next unless ['rust_lib_audiobookify_app5', 'flutter_soloud'].include?(pod.name)
 
     def pod.build_type
       Pod::BuildType.dynamic_framework
