@@ -247,7 +247,15 @@ class ReaderBlockRenderer {
                     );
                     return Padding(
                       padding: const EdgeInsets.all(8),
-                      child: RichText(text: TextSpan(children: spans)),
+                      child: Builder(
+                        builder: (context) => _buildSelectableRichText(
+                          context: context,
+                          text: TextSpan(children: spans),
+                          textAlign: TextAlign.start,
+                          fallbackSelectionColor: theme.colorScheme.primary
+                              .withOpacity(0.24),
+                        ),
+                      ),
                     );
                   }).toList(),
                 ),
@@ -335,9 +343,13 @@ class ReaderBlockRenderer {
     final listMarker = style.listMarker;
     final textAlign = _toTextAlign(alignment);
 
-    Widget textContent = RichText(
-      text: TextSpan(children: spans),
-      textAlign: textAlign,
+    Widget textContent = Builder(
+      builder: (context) => _buildSelectableRichText(
+        context: context,
+        text: TextSpan(children: spans),
+        textAlign: textAlign,
+        fallbackSelectionColor: theme.colorScheme.primary.withOpacity(0.24),
+      ),
     );
 
     if (listMarker != null) {
@@ -425,6 +437,21 @@ class ReaderBlockRenderer {
           ),
         ),
       ),
+    );
+  }
+
+  static Widget _buildSelectableRichText({
+    required BuildContext context,
+    required InlineSpan text,
+    required TextAlign textAlign,
+    required Color fallbackSelectionColor,
+  }) {
+    final selectionStyle = DefaultSelectionStyle.of(context);
+    return RichText(
+      text: text,
+      textAlign: textAlign,
+      selectionRegistrar: SelectionContainer.maybeOf(context),
+      selectionColor: selectionStyle.selectionColor ?? fallbackSelectionColor,
     );
   }
 

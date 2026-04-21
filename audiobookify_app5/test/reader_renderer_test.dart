@@ -52,6 +52,50 @@ void main() {
     );
   });
 
+  testWidgets(
+    'registers rich text with selection system inside SelectionArea',
+    (tester) async {
+      final renderBlock = ReaderRenderBlock(
+        block: ParagraphBlock([const TextInline('Selectable sentence.')]),
+        style: const RenderBlockStyle(),
+        ttsIndex: 0,
+      );
+      final ttsData = ReaderTtsParagraph(
+        plainText: 'Selectable sentence.',
+        sentences: const ['Selectable sentence.'],
+        sentenceRuns: const [
+          [TextRun('Selectable sentence.', TextRunStyle())],
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SelectionArea(
+              child: ReaderBlockRenderer.buildBlock(
+                renderBlock: renderBlock,
+                theme: _theme(),
+                resolver: EpubResourceResolver.fromMemory(const {}),
+                isActiveParagraph: false,
+                activeSentenceIndex: -1,
+                previousSentenceIndex: -1,
+                transitionValue: 0.0,
+                sentenceRecognizer: null,
+                linkRecognizer: null,
+                onTapParagraph: null,
+                ttsData: ttsData,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final richText = tester.widget<RichText>(find.byType(RichText).first);
+      expect(richText.selectionRegistrar, isNotNull);
+      expect(richText.selectionColor, isNotNull);
+    },
+  );
+
   testWidgets('renders centered paragraphs with centered RichText', (
     tester,
   ) async {
@@ -418,22 +462,24 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ReaderBlockRenderer.buildBlock(
-            renderBlock: renderBlock,
-            theme: _theme(),
-            resolver: resolver,
-            isActiveParagraph: false,
-            activeSentenceIndex: -1,
-            previousSentenceIndex: -1,
-            transitionValue: 0.0,
-            sentenceRecognizer: null,
-            linkRecognizer: (target) {
-              expect(target.href, 'chapter2.xhtml#frag');
-              final recognizer = TapGestureRecognizer();
-              recognizers.add(recognizer);
-              return recognizer;
-            },
-            onTapParagraph: null,
+          body: SelectionArea(
+            child: ReaderBlockRenderer.buildBlock(
+              renderBlock: renderBlock,
+              theme: _theme(),
+              resolver: resolver,
+              isActiveParagraph: false,
+              activeSentenceIndex: -1,
+              previousSentenceIndex: -1,
+              transitionValue: 0.0,
+              sentenceRecognizer: null,
+              linkRecognizer: (target) {
+                expect(target.href, 'chapter2.xhtml#frag');
+                final recognizer = TapGestureRecognizer();
+                recognizers.add(recognizer);
+                return recognizer;
+              },
+              onTapParagraph: null,
+            ),
           ),
         ),
       ),
@@ -442,6 +488,8 @@ void main() {
     await tester.pumpAndSettle();
     final linkFinder = find.textContaining('Next', findRichText: true);
     expect(linkFinder, findsOneWidget);
+    final richText = tester.widget<RichText>(find.byType(RichText).first);
+    expect(richText.selectionRegistrar, isNotNull);
     expect(find.byType(Image), findsOneWidget);
     final image = tester.widget<Image>(find.byType(Image));
     expect(image.height, closeTo(36, 0.1));
