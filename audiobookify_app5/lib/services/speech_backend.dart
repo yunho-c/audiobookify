@@ -64,3 +64,9 @@ abstract class SpeechBackend {
 
   Future<void> stop();
 }
+
+abstract interface class SentencePrefetchingSpeechBackend {
+  Future<void> prefetch(String text);
+
+  void clearPrefetch();
+}

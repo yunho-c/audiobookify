@@ -11,7 +11,8 @@ import 'tts_debug_logging.dart';
 typedef OpenTtsFactory =
     Future<OpenTts> Function(OpenTtsAudioRenderer renderer);
 
-class OpenTtsBackend implements SpeechBackend {
+class OpenTtsBackend
+    implements SpeechBackend, SentencePrefetchingSpeechBackend {
   OpenTtsBackend({
     required OpenTtsFactory createOpenTts,
     OpenTtsAudioRenderer? renderer,
@@ -208,6 +209,7 @@ class OpenTtsBackend implements SpeechBackend {
     }
   }
 
+  @override
   Future<void> prefetch(String text) async {
     await initialize();
     final _PrefetchKey key = _prefetchKeyFor(text);
@@ -239,6 +241,7 @@ class OpenTtsBackend implements SpeechBackend {
     }
   }
 
+  @override
   void clearPrefetch() {
     final bool hadPrefetch =
         _scheduledPrefetchKey != null ||

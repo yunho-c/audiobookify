@@ -6,6 +6,7 @@ import 'package:audiobookify/core/app_theme.dart';
 import 'package:audiobookify/core/providers.dart';
 import 'package:audiobookify/models/player_settings.dart';
 import 'package:audiobookify/services/bundled_kokoro_onnx.dart';
+import 'package:audiobookify/services/speech_backend.dart';
 import 'package:audiobookify/services/system_flutter_tts_backend.dart';
 
 void main() {
@@ -117,6 +118,46 @@ void main() {
     },
   );
 
+  test('PlayerSettingsNotifier persists and reloads CoreML backend', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(playerSettingsProvider.notifier);
+    notifier.setBackend(SpeechBackendKind.coreMlKokoro);
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    expect(
+      container.read(playerSettingsProvider).backend,
+      SpeechBackendKind.coreMlKokoro,
+    );
+    expect(prefs.getString('player_backend'), 'coreMlKokoro');
+
+    final reloaded = loadPlayerSettingsFromPrefs(prefs, preferOpenTts: true);
+    expect(reloaded.backend, SpeechBackendKind.coreMlKokoro);
+  });
+
+  test('speechBackendsProvider includes the injected CoreML backend', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        coreMlBackendProvider.overrideWithValue(_FakeRegisteredBackend()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final backends = container.read(speechBackendsProvider);
+    expect(
+      backends.map((backend) => backend.backendId),
+      contains(SpeechBackendKind.coreMlKokoro),
+    );
+  });
+
   test('CrashReportingNotifier defaults to opt-in and persists', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -149,32 +190,75 @@ void main() {
     expect(prefs.getBool('tts_debug_logging_enabled'), isTrue);
   });
 
-  test('OpenTtsExecutionProviderOverrideNotifier defaults to auto and persists',
-      () async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-    );
-    addTearDown(container.dispose);
+  test(
+    'OpenTtsExecutionProviderOverrideNotifier defaults to auto and persists',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
 
-    expect(
-      container.read(openTtsExecutionProviderOverrideProvider),
-      OpenTtsExecutionProviderOverride.auto,
-    );
+      expect(
+        container.read(openTtsExecutionProviderOverrideProvider),
+        OpenTtsExecutionProviderOverride.auto,
+      );
 
-    await container
-        .read(openTtsExecutionProviderOverrideProvider.notifier)
-        .setOverride(OpenTtsExecutionProviderOverride.cpu);
+      await container
+          .read(openTtsExecutionProviderOverrideProvider.notifier)
+          .setOverride(OpenTtsExecutionProviderOverride.cpu);
 
-    expect(
-      container.read(openTtsExecutionProviderOverrideProvider),
-      OpenTtsExecutionProviderOverride.cpu,
-    );
-    expect(prefs.getString('open_tts_execution_provider_override'), 'cpu');
-  });
+      expect(
+        container.read(openTtsExecutionProviderOverrideProvider),
+        OpenTtsExecutionProviderOverride.cpu,
+      );
+      expect(prefs.getString('open_tts_execution_provider_override'), 'cpu');
+    },
+  );
 }
 
 Future<Never> _fakeOpenTtsFactory(_) {
   throw UnimplementedError();
+}
+
+class _FakeRegisteredBackend implements SpeechBackend {
+  @override
+  SpeechBackendKind get backendId => SpeechBackendKind.coreMlKokoro;
+
+  @override
+  SpeechBackendCapabilities get capabilities => const SpeechBackendCapabilities(
+    supportsPitch: false,
+    supportsVoiceSelection: true,
+    supportsPause: true,
+  );
+
+  @override
+  String get displayName => 'Kokoro CoreML';
+
+  @override
+  Stream<SpeechBackendEvent> get events =>
+      const Stream<SpeechBackendEvent>.empty();
+
+  @override
+  Future<void> applySettings(PlayerSettings settings) async {}
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<List<SpeechVoiceOption>> listVoices() async =>
+      const <SpeechVoiceOption>[];
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> speak(String text) async {}
+
+  @override
+  Future<void> stop() async {}
 }

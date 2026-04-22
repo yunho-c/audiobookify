@@ -3,10 +3,13 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kokoro_flutter/kokoro_flutter.dart';
+import 'package:kokoro_flutter/src/coreml/platform_interface.dart';
 
 import 'package:audiobookify/models/player_settings.dart';
 import 'package:audiobookify/services/bundled_kokoro_onnx.dart';
+import 'package:audiobookify/services/kokoro_coreml_backend.dart';
 import 'package:audiobookify/services/open_tts_backend.dart';
+import 'package:audiobookify/services/open_tts_renderer_support.dart';
 import 'package:audiobookify/services/speech_backend.dart';
 import 'package:audiobookify/services/tts_service.dart';
 
@@ -93,6 +96,27 @@ void main() {
     expect(systemBackend.spokenTexts, ['Fallback sentence.']);
   });
 
+  test('TtsService exposes CoreML capabilities', () async {
+    final backend = _RecordingCoreMlBackend(
+      coreMl: KokoroCoreMl(platform: _TestCoreMlPlatform()),
+      renderer: _TestManagedRenderer(),
+    );
+    final service = TtsService(
+      backends: [_FakeSpeechBackend(SpeechBackendKind.system), backend],
+      initialSettings: const PlayerSettings(
+        backend: SpeechBackendKind.coreMlKokoro,
+      ),
+    );
+    addTearDown(service.dispose);
+
+    final capabilities = service.capabilitiesFor(
+      SpeechBackendKind.coreMlKokoro,
+    );
+    expect(capabilities.supportsPitch, isFalse);
+    expect(capabilities.supportsVoiceSelection, isTrue);
+    expect(capabilities.supportsPause, isTrue);
+  });
+
   test(
     'TtsService requests next-sentence prefetch on OpenTts backend',
     () async {
@@ -156,29 +180,65 @@ void main() {
     expect(backend.clearPrefetchCalls, greaterThan(0));
   });
 
-  test('TtsService refreshes OpenTts engine when provider override changes',
-      () async {
-    final backend = _RecordingOpenTtsBackend(
-      createOpenTts: (renderer) async => OpenTts(
-        engine: _TestKokoroEngine(),
-        renderer: renderer,
-        useStreamingForSpeak: false,
-      ),
-      renderer: _TestOpenTtsRenderer(),
-    );
-    final service = TtsService(
-      backends: [_FakeSpeechBackend(SpeechBackendKind.system), backend],
-      initialSettings: const PlayerSettings(backend: SpeechBackendKind.openTts),
-    );
-    addTearDown(service.dispose);
+  test(
+    'TtsService can play, stop, and prefetch with a CoreML backend',
+    () async {
+      final backend = _RecordingCoreMlBackend(
+        coreMl: KokoroCoreMl(platform: _TestCoreMlPlatform()),
+        renderer: _TestManagedRenderer(),
+      );
+      final service = TtsService(
+        backends: [_FakeSpeechBackend(SpeechBackendKind.system), backend],
+        initialSettings: const PlayerSettings(
+          backend: SpeechBackendKind.coreMlKokoro,
+        ),
+      );
+      addTearDown(service.dispose);
 
-    await service.refreshOpenTtsExecutionProviderOverride(
-      previous: OpenTtsExecutionProviderOverride.auto,
-      next: OpenTtsExecutionProviderOverride.cpu,
-    );
+      service.loadContent(
+        const ['Paragraph'],
+        sentences: const [
+          ['First sentence.', 'Second sentence.'],
+        ],
+      );
 
-    expect(backend.invalidateEngineCalls, 1);
-  });
+      await service.play();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await service.stop();
+
+      expect(backend.prefetchedTexts, contains('Second sentence.'));
+      expect(backend.clearPrefetchCalls, greaterThan(0));
+      expect(service.state.status, TtsStatus.stopped);
+    },
+  );
+
+  test(
+    'TtsService refreshes OpenTts engine when provider override changes',
+    () async {
+      final backend = _RecordingOpenTtsBackend(
+        createOpenTts: (renderer) async => OpenTts(
+          engine: _TestKokoroEngine(),
+          renderer: renderer,
+          useStreamingForSpeak: false,
+        ),
+        renderer: _TestOpenTtsRenderer(),
+      );
+      final service = TtsService(
+        backends: [_FakeSpeechBackend(SpeechBackendKind.system), backend],
+        initialSettings: const PlayerSettings(
+          backend: SpeechBackendKind.openTts,
+        ),
+      );
+      addTearDown(service.dispose);
+
+      await service.refreshOpenTtsExecutionProviderOverride(
+        previous: OpenTtsExecutionProviderOverride.auto,
+        next: OpenTtsExecutionProviderOverride.cpu,
+      );
+
+      expect(backend.invalidateEngineCalls, 1);
+    },
+  );
 }
 
 class _FakeSpeechBackend implements SpeechBackend {
@@ -301,6 +361,25 @@ class _RecordingOpenTtsBackend extends OpenTtsBackend {
   }
 }
 
+class _RecordingCoreMlBackend extends KokoroCoreMlBackend {
+  _RecordingCoreMlBackend({required super.coreMl, required super.renderer});
+
+  final List<String> prefetchedTexts = <String>[];
+  int clearPrefetchCalls = 0;
+
+  @override
+  Future<void> prefetch(String text) {
+    prefetchedTexts.add(text);
+    return super.prefetch(text);
+  }
+
+  @override
+  void clearPrefetch() {
+    clearPrefetchCalls += 1;
+    super.clearPrefetch();
+  }
+}
+
 class _TestKokoroEngine implements KokoroEngine {
   @override
   Future<void> initialize() async {}
@@ -388,4 +467,69 @@ class _TestOpenTtsRenderer implements OpenTtsAudioRenderer {
 
   @override
   Future<void> resume() async {}
+}
+
+class _TestCoreMlPlatform extends KokoroCoreMlPlatform {
+  @override
+  Future<bool> isCoreMlAvailable() async => true;
+
+  @override
+  Future<void> initializeCoreMl({String? assetsRoot}) async {}
+
+  @override
+  Future<List<KokoroCoreMlVoice>> listCoreMlVoices() async {
+    return const <KokoroCoreMlVoice>[
+      KokoroCoreMlVoice(id: 'af_heart', name: 'Heart'),
+    ];
+  }
+
+  @override
+  Future<void> selectCoreMlVoice(String voiceId) async {}
+
+  @override
+  Future<KokoroCoreMlAudioResult> synthesizeCoreMl(
+    String text, {
+    String? voiceId,
+    double speed = 1.0,
+  }) async {
+    return KokoroCoreMlAudioResult(
+      audio: Float32List.fromList(const <double>[0.1, -0.1, 0.2]),
+      sampleRate: 24000,
+      voiceId: voiceId ?? 'af_heart',
+    );
+  }
+
+  @override
+  Future<void> warmupCoreMl() async {}
+}
+
+class _TestManagedRenderer implements ManagedOpenTtsAudioRenderer {
+  @override
+  void Function(String requestId)? onPlaybackComplete;
+
+  @override
+  void Function(String requestId)? onPlaybackStart;
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> play(
+    Float32List audio,
+    int sampleRate, {
+    required String requestId,
+  }) async {
+    onPlaybackStart?.call(requestId);
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    onPlaybackComplete?.call(requestId);
+  }
+
+  @override
+  Future<void> resume() async {}
+
+  @override
+  Future<void> stop({String? requestId}) async {}
 }

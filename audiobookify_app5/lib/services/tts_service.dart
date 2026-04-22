@@ -112,7 +112,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
   /// Load content for playback
   void loadContent(List<String> paragraphs, {List<List<String>>? sentences}) {
-    _clearOpenTtsPrefetch();
+    _clearSentencePrefetch();
     final sentencesPerParagraph =
         sentences != null && sentences.length == paragraphs.length
         ? sentences
@@ -142,7 +142,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
   Future<void> pause() async {
     logTtsDebug('Pause requested', category: 'tts.service');
     _playbackGeneration += 1;
-    _clearOpenTtsPrefetch();
+    _clearSentencePrefetch();
     state = state.copyWith(status: TtsStatus.paused);
     await _stopCurrentBackend();
   }
@@ -151,7 +151,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
   Future<void> stop() async {
     logTtsDebug('Stop requested', category: 'tts.service');
     _playbackGeneration += 1;
-    _clearOpenTtsPrefetch();
+    _clearSentencePrefetch();
     state = state.copyWith(status: TtsStatus.stopped);
     await _stopCurrentBackend();
   }
@@ -162,7 +162,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
     final wasPlaying = state.status == TtsStatus.playing;
     _playbackGeneration += 1;
-    _clearOpenTtsPrefetch();
+    _clearSentencePrefetch();
     await _stopCurrentBackend();
 
     state = state.copyWith(
@@ -182,7 +182,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
 
     final wasPlaying = state.status == TtsStatus.playing;
     _playbackGeneration += 1;
-    _clearOpenTtsPrefetch();
+    _clearSentencePrefetch();
     await _stopCurrentBackend();
 
     final sentences = state.sentencesPerParagraph[paragraphIndex];
@@ -207,7 +207,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
       category: 'tts.service',
     );
     _settings = settings;
-    _clearOpenTtsPrefetch();
+    _clearSentencePrefetch();
 
     if (wasPlaying) {
       _playbackGeneration += 1;
@@ -235,7 +235,7 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
       category: 'tts.service',
     );
 
-    _clearOpenTtsPrefetch();
+    _clearSentencePrefetch();
     final bool shouldRestartPlayback =
         state.status == TtsStatus.playing &&
         _settings.backend == SpeechBackendKind.openTts;
@@ -312,11 +312,11 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
         );
         final sentenceStopwatch = Stopwatch()..start();
         final Future<void> speakFuture = backend.speak(sentence);
-        if (backend case final OpenTtsBackend openTtsBackend) {
+        if (backend case final SentencePrefetchingSpeechBackend prefetching) {
           if (nextSentence != null) {
-            unawaited(openTtsBackend.prefetch(nextSentence));
+            unawaited(prefetching.prefetch(nextSentence));
           } else {
-            openTtsBackend.clearPrefetch();
+            prefetching.clearPrefetch();
           }
         }
         await speakFuture;
@@ -505,10 +505,10 @@ class TtsService extends StateNotifier<TtsPlaybackState> {
     reportError(error, stackTrace, context: 'tts:$context');
   }
 
-  void _clearOpenTtsPrefetch() {
+  void _clearSentencePrefetch() {
     for (final backend in _backends.values) {
-      if (backend case final OpenTtsBackend openTtsBackend) {
-        openTtsBackend.clearPrefetch();
+      if (backend case final SentencePrefetchingSpeechBackend prefetching) {
+        prefetching.clearPrefetch();
       }
     }
   }

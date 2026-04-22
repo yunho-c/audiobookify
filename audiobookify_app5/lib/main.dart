@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kokoro_flutter/kokoro_coreml.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +25,7 @@ import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/bundled_kokoro_onnx.dart';
+import 'services/kokoro_coreml_backend.dart';
 import 'services/open_tts_backend.dart';
 import 'services/system_flutter_tts_backend.dart';
 import 'services/tts_audio_handler.dart';
@@ -90,6 +92,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
 
     // Initialize audio handler + TTS service for background controls.
     final openTtsFactory = await _buildOpenTtsFactory(prefs);
+    final coreMlBackend = await _buildCoreMlBackend();
     final initialPlayerSettings = loadPlayerSettingsFromPrefs(
       prefs,
       preferOpenTts: openTtsFactory != null,
@@ -99,6 +102,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
         SystemFlutterTtsBackend(),
         if (openTtsFactory != null)
           OpenTtsBackend(createOpenTts: openTtsFactory),
+        if (coreMlBackend != null) coreMlBackend,
       ],
       initialSettings: initialPlayerSettings,
     );
@@ -119,6 +123,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
           storeProvider.overrideWithValue(store),
           sharedPreferencesProvider.overrideWithValue(prefs),
           openTtsFactoryProvider.overrideWithValue(openTtsFactory),
+          coreMlBackendProvider.overrideWithValue(coreMlBackend),
           ttsProvider.overrideWith((ref) => ttsService),
           audioHandlerProvider.overrideWithValue(audioHandler),
         ],
@@ -138,6 +143,17 @@ Future<OpenTtsFactory?> _buildOpenTtsFactory(SharedPreferences prefs) {
     providerOverrideResolver: () =>
         loadOpenTtsExecutionProviderOverrideFromPrefs(prefs),
   );
+}
+
+Future<KokoroCoreMlBackend?> _buildCoreMlBackend() async {
+  if (!Platform.isIOS && !Platform.isMacOS) {
+    return null;
+  }
+  final coreMl = KokoroCoreMl();
+  if (!await coreMl.isCoreMlAvailable()) {
+    return null;
+  }
+  return KokoroCoreMlBackend(coreMl: coreMl);
 }
 
 Future<void> _maybeRequestAndroidNotificationPermission(

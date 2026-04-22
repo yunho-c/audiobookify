@@ -262,11 +262,17 @@ final playerSettingsProvider =
 
 final openTtsFactoryProvider = Provider<OpenTtsFactory?>((ref) => null);
 
+final coreMlBackendProvider = Provider<SpeechBackend?>((ref) => null);
+
 final speechBackendsProvider = Provider<List<SpeechBackend>>((ref) {
   final backends = <SpeechBackend>[SystemFlutterTtsBackend()];
   final openTtsFactory = ref.watch(openTtsFactoryProvider);
   if (openTtsFactory != null) {
     backends.add(OpenTtsBackend(createOpenTts: openTtsFactory));
+  }
+  final coreMlBackend = ref.watch(coreMlBackendProvider);
+  if (coreMlBackend != null) {
+    backends.add(coreMlBackend);
   }
   return backends;
 });
@@ -663,10 +669,11 @@ class OpenTtsExecutionProviderOverrideNotifier
   }
 }
 
-final openTtsExecutionProviderOverrideProvider = NotifierProvider<
-  OpenTtsExecutionProviderOverrideNotifier,
-  OpenTtsExecutionProviderOverride
->(OpenTtsExecutionProviderOverrideNotifier.new);
+final openTtsExecutionProviderOverrideProvider =
+    NotifierProvider<
+      OpenTtsExecutionProviderOverrideNotifier,
+      OpenTtsExecutionProviderOverride
+    >(OpenTtsExecutionProviderOverrideNotifier.new);
 
 final openTtsExecutionProviderOverrideSyncProvider = Provider<void>((ref) {
   final tts = ref.read(ttsProvider.notifier);
