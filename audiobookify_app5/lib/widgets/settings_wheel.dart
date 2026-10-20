@@ -2278,6 +2278,7 @@ class _VoiceSelectorSheet extends StatefulWidget {
 class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
   List<SpeechVoiceOption> _voices = [];
   bool _isLoading = true;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -2286,6 +2287,10 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
   }
 
   Future<void> _loadVoices() async {
+    setState(() {
+      _isLoading = true;
+      _loadFailed = false;
+    });
     try {
       final settings = widget.ref.read(playerSettingsProvider);
       final voices = await widget.ref
@@ -2298,7 +2303,10 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
     }
   }
 
@@ -2321,6 +2329,16 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
           const SizedBox(height: 16),
           if (_isLoading)
             Center(child: CircularProgressIndicator(color: colorScheme.primary))
+          else if (_loadFailed)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Could not load voices. Try again or select System speech.',
+                ),
+                TextButton(onPressed: _loadVoices, child: const Text('Retry')),
+              ],
+            )
           else if (_voices.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),

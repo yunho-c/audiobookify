@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 
-enum SpeechBackendKind { system, openTts, coreMlKokoro }
+enum SpeechBackendKind { system, mlsr }
 
 extension SpeechBackendKindLabel on SpeechBackendKind {
   String get label {
     switch (this) {
       case SpeechBackendKind.system:
         return 'System';
-      case SpeechBackendKind.openTts:
-        return 'OpenTTS';
-      case SpeechBackendKind.coreMlKokoro:
-        return 'Kokoro CoreML';
+      case SpeechBackendKind.mlsr:
+        return 'MLSR';
     }
   }
 }

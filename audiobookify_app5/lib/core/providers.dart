@@ -11,7 +11,6 @@ import '../models/backdrop_image.dart';
 import '../models/backdrop_settings.dart';
 import '../services/book_service.dart';
 import '../services/epub_service.dart';
-import '../services/open_tts_backend.dart';
 import '../services/speech_backend.dart';
 import '../services/system_flutter_tts_backend.dart';
 import '../services/open_library_service.dart';
@@ -24,7 +23,6 @@ import '../models/player_theme_settings.dart';
 import '../models/public_book.dart';
 import 'app_theme.dart';
 import 'error_reporter.dart';
-import '../services/bundled_kokoro_onnx.dart';
 
 const String _playerSpeedKey = 'player_speed';
 const String _playerPitchKey = 'player_pitch';
@@ -32,55 +30,66 @@ const String _playerBackendKey = 'player_backend';
 const String _playerVoiceIdKey = 'player_voice_id';
 const String _playerVoiceNameKey = 'player_voice_name';
 const String _playerVoiceLocaleKey = 'player_voice_locale';
-const String _openTtsExecutionProviderOverrideKey =
-    'open_tts_execution_provider_override';
+const _retiredSpeechBackends = {'openTts', 'coreMlKokoro'};
 
+/// Preserve explicit System selections and clear incompatible retired voice IDs.
 PlayerSettings loadPlayerSettingsFromPrefs(
   SharedPreferences prefs, {
-  required bool preferOpenTts,
+  required bool preferMlsr,
 }) {
-  final storedVoiceId = prefs.getString(_playerVoiceIdKey);
-  final legacyVoiceName = prefs.getString(_playerVoiceNameKey);
-  final legacyVoiceLocale = prefs.getString(_playerVoiceLocaleKey);
-  final migratedVoiceId =
-      storedVoiceId ??
-      (legacyVoiceName != null && legacyVoiceLocale != null
-          ? SystemFlutterTtsBackend.voiceIdFor(
-              locale: legacyVoiceLocale,
-              name: legacyVoiceName,
-            )
-          : null);
-
-  final SpeechBackendKind backend;
-  if (prefs.containsKey(_playerBackendKey)) {
-    final backendName = prefs.getString(_playerBackendKey);
-    backend = SpeechBackendKind.values.firstWhere(
-      (candidate) => candidate.name == backendName,
-      orElse: () => SpeechBackendKind.system,
-    );
-  } else if (prefs.containsKey(_playerVoiceNameKey) ||
-      prefs.containsKey(_playerVoiceLocaleKey)) {
-    backend = SpeechBackendKind.system;
-  } else {
-    backend = preferOpenTts
-        ? SpeechBackendKind.openTts
-        : SpeechBackendKind.system;
-  }
-
+  final storedBackend = prefs.getString(_playerBackendKey);
+  final retired = _retiredSpeechBackends.contains(storedBackend);
+  final legacyName = prefs.getString(_playerVoiceNameKey);
+  final legacyLocale = prefs.getString(_playerVoiceLocaleKey);
+  final legacyVoice = legacyName != null && legacyLocale != null
+      ? SystemFlutterTtsBackend.voiceIdFor(
+          locale: legacyLocale,
+          name: legacyName,
+        )
+      : null;
+  final defaultBackend = preferMlsr
+      ? SpeechBackendKind.mlsr
+      : SpeechBackendKind.system;
+  final backend = retired
+      ? defaultBackend
+      : switch (storedBackend) {
+          'mlsr' => defaultBackend,
+          'system' => SpeechBackendKind.system,
+          null =>
+            legacyVoice != null ? SpeechBackendKind.system : defaultBackend,
+          _ => SpeechBackendKind.system,
+        };
+  final unavailableMlsr = storedBackend == 'mlsr' && !preferMlsr;
+  final unknownBackend =
+      storedBackend != null &&
+      !retired &&
+      storedBackend != 'mlsr' &&
+      storedBackend != 'system';
   return PlayerSettings(
-    speed: prefs.getDouble(_playerSpeedKey) ?? 1.0,
-    pitch: prefs.getDouble(_playerPitchKey) ?? 1.0,
+    speed: (prefs.getDouble(_playerSpeedKey) ?? 1.0).clamp(0.5, 2.0),
+    pitch: (prefs.getDouble(_playerPitchKey) ?? 1.0).clamp(0.5, 2.0),
     backend: backend,
-    voiceId: migratedVoiceId,
+    voiceId: retired || unavailableMlsr || unknownBackend
+        ? null
+        : prefs.getString(_playerVoiceIdKey) ?? legacyVoice,
   );
 }
 
-OpenTtsExecutionProviderOverride loadOpenTtsExecutionProviderOverrideFromPrefs(
-  SharedPreferences prefs,
-) {
-  return loadOpenTtsExecutionProviderOverrideFromName(
-    prefs.getString(_openTtsExecutionProviderOverrideKey),
-  );
+/// Run once at bootstrap; pure settings reads also tolerate pre-migration data.
+Future<void> migrateSpeechPreferences(
+  SharedPreferences prefs, {
+  required bool mlsrAvailable,
+}) async {
+  if (_retiredSpeechBackends.contains(prefs.getString(_playerBackendKey))) {
+    final backend = mlsrAvailable
+        ? SpeechBackendKind.mlsr
+        : SpeechBackendKind.system;
+    await prefs.setString(_playerBackendKey, backend.name);
+    await prefs.remove(_playerVoiceIdKey);
+    await prefs.remove(_playerVoiceNameKey);
+    await prefs.remove(_playerVoiceLocaleKey);
+  }
+  await prefs.remove('open_tts_execution_provider_override');
 }
 
 /// ObjectBox Store provider - overridden in main.dart
@@ -206,7 +215,7 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
     final prefs = ref.read(sharedPreferencesProvider);
     return loadPlayerSettingsFromPrefs(
       prefs,
-      preferOpenTts: ref.read(openTtsFactoryProvider) != null,
+      preferMlsr: ref.read(mlsrBackendProvider) != null,
     );
   }
 
@@ -246,8 +255,8 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
 
   void reset() {
     state = PlayerSettings(
-      backend: ref.read(openTtsFactoryProvider) != null
-          ? SpeechBackendKind.openTts
+      backend: ref.read(mlsrBackendProvider) != null
+          ? SpeechBackendKind.mlsr
           : SpeechBackendKind.system,
     );
     _saveToPrefs();
@@ -260,21 +269,11 @@ final playerSettingsProvider =
       () => PlayerSettingsNotifier(),
     );
 
-final openTtsFactoryProvider = Provider<OpenTtsFactory?>((ref) => null);
-
-final coreMlBackendProvider = Provider<SpeechBackend?>((ref) => null);
+final mlsrBackendProvider = Provider<SpeechBackend?>((ref) => null);
 
 final speechBackendsProvider = Provider<List<SpeechBackend>>((ref) {
-  final backends = <SpeechBackend>[SystemFlutterTtsBackend()];
-  final openTtsFactory = ref.watch(openTtsFactoryProvider);
-  if (openTtsFactory != null) {
-    backends.add(OpenTtsBackend(createOpenTts: openTtsFactory));
-  }
-  final coreMlBackend = ref.watch(coreMlBackendProvider);
-  if (coreMlBackend != null) {
-    backends.add(coreMlBackend);
-  }
-  return backends;
+  final mlsrBackend = ref.watch(mlsrBackendProvider);
+  return [SystemFlutterTtsBackend(), if (mlsrBackend != null) mlsrBackend];
 });
 
 /// Player theme settings notifier with persistence.
@@ -652,45 +651,6 @@ final ttsDebugLoggingSyncProvider = Provider<void>((ref) {
   ref.listen<bool>(ttsDebugLoggingProvider, (previous, next) {
     setTtsDebugLogsEnabled(next);
   });
-});
-
-class OpenTtsExecutionProviderOverrideNotifier
-    extends Notifier<OpenTtsExecutionProviderOverride> {
-  @override
-  OpenTtsExecutionProviderOverride build() {
-    final prefs = ref.read(sharedPreferencesProvider);
-    return loadOpenTtsExecutionProviderOverrideFromPrefs(prefs);
-  }
-
-  Future<void> setOverride(OpenTtsExecutionProviderOverride override) async {
-    state = override;
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setString(_openTtsExecutionProviderOverrideKey, override.name);
-  }
-}
-
-final openTtsExecutionProviderOverrideProvider =
-    NotifierProvider<
-      OpenTtsExecutionProviderOverrideNotifier,
-      OpenTtsExecutionProviderOverride
-    >(OpenTtsExecutionProviderOverrideNotifier.new);
-
-final openTtsExecutionProviderOverrideSyncProvider = Provider<void>((ref) {
-  final tts = ref.read(ttsProvider.notifier);
-  ref.listen<OpenTtsExecutionProviderOverride>(
-    openTtsExecutionProviderOverrideProvider,
-    (previous, next) {
-      if (previous == null || previous == next) {
-        return;
-      }
-      unawaited(
-        tts.refreshOpenTtsExecutionProviderOverride(
-          previous: previous,
-          next: next,
-        ),
-      );
-    },
-  );
 });
 
 // ========================================

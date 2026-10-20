@@ -27,6 +27,7 @@ import '../models/backdrop_image.dart';
 import '../models/player_theme_settings.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/settings_wheel.dart';
+import '../widgets/speech_status_bar.dart';
 import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
@@ -184,7 +185,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       // Try to advance to next chapter
       if (_currentChapterIndex < (_epubBook?.sections.length ?? 1) - 1) {
-        _loadChapter(_currentChapterIndex + 1);
+        _loadChapter(_currentChapterIndex + 1, continuePlayback: true);
       } else {
         _saveProgress();
       }
@@ -265,6 +266,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     int? resumeParagraphIndex,
     int? resumeSentenceIndex,
     String? navigateFragment,
+    bool continuePlayback = false,
   }) async {
     if (_epubBook == null || !mounted) return;
 
@@ -293,10 +295,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _updateNowPlaying();
 
     // Load content into TTS provider
-    final wasPlaying = _ttsService.playbackState.status == TtsStatus.playing;
+    final wasPlaying =
+        continuePlayback ||
+        _ttsService.playbackState.status == TtsStatus.playing;
     final paragraphTexts = _ttsParagraphs.map((p) => p.plainText).toList();
     final sentenceData = _ttsParagraphs.map((p) => p.sentences).toList();
-    _ttsService.loadContent(paragraphTexts, sentences: sentenceData);
+    _ttsService.loadContent(
+      paragraphTexts,
+      sentences: sentenceData,
+      languageCode: _epubBook!.metadata.language ?? _book?.language,
+    );
 
     if (resumeParagraphIndex != null && _ttsParagraphs.isNotEmpty) {
       final targetParagraph = resumeParagraphIndex
@@ -1171,6 +1179,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
                 ),
+                SpeechStatusBar(state: ttsState, onRetry: _ttsService.retry),
                 // Text content
                 Expanded(
                   child: _renderBlocks.isEmpty

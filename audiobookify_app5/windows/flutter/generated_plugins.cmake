@@ -3,7 +3,6 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  flutter_onnxruntime
   flutter_tts
   objectbox_flutter_libs
   permission_handler_windows
@@ -14,9 +13,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
-  flutter_soloud
   jni
-  kokoro_flutter
   rust_lib_audiobookify_app5
 )
 

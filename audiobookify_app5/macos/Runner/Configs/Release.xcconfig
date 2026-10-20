@@ -1,6 +1,5 @@
 #include "../../Flutter/Flutter-Release.xcconfig"
 #include "Warnings.xcconfig"
 
-// The local kokoro_flutter TVM dylibs are arm64-only, so macOS profile/release
-// builds must avoid producing an x86_64 slice until universal TVM artifacts exist.
+// The bundled MLSR Core ML model is qualified for Apple Silicon.
 EXCLUDED_ARCHS[sdk=macosx*]=x86_64

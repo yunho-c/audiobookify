@@ -4,13 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:kokoro_flutter/kokoro_coreml.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audiobookify/src/rust/frb_generated.dart';
-import 'package:audiobookify/objectbox.g.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'core/app_theme.dart';
 import 'core/desktop_window.dart';
@@ -24,10 +22,9 @@ import 'screens/book_detail_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
-import 'services/bundled_kokoro_onnx.dart';
-import 'services/kokoro_coreml_backend.dart';
-import 'services/open_tts_backend.dart';
 import 'services/system_flutter_tts_backend.dart';
+import 'services/library_store.dart';
+import 'services/mlsr_speech_backend.dart';
 import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
 import 'widgets/shared/desktop_window_frame.dart';
@@ -85,24 +82,22 @@ Future<void> _startApp(SharedPreferences prefs) async {
 
     // Initialize ObjectBox
     final appDir = await getApplicationDocumentsDirectory();
-    final store = await openStore(directory: '${appDir.path}/objectbox');
+    final store = await openLibraryStore(directory: '${appDir.path}/objectbox');
 
     // Initialize SharedPreferences
     await _maybeRequestAndroidNotificationPermission(prefs);
 
     // Initialize audio handler + TTS service for background controls.
-    final openTtsFactory = await _buildOpenTtsFactory(prefs);
-    final coreMlBackend = await _buildCoreMlBackend();
+    final mlsrBackend = Platform.isMacOS ? MlsrSpeechBackend() : null;
+    await migrateSpeechPreferences(prefs, mlsrAvailable: mlsrBackend != null);
     final initialPlayerSettings = loadPlayerSettingsFromPrefs(
       prefs,
-      preferOpenTts: openTtsFactory != null,
+      preferMlsr: mlsrBackend != null,
     );
     final ttsService = TtsService(
       backends: [
         SystemFlutterTtsBackend(),
-        if (openTtsFactory != null)
-          OpenTtsBackend(createOpenTts: openTtsFactory),
-        if (coreMlBackend != null) coreMlBackend,
+        if (mlsrBackend != null) mlsrBackend,
       ],
       initialSettings: initialPlayerSettings,
     );
@@ -122,8 +117,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
         overrides: [
           storeProvider.overrideWithValue(store),
           sharedPreferencesProvider.overrideWithValue(prefs),
-          openTtsFactoryProvider.overrideWithValue(openTtsFactory),
-          coreMlBackendProvider.overrideWithValue(coreMlBackend),
+          mlsrBackendProvider.overrideWithValue(mlsrBackend),
           ttsProvider.overrideWith((ref) => ttsService),
           audioHandlerProvider.overrideWithValue(audioHandler),
         ],
@@ -136,24 +130,6 @@ Future<void> _startApp(SharedPreferences prefs) async {
       _BootstrapErrorApp(message: _startupErrorMessage(error, stackTrace)),
     );
   }
-}
-
-Future<OpenTtsFactory?> _buildOpenTtsFactory(SharedPreferences prefs) {
-  return buildBundledKokoroOnnxFactory(
-    providerOverrideResolver: () =>
-        loadOpenTtsExecutionProviderOverrideFromPrefs(prefs),
-  );
-}
-
-Future<KokoroCoreMlBackend?> _buildCoreMlBackend() async {
-  if (!Platform.isIOS && !Platform.isMacOS) {
-    return null;
-  }
-  final coreMl = KokoroCoreMl();
-  if (!await coreMl.isCoreMlAvailable()) {
-    return null;
-  }
-  return KokoroCoreMlBackend(coreMl: coreMl);
 }
 
 Future<void> _maybeRequestAndroidNotificationPermission(
@@ -238,7 +214,6 @@ class AudiobookifyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(ttsSettingsSyncProvider);
     ref.watch(ttsDebugLoggingSyncProvider);
-    ref.watch(openTtsExecutionProviderOverrideSyncProvider);
     ref.watch(crashReportingSyncProvider);
     final themePreference = ref.watch(themePreferenceProvider);
     return MaterialApp.router(

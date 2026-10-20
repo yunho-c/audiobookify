@@ -12,3 +12,7 @@ PRODUCT_BUNDLE_IDENTIFIER = com.yunho-c.audiobookify
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2025 com.yunho-c. All rights reserved.
+
+// Sentry contains C++ objects; static CocoaPods frameworks need libc++ at the
+// application link step even when Runner itself contains only Swift/Objective-C.
+OTHER_LDFLAGS = $(inherited) -lc++

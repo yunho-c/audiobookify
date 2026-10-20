@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify/core/app_theme.dart';
 import 'package:audiobookify/core/providers.dart';
 import 'package:audiobookify/models/player_settings.dart';
-import 'package:audiobookify/services/bundled_kokoro_onnx.dart';
 import 'package:audiobookify/services/speech_backend.dart';
 import 'package:audiobookify/services/system_flutter_tts_backend.dart';
 
@@ -47,19 +46,19 @@ void main() {
 
     notifier.setSpeed(3.5);
     notifier.setPitch(0.2);
-    notifier.setBackend(SpeechBackendKind.openTts);
+    notifier.setBackend(SpeechBackendKind.mlsr);
     notifier.setVoice(voiceId);
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
     final settings = container.read(playerSettingsProvider);
     expect(settings.speed, 2.0);
     expect(settings.pitch, 0.5);
-    expect(settings.backend, SpeechBackendKind.openTts);
+    expect(settings.backend, SpeechBackendKind.mlsr);
     expect(settings.voiceId, voiceId);
 
     expect(prefs.getDouble('player_speed'), 2.0);
     expect(prefs.getDouble('player_pitch'), 0.5);
-    expect(prefs.getString('player_backend'), 'openTts');
+    expect(prefs.getString('player_backend'), 'mlsr');
     expect(prefs.getString('player_voice_id'), voiceId);
   });
 
@@ -83,32 +82,32 @@ void main() {
   });
 
   test(
-    'PlayerSettingsNotifier defaults fresh installs to OpenTTS when ready',
+    'PlayerSettingsNotifier defaults fresh installs to MLSR when ready',
     () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
-          openTtsFactoryProvider.overrideWithValue(_fakeOpenTtsFactory),
+          mlsrBackendProvider.overrideWithValue(_FakeRegisteredBackend()),
         ],
       );
       addTearDown(container.dispose);
 
       final settings = container.read(playerSettingsProvider);
-      expect(settings.backend, SpeechBackendKind.openTts);
+      expect(settings.backend, SpeechBackendKind.mlsr);
     },
   );
 
   test(
-    'PlayerSettingsNotifier preserves persisted backend over OpenTTS default',
+    'PlayerSettingsNotifier preserves persisted backend over MLSR default',
     () async {
       SharedPreferences.setMockInitialValues({'player_backend': 'system'});
       final prefs = await SharedPreferences.getInstance();
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
-          openTtsFactoryProvider.overrideWithValue(_fakeOpenTtsFactory),
+          mlsrBackendProvider.overrideWithValue(_FakeRegisteredBackend()),
         ],
       );
       addTearDown(container.dispose);
@@ -118,7 +117,7 @@ void main() {
     },
   );
 
-  test('PlayerSettingsNotifier persists and reloads CoreML backend', () async {
+  test('PlayerSettingsNotifier persists and reloads MLSR backend', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final container = ProviderContainer(
@@ -127,26 +126,26 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(playerSettingsProvider.notifier);
-    notifier.setBackend(SpeechBackendKind.coreMlKokoro);
+    notifier.setBackend(SpeechBackendKind.mlsr);
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
     expect(
       container.read(playerSettingsProvider).backend,
-      SpeechBackendKind.coreMlKokoro,
+      SpeechBackendKind.mlsr,
     );
-    expect(prefs.getString('player_backend'), 'coreMlKokoro');
+    expect(prefs.getString('player_backend'), 'mlsr');
 
-    final reloaded = loadPlayerSettingsFromPrefs(prefs, preferOpenTts: true);
-    expect(reloaded.backend, SpeechBackendKind.coreMlKokoro);
+    final reloaded = loadPlayerSettingsFromPrefs(prefs, preferMlsr: true);
+    expect(reloaded.backend, SpeechBackendKind.mlsr);
   });
 
-  test('speechBackendsProvider includes the injected CoreML backend', () async {
+  test('speechBackendsProvider includes the injected MLSR backend', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
-        coreMlBackendProvider.overrideWithValue(_FakeRegisteredBackend()),
+        mlsrBackendProvider.overrideWithValue(_FakeRegisteredBackend()),
       ],
     );
     addTearDown(container.dispose);
@@ -154,7 +153,7 @@ void main() {
     final backends = container.read(speechBackendsProvider);
     expect(
       backends.map((backend) => backend.backendId),
-      contains(SpeechBackendKind.coreMlKokoro),
+      contains(SpeechBackendKind.mlsr),
     );
   });
 
@@ -190,41 +189,88 @@ void main() {
     expect(prefs.getBool('tts_debug_logging_enabled'), isTrue);
   });
 
+  for (final oldBackend in ['openTts', 'coreMlKokoro']) {
+    for (final available in [true, false]) {
+      test('migrate $oldBackend with MLSR available=$available', () async {
+        SharedPreferences.setMockInitialValues({
+          'player_backend': oldBackend,
+          'player_voice_id': 'af_heart',
+          'player_speed': 1.5,
+          'player_pitch': 0.8,
+          'open_tts_execution_provider_override': 'cpu',
+          'book_resume_42': 'preserved',
+        });
+        final prefs = await SharedPreferences.getInstance();
+        final expected = available
+            ? SpeechBackendKind.mlsr
+            : SpeechBackendKind.system;
+        final before = loadPlayerSettingsFromPrefs(
+          prefs,
+          preferMlsr: available,
+        );
+        expect(before.backend, expected);
+        expect(before.voiceId, isNull);
+        await migrateSpeechPreferences(prefs, mlsrAvailable: available);
+        await migrateSpeechPreferences(prefs, mlsrAvailable: available);
+        final settings = loadPlayerSettingsFromPrefs(
+          prefs,
+          preferMlsr: available,
+        );
+        expect(settings.backend, expected);
+        expect(settings.speed, 1.5);
+        expect(settings.pitch, 0.8);
+        expect(settings.voiceId, isNull);
+        expect(prefs.getString('player_backend'), expected.name);
+        expect(prefs.containsKey('player_voice_id'), isFalse);
+        expect(
+          prefs.containsKey('open_tts_execution_provider_override'),
+          isFalse,
+        );
+        expect(prefs.getString('book_resume_42'), 'preserved');
+      });
+    }
+  }
+
   test(
-    'OpenTtsExecutionProviderOverrideNotifier defaults to auto and persists',
+    'migration preserves explicit System voice and fresh MLSR voice',
     () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-      );
-      addTearDown(container.dispose);
+      for (final entry in {
+        'system': 'en-US::Samantha',
+        'mlsr': 'supertonic3:F1',
+      }.entries) {
+        SharedPreferences.setMockInitialValues({
+          'player_backend': entry.key,
+          'player_voice_id': entry.value,
+        });
+        final prefs = await SharedPreferences.getInstance();
+        await migrateSpeechPreferences(prefs, mlsrAvailable: true);
+        final settings = loadPlayerSettingsFromPrefs(prefs, preferMlsr: true);
+        expect(settings.backend.name, entry.key);
+        expect(settings.voiceId, entry.value);
+      }
+    },
+  );
 
-      expect(
-        container.read(openTtsExecutionProviderOverrideProvider),
-        OpenTtsExecutionProviderOverride.auto,
-      );
-
-      await container
-          .read(openTtsExecutionProviderOverrideProvider.notifier)
-          .setOverride(OpenTtsExecutionProviderOverride.cpu);
-
-      expect(
-        container.read(openTtsExecutionProviderOverrideProvider),
-        OpenTtsExecutionProviderOverride.cpu,
-      );
-      expect(prefs.getString('open_tts_execution_provider_override'), 'cpu');
+  test(
+    'unavailable or unknown backend does not reuse its voice for System',
+    () async {
+      for (final backend in ['mlsr', 'obsolete']) {
+        SharedPreferences.setMockInitialValues({
+          'player_backend': backend,
+          'player_voice_id': 'supertonic3:M1',
+        });
+        final prefs = await SharedPreferences.getInstance();
+        final settings = loadPlayerSettingsFromPrefs(prefs, preferMlsr: false);
+        expect(settings.backend, SpeechBackendKind.system);
+        expect(settings.voiceId, isNull);
+      }
     },
   );
 }
 
-Future<Never> _fakeOpenTtsFactory(_) {
-  throw UnimplementedError();
-}
-
 class _FakeRegisteredBackend implements SpeechBackend {
   @override
-  SpeechBackendKind get backendId => SpeechBackendKind.coreMlKokoro;
+  SpeechBackendKind get backendId => SpeechBackendKind.mlsr;
 
   @override
   SpeechBackendCapabilities get capabilities => const SpeechBackendCapabilities(
@@ -234,7 +280,7 @@ class _FakeRegisteredBackend implements SpeechBackend {
   );
 
   @override
-  String get displayName => 'Kokoro CoreML';
+  String get displayName => 'MLSR';
 
   @override
   Stream<SpeechBackendEvent> get events =>
@@ -257,7 +303,7 @@ class _FakeRegisteredBackend implements SpeechBackend {
   Future<void> pause() async {}
 
   @override
-  Future<void> speak(String text) async {}
+  Future<void> speak(String text, {String? languageCode}) async {}
 
   @override
   Future<void> stop() async {}

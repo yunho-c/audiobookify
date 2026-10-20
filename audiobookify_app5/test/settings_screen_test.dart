@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audiobookify/core/app_theme.dart';
 import 'package:audiobookify/core/providers.dart';
 import 'package:audiobookify/screens/settings_screen.dart';
-import 'package:audiobookify/services/bundled_kokoro_onnx.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -99,63 +96,17 @@ void main() {
     },
   );
 
-  testWidgets(
-    'SettingsScreen shows and persists the OpenTTS execution provider override when available',
-    (WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          openTtsFactoryProvider.overrideWithValue(_fakeOpenTtsFactory),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(home: SettingsScreen()),
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
-      final options = bundledKokoroProviderOverridesForPlatform(
-        Platform.operatingSystem,
-      );
-      if (options.length <= 1) {
-        expect(find.text('OpenTTS Execution Provider'), findsNothing);
-        return;
-      }
-
-      final targetOption = options.last;
-      final targetLabel = bundledKokoroProviderOverrideLabel(
-        targetOption,
-        Platform.operatingSystem,
-      );
-
-      await tester.ensureVisible(find.text('OpenTTS Execution Provider'));
-      await tester.tap(find.text('OpenTTS Execution Provider'));
-      await tester.pumpAndSettle();
-
-      expect(find.text(targetLabel), findsWidgets);
-
-      await tester.tap(find.text(targetLabel).last);
-      await tester.pumpAndSettle();
-
-      expect(
-        container.read(openTtsExecutionProviderOverrideProvider),
-        targetOption,
-      );
-      expect(
-        prefs.getString('open_tts_execution_provider_override'),
-        targetOption.name,
-      );
-    },
-  );
-}
-
-Future<Never> _fakeOpenTtsFactory(_) {
-  throw UnimplementedError();
+  testWidgets('SettingsScreen omits retired engine controls', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('OpenTTS Execution Provider'), findsNothing);
+    expect(find.textContaining('ONNX'), findsNothing);
+  });
 }

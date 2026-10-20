@@ -58,15 +58,10 @@ abstract class SpeechBackend {
 
   Future<void> applySettings(PlayerSettings settings);
 
-  Future<void> speak(String text);
+  /// Completes after playback drains or an explicit stop cancels this request.
+  Future<void> speak(String text, {String? languageCode});
 
   Future<void> pause();
 
   Future<void> stop();
-}
-
-abstract interface class SentencePrefetchingSpeechBackend {
-  Future<void> prefetch(String text);
-
-  void clearPrefetch();
 }

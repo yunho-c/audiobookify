@@ -1,4 +1,4 @@
-platform :osx, '14.0'
+platform :osx, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -33,7 +33,7 @@ pre_install do |installer|
   ) {}
 
   installer.pod_targets.each do |pod|
-    next unless ['rust_lib_audiobookify_app5', 'flutter_soloud'].include?(pod.name)
+    next unless ['rust_lib_audiobookify_app5'].include?(pod.name)
 
     def pod.build_type
       Pod::BuildType.dynamic_framework
@@ -55,6 +55,12 @@ post_install do |installer|
     flutter_additional_macos_build_settings(target)
 
     target.build_configurations.each do |config|
+      # Align dependency targets with the app and MLSR's Core ML requirement.
+      config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '15.0'
+      if target.name == 'Sentry'
+        config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
+      end
+
       next unless ['Profile', 'Release'].include?(config.name)
 
       config.build_settings['EXCLUDED_ARCHS[sdk=macosx*]'] = 'x86_64'

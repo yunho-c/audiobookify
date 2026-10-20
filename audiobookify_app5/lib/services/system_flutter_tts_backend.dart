@@ -18,6 +18,9 @@ class SystemFlutterTtsBackend implements SpeechBackend {
 
   Completer<void>? _speakCompleter;
   bool _initialized = false;
+  Future<void>? _initializing;
+  bool _disposed = false;
+  int _generation = 0;
 
   @override
   SpeechBackendKind get backendId => SpeechBackendKind.system;
@@ -36,8 +39,15 @@ class SystemFlutterTtsBackend implements SpeechBackend {
   Stream<SpeechBackendEvent> get events => _events.stream;
 
   @override
-  Future<void> initialize() async {
-    if (_initialized) return;
+  Future<void> initialize() {
+    if (_disposed) return Future.error(StateError('System speech is closed'));
+    if (_initialized) return Future.value();
+    return _initializing ??= _initialize().whenComplete(
+      () => _initializing = null,
+    );
+  }
+
+  Future<void> _initialize() async {
     logTtsDebug('Initializing system TTS backend', category: 'tts.system');
 
     await _flutterTts.setLanguage(defaultLocale);
@@ -46,15 +56,18 @@ class SystemFlutterTtsBackend implements SpeechBackend {
     await _flutterTts.setPitch(1.0);
 
     _flutterTts.setStartHandler(() {
+      if (_disposed || _speakCompleter == null) return;
       _events.add(const SpeechBackendEvent(type: SpeechBackendEventType.start));
     });
     _flutterTts.setCompletionHandler(() {
+      if (_disposed || _speakCompleter == null) return;
       _completeSpeak();
       _events.add(
         const SpeechBackendEvent(type: SpeechBackendEventType.complete),
       );
     });
     _flutterTts.setErrorHandler((message) {
+      if (_disposed || _speakCompleter == null) return;
       final error = StateError(message);
       _completeSpeak(error: error, stackTrace: StackTrace.current);
       _events.add(
@@ -133,10 +146,14 @@ class SystemFlutterTtsBackend implements SpeechBackend {
   }
 
   @override
-  Future<void> speak(String text) async {
+  Future<void> speak(String text, {String? languageCode}) async {
+    final generation = ++_generation;
     await initialize();
+    if (_disposed || generation != _generation) return;
     logTtsDebug('System TTS speak "$text"', category: 'tts.system');
-    await stop();
+    _completeSpeak();
+    await _flutterTts.stop();
+    if (_disposed || generation != _generation) return;
     final completer = Completer<void>();
     _speakCompleter = completer;
     await _flutterTts.speak(text);
@@ -150,13 +167,22 @@ class SystemFlutterTtsBackend implements SpeechBackend {
 
   @override
   Future<void> stop() async {
+    ++_generation;
     logTtsDebug('System TTS stop', category: 'tts.system');
     _completeSpeak();
-    await _flutterTts.stop();
+    if (_initialized) await _flutterTts.stop();
   }
 
   @override
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    final initializing = _initializing;
+    if (initializing != null) {
+      try {
+        await initializing;
+      } catch (_) {}
+    }
     await stop();
     await _events.close();
   }

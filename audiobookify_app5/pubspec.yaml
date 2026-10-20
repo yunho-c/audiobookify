@@ -19,7 +19,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.4
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -44,8 +45,12 @@ dependencies:
   objectbox: ^5.1.0
   objectbox_flutter_libs: ^5.1.0
   flutter_tts: ^4.2.3
-  kokoro_flutter:
-    path: ../../kokoro-flutter/kokoro_flutter
+  mlsr:
+    path: ../../MLSR/bindings/dart
+  mlsr_flutter:
+    path: ../../MLSR/bindings/flutter
+  mlsr_app_models:
+    path: .mlsr/model_assets
   html: ^0.15.6
   flutter_riverpod: ^3.0.3
   shared_preferences: ^2.2.0
@@ -55,8 +60,6 @@ dependencies:
   sentry_flutter: ^9.6.0
   audio_service: ^0.18.12
   audio_session: ^0.2.2
-  just_audio: ^0.10.5
-  flutter_soloud: ^3.4.9
   permission_handler: ^12.0.1
   url_launcher: ^6.2.6
   package_info_plus: ^8.0.3
@@ -90,11 +93,6 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/us_gold.json
-    - assets/us_silver.json
-    - assets/gb_gold.json
-    - assets/gb_silver.json
-    - assets/kokoro/
     - test/assets/test_ebook.epub
 
   # To add assets to your application, add an assets section, like this:
@@ -136,3 +134,10 @@ msix_config:
   msix_version: 1.0.0.0
   logo_path: windows/runner/resources/app_icon.ico
   capabilities: internetClient
+
+# The current MLSR native output/resource adapters target macOS arm64.
+hooks:
+  user_defines:
+    mlsr:
+      coreml: true
+      apple-output: true
