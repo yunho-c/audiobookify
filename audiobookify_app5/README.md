@@ -52,9 +52,11 @@ entitlement as well as the model assets and native libraries.
 
 - MLSR loads lazily when speech or voice discovery is first requested. Opening the
   library does not load the model. A persistent engine is reused across sentences.
-- Speed controls pitch-preserving playback rate; model speaking rate stays at its
-  default. Pitch adjustment is unavailable for MLSR. The book's language is passed
-  to MLSR with explicit same-language locale fallback; missing metadata uses English.
+- Speed selects MLSR's synthesis speaking rate in 0.1x steps. Native playback stays
+  at 1.0x, so generated audio is not time-stretched. Changing speed while playing
+  regenerates the current sentence. Pitch adjustment is unavailable for MLSR.
+  The book's language is passed to MLSR with explicit same-language locale fallback;
+  missing metadata uses English.
 - Sentence highlighting, chapter navigation, and saved reading positions remain
   owned by Audiobookify. Pause/resume currently replays the selected sentence.
   Native mid-sentence pause and document-wide time seeking are future reader work.
@@ -62,7 +64,8 @@ entitlement as well as the model assets and native libraries.
   `speak` finishes after output drains. Completed sentence handles are released;
   audio retention is disabled for this sentence-based player.
 - Retired Kokoro settings migrate to MLSR, clearing incompatible voice IDs.
-  Explicit System selections, speed, and reading positions are preserved.
+  Explicit System selections and reading positions are preserved. Legacy fractional
+  speeds are rounded to the displayed 0.1x step.
   Initialization failure visibly selects System speech for that run, with Retry.
   Synthesis errors stop at the selected sentence instead of silently skipping it.
 
@@ -83,7 +86,7 @@ python3 tool/verify_mlsr_app.py build/macos/Build/Products/Release/audiobookify_
 The native integration test uses temporary library data, the bundled Alice EPUB,
 and real Core ML/native output. It defaults to muted playback; add
 `--dart-define=MLSR_TEST_AUDIBLE=true` for a listening run. A full chapter takes
-several minutes at 2x playback. Its report and screenshot are written to
+several minutes at 2x synthesis speed. Its report and screenshot are written to
 `.mlsr/native-validation/` (override with `MLSR_VALIDATION_OUTPUT`). Native handle
 counts, sentence completion, navigation, and heartbeat timing are recorded separately
 from listening quality. Existing skipped UI tests and unrelated analyzer findings
@@ -95,8 +98,8 @@ socket creation and reads from the source model cache are denied, then exercises
 real bundled speech. Evidence is kept in `.mlsr/release-offline-*/`. This test-only
 copy does not change the normal app's entitlements or the user's library data.
 
-Local validation on 2026-10-19 (M4 Pro, macOS 27.0.1) passed 87 unit/widget
-tests, with nine existing skips. A debug run completed all 72 sentences / 2,199
+Initial integration validation on 2026-10-19 (M4 Pro, macOS 27.0.1) passed 87
+unit/widget tests, with nine existing skips. A debug run completed all 72 sentences / 2,199
 words of the Alice chapter with one model open; a sandboxed release run completed
 the short reader test with network/cache denial and settings-driven voice changes.
 Both returned the MLSR native handle count to zero. The new speech code passes
@@ -107,6 +110,14 @@ engine is reused afterward. Preparation does not display a reader banner or
 change the reading layout. These are single-run observations, without a
 cold-cache or performance qualification.
 The runs were muted, so listening quality remains unassessed.
+
+The speed-control follow-up passed 90 unit/widget tests, with the same nine skips,
+and focused analysis. The short native reader test exercised Robert/M3 at 1.0x
+and 1.4x synthesis rates, then switched voice and completed three sentences at 2.0x.
+Native request metadata confirmed the synthesis rates; every observed native
+playback rate was 1.0x, and native handles returned to zero. Evidence is in
+`.mlsr/native-speed-validation/`. The normal release build and bundle audit also
+passed. This run was also muted.
 
 The existing EPUB section mapping exposes some Alice chapter text under a
 `Contents` label. The test selects its corpus by text and verifies navigation

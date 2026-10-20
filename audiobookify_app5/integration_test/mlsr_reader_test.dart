@@ -276,9 +276,19 @@ void main() {
         await until(() => session!.texts.length > beforeSeek);
         expect(session!.texts.last, chapterSentences[2].first);
         final settings = container.read(playerSettingsProvider.notifier);
-        settings.setSpeed(1.5);
+        settings.setSpeed(1.0);
+        settings.setVoice('supertonic3:M3');
+        await until(
+          () => session!.startedSettings.contains(('supertonic3:M3', 1.0)),
+        );
+        settings.setSpeed(1.4);
+        await until(
+          () => session!.startedSettings.contains(('supertonic3:M3', 1.4)),
+        );
         settings.setVoice('supertonic3:F1');
-        await until(() => session!.startedVoices.contains('supertonic3:F1'));
+        await until(
+          () => session!.startedSettings.contains(('supertonic3:F1', 1.4)),
+        );
         await handler.stop();
         report['navigation_and_voice_switch'] = true;
         report['voice_switch_reached_native_output'] = true;
@@ -369,6 +379,29 @@ void main() {
         report['heartbeat_ticks'] = ticks;
         report['requests'] = session!.texts.length;
         report['start_gaps_ms'] = session!.gaps;
+        final nativeRequests = await Future.wait(session!.nativeRequests);
+        expect(
+          nativeRequests.map((request) => request.speakingRate),
+          containsAll([1.0, closeTo(1.4, 1e-6), 2.0]),
+        );
+        for (final request in nativeRequests) {
+          expect(
+            request.effectiveSpeed,
+            closeTo(request.speakingRate * 1.05, 1e-6),
+          );
+        }
+        expect(session!.startedPlaybackRates, everyElement(1.0));
+        report['native_synthesis_settings'] = [
+          for (final request in nativeRequests)
+            {
+              'voice': request.voice.voice.id,
+              'speaking_rate': request.speakingRate,
+              'effective_speed': request.effectiveSpeed,
+              'steps': request.backend.steps,
+            },
+        ];
+        report['native_playback_rates'] = session!.startedPlaybackRates;
+        report['speed_changes_reached_native_output'] = true;
       } finally {
         heartbeat.cancel();
         await tester.pumpWidget(const SizedBox.shrink());
@@ -395,8 +428,10 @@ class _ObservedSession implements MlsrSession {
   final bool audible;
   final texts = <String>[];
   final requests = <RequestOptions>[];
+  final nativeRequests = <Future<RequestMetadata>>[];
   final started = <String>[];
-  final startedVoices = <String>[];
+  final startedSettings = <(String, double)>[];
+  final startedPlaybackRates = <double>[];
   final gaps = <int>[];
   int completed = 0;
   DateTime? lastDrain;
@@ -420,11 +455,13 @@ class _ObservedSession implements MlsrSession {
         volume: audible ? 1 : 0,
       ),
     );
+    nativeRequests.add(speech.request());
     return _ObservedPlayback(
       speech,
-      onStart: () {
+      onStart: (state) {
         started.add(text);
-        startedVoices.add(request.voice);
+        startedSettings.add((request.voice, request.speakingRate));
+        startedPlaybackRates.add(state.playbackRate);
         if (lastDrain != null) {
           gaps.add(DateTime.now().difference(lastDrain!).inMilliseconds);
         }
@@ -443,13 +480,14 @@ class _ObservedSession implements MlsrSession {
 class _ObservedPlayback implements MlsrPlayback {
   _ObservedPlayback(this.speech, {required this.onStart, required this.onDone});
   final Speech speech;
-  final void Function() onStart, onDone;
+  final void Function(SpeechState) onStart;
+  final void Function() onDone;
   @override
   Stream<void> get starts => speech.states
       .where((s) => s.playback == PlaybackPhase.playing)
       .take(1)
-      .map((_) {
-        onStart();
+      .map((state) {
+        onStart(state);
       });
   @override
   Future<bool> get done async {

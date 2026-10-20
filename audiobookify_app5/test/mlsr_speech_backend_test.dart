@@ -15,7 +15,7 @@ Future<void> settleUntil(bool Function() ready) async {
 
 void main() {
   test(
-    'one persistent model, loaded catalog, and playback options match app settings',
+    'one persistent model applies voice and synthesis speed without stretching',
     () async {
       final session = FakeSession();
       var opens = 0;
@@ -43,8 +43,8 @@ void main() {
       expect(session.request!.locale, 'ko-KR');
       expect(session.request!.fallback, VoiceFallback.sameLanguage);
       expect(session.request!.voice, 'supertonic3:F1');
-      expect(session.request!.speakingRate, 1);
-      expect(session.options!.playbackRate, 1.5);
+      expect(session.request!.speakingRate, 1.5);
+      expect(session.options!.playbackRate, 1.0);
       expect(session.options!.retainAudio, isFalse);
       session.playbacks.single.result.complete(true);
       await playing;
@@ -108,10 +108,19 @@ void main() {
       addTearDown(backend.dispose);
       final first = backend.speak('First.');
       await settleUntil(() => session.playbacks.length == 1);
+      final firstRequest = session.request!;
+      expect(firstRequest.speakingRate, 1.0);
+      expect(session.options!.playbackRate, 1.0);
+      await backend.applySettings(
+        const PlayerSettings(backend: SpeechBackendKind.mlsr, speed: 1.4),
+      );
       final second = backend.speak('Second.');
       await settleUntil(() => session.playbacks.length == 2);
       expect(session.playbacks.first.cancelled, isTrue);
       expect(session.playbacks.first.disposed, isTrue);
+      expect(firstRequest.speakingRate, 1.0);
+      expect(session.request!.speakingRate, 1.4);
+      expect(session.options!.playbackRate, 1.0);
       session.playbacks.last.result.complete(true);
       await Future.wait([first, second]);
     },

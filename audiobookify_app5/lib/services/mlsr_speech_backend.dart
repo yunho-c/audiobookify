@@ -195,9 +195,11 @@ class MlsrSpeechBackend implements SpeechBackend {
         locale: locale == null || locale.isEmpty ? 'en' : locale,
         voice: settings.voiceId ?? '',
         fallback: VoiceFallback.sameLanguage,
+        speakingRate: settings.speed,
       ),
-      options: SpeechOptions(
-        playbackRate: settings.speed,
+      options: const SpeechOptions(
+        // Let the model control timing; play its PCM without time stretching.
+        playbackRate: 1.0,
         // Sentence navigation regenerates text. Do not retain an entire book.
         retainAudio: false,
       ),
