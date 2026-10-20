@@ -12,6 +12,8 @@ class EpubResourceResolver {
   final Future<Uint8List?> Function(String href)? loader;
 
   final LinkedHashMap<String, Uint8List> _cache = LinkedHashMap();
+  final Map<(String, String?, ReaderResourceKind), Future<Uint8List?>>
+  _pending = {};
 
   EpubResourceResolver({
     required this.epubPath,
@@ -30,17 +32,20 @@ class EpubResourceResolver {
     );
   }
 
-  Future<Uint8List?> loadImage(String href) async {
-    return loadHref(href);
-  }
+  Future<Uint8List?> loadImage(String href) => loadHref(href);
 
-  Future<Uint8List?> loadResource(ReaderResourceRef resource) async {
-    final normalizedCandidates = _normalizedHrefCandidates(resource.href);
+  Future<Uint8List?> loadResource(ReaderResourceRef resource) {
+    final List<String> normalizedCandidates;
+    try {
+      normalizedCandidates = _normalizedHrefCandidates(resource.href);
+    } catch (error, stackTrace) {
+      return Future.error(error, stackTrace);
+    }
     if (normalizedCandidates.isEmpty) {
       _logImageDebug(
         'resolver resource skipped empty href raw="${resource.href}"',
       );
-      return null;
+      return SynchronousFuture(null);
     }
 
     for (final candidate in normalizedCandidates) {
@@ -50,10 +55,32 @@ class EpubResourceResolver {
         _logImageDebug(
           'resolver resource cache-hit href="$candidate" bytes=${cached.length} media="${resource.mediaType ?? 'N/A'}"',
         );
-        return cached;
+        // A cached image can be mounted without a transient loading frame.
+        return SynchronousFuture(cached);
       }
     }
 
+    final href = normalizedCandidates.first;
+    final key = (
+      href.startsWith('/') ? href.substring(1) : href,
+      resource.mediaType,
+      resource.kind,
+    );
+    // Share work while it is pending, including across block/inline instances.
+    // Completed requests leave this map so it cannot bypass the bounded cache
+    // or permanently retain a failure/missing resource.
+    return _pending.putIfAbsent(
+      key,
+      () => _loadCandidates(resource, normalizedCandidates).whenComplete(() {
+        _pending.remove(key);
+      }),
+    );
+  }
+
+  Future<Uint8List?> _loadCandidates(
+    ReaderResourceRef resource,
+    List<String> normalizedCandidates,
+  ) async {
     for (final candidate in normalizedCandidates) {
       _logImageDebug(
         'resolver resource load-start raw="${resource.href}" normalized="$candidate" media="${resource.mediaType ?? 'N/A'}" kind=${resource.kind.name}',
@@ -61,17 +88,16 @@ class EpubResourceResolver {
 
       final Uint8List? bytes;
       try {
-        bytes =
-            loader != null
-                ? await loader!(candidate)
-                : await readBookResourceBytes(
-                    path: epubPath,
-                    resource: ResourceRef(
-                      href: candidate,
-                      mediaType: resource.mediaType,
-                      kind: _resourceKind(resource.kind),
-                    ),
-                  );
+        bytes = loader != null
+            ? await loader!(candidate)
+            : await readBookResourceBytes(
+                path: epubPath,
+                resource: ResourceRef(
+                  href: candidate,
+                  mediaType: resource.mediaType,
+                  kind: _resourceKind(resource.kind),
+                ),
+              );
       } catch (error, stackTrace) {
         _logImageDebug(
           'resolver resource load-error href="$candidate" error=$error\n$stackTrace',
@@ -94,61 +120,9 @@ class EpubResourceResolver {
     return null;
   }
 
-  Future<Uint8List?> loadHref(String href) async {
-    final normalizedCandidates = _normalizedHrefCandidates(href);
-    if (normalizedCandidates.isEmpty) {
-      _logImageDebug('resolver href skipped empty raw="$href"');
-      return null;
-    }
-
-    for (final candidate in normalizedCandidates) {
-      final cached = _cache.remove(candidate);
-      if (cached != null) {
-        _cache[candidate] = cached;
-        _logImageDebug(
-          'resolver href cache-hit href="$candidate" bytes=${cached.length}',
-        );
-        return cached;
-      }
-    }
-
-    for (final candidate in normalizedCandidates) {
-      _logImageDebug('resolver href load-start raw="$href" normalized="$candidate"');
-
-      final Uint8List? bytes;
-      try {
-        bytes =
-            loader != null
-                ? await loader!(candidate)
-                : await readBookResourceBytes(
-                    path: epubPath,
-                    resource: ResourceRef(
-                      href: candidate,
-                      mediaType: null,
-                      kind: ResourceKind.image,
-                    ),
-                  );
-      } catch (error, stackTrace) {
-        _logImageDebug(
-          'resolver href load-error href="$candidate" error=$error\n$stackTrace',
-        );
-        rethrow;
-      }
-
-      _logImageDebug(
-        'resolver href load-done href="$candidate" bytes=${bytes?.length ?? 0}',
-      );
-      if (bytes == null) continue;
-
-      _cache[candidate] = bytes;
-      while (_cache.length > cacheSize) {
-        _cache.remove(_cache.keys.first);
-      }
-      return bytes;
-    }
-
-    return null;
-  }
+  Future<Uint8List?> loadHref(String href) => loadResource(
+    ReaderResourceRef(href: href, kind: ReaderResourceKind.image),
+  );
 
   List<String> _normalizedHrefCandidates(String href) {
     final trimmed = href.trim();
@@ -162,6 +136,7 @@ class EpubResourceResolver {
       if (normalized.isEmpty || candidates.contains(normalized)) return;
       candidates.add(normalized);
     }
+
     addCandidate(decoded);
     if (decoded.startsWith('/')) {
       addCandidate(decoded.substring(1));

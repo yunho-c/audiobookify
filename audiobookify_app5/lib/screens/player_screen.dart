@@ -13,6 +13,7 @@ import '../reader/epub_resource_resolver.dart';
 import '../reader/reader_debug_logging.dart';
 import '../reader/reader_dto_adapter.dart';
 import '../reader/reader_ir.dart';
+import '../reader/reader_paragraph.dart';
 import '../reader/reader_renderer.dart';
 import '../reader/reader_segmentation.dart';
 import '../core/app_theme.dart';
@@ -66,8 +67,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen>
-    with RouteAware, SingleTickerProviderStateMixin {
+class _PlayerScreenState extends ConsumerState<PlayerScreen> with RouteAware {
   static const _keyboardFocusKey = ValueKey<String>('playerKeyboardFocus');
 
   final ScrollController _scrollController = ScrollController();
@@ -75,8 +75,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   List<GlobalKey> _blockKeys = [];
   final List<List<TapGestureRecognizer>> _sentenceRecognizers = [];
   final Map<String, TapGestureRecognizer> _linkRecognizers = {};
-  late final AnimationController _sentenceHighlightController;
-  late final Animation<double> _sentenceHighlightCurve;
 
   // Data
   Book? _book;
@@ -96,10 +94,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _currentChapterIndex = 0;
   int _lastScrolledToTtsIndex = -1;
   int _lastBucketTtsIndex = -1;
-  int _activeSentenceIndex = -1;
-  int _activeSentenceTtsIndex = -1;
-  int _previousSentenceIndex = -1;
-  int _previousSentenceTtsIndex = -1;
   int _lastResumeChapter = -1;
   int _lastResumeParagraph = -1;
   int _lastResumeSentence = -1;
@@ -114,29 +108,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _audioHandler = ref.read(audioHandlerProvider);
     _audioHandler.onSkipNext = () => _nextChapter(haptic: false);
     _audioHandler.onSkipPrevious = () => _previousChapter(haptic: false);
-    _sentenceHighlightController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-    );
-    _sentenceHighlightCurve = CurvedAnimation(
-      parent: _sentenceHighlightController,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-    _sentenceHighlightController.addListener(() {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-    _sentenceHighlightController.addStatusListener((status) {
-      if (!mounted) return;
-      if (status == AnimationStatus.completed) {
-        setState(() {
-          _previousSentenceIndex = -1;
-          _previousSentenceTtsIndex = -1;
-        });
-      }
-    });
     _initTts();
     _loadContent();
     _requestKeyboardFocus();
@@ -744,7 +715,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _clearSentenceRecognizers();
     _scrollController.dispose();
     _keyboardFocusNode.dispose();
-    _sentenceHighlightController.dispose();
     super.dispose();
   }
 
@@ -777,38 +747,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       artist: author,
       album: _chapterTitleFor(_currentChapterIndex),
     );
-  }
-
-  void _startSentenceHighlightTransition(
-    int paragraphIndex,
-    int sentenceIndex,
-  ) {
-    if (!mounted) return;
-    if (sentenceIndex < 0) {
-      setState(() {
-        _activeSentenceIndex = -1;
-        _activeSentenceTtsIndex = -1;
-        _previousSentenceIndex = -1;
-        _previousSentenceTtsIndex = -1;
-      });
-      _sentenceHighlightController.value = 1;
-      return;
-    }
-    if (paragraphIndex == _activeSentenceTtsIndex &&
-        sentenceIndex == _activeSentenceIndex) {
-      return;
-    }
-
-    setState(() {
-      _previousSentenceIndex = _activeSentenceIndex;
-      _previousSentenceTtsIndex = _activeSentenceTtsIndex;
-      _activeSentenceIndex = sentenceIndex;
-      _activeSentenceTtsIndex = paragraphIndex;
-    });
-
-    _sentenceHighlightController.stop();
-    _sentenceHighlightController.value = 0;
-    _sentenceHighlightController.forward();
   }
 
   TapGestureRecognizer _sentenceRecognizerFor(int ttsIndex, int sentenceIndex) {
@@ -945,6 +883,82 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
+  void _schedulePlaybackEffects(TtsPlaybackState state) {
+    if (!mounted || _isLoading || _book == null || _ttsParagraphs.isEmpty) {
+      return;
+    }
+    final paragraph = state.paragraphIndex;
+    final chapter = _currentChapterIndex;
+    if (!_hasActiveTextSelection &&
+        paragraph != _lastScrolledToTtsIndex &&
+        state.status == TtsStatus.playing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            chapter != _currentChapterIndex ||
+            _hasActiveTextSelection ||
+            _ttsService.playbackState.paragraphIndex != paragraph ||
+            _ttsService.playbackState.status != TtsStatus.playing) {
+          return;
+        }
+        _scrollToBlock(_blockIndexForTts(paragraph));
+        _lastScrolledToTtsIndex = paragraph;
+      });
+    }
+
+    if (paragraph != _lastBucketTtsIndex) {
+      _lastBucketTtsIndex = paragraph;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || chapter != _currentChapterIndex) return;
+        _updateBucketProgress(paragraph, _ttsParagraphs.length);
+      });
+    }
+  }
+
+  Widget _buildReaderBlock(
+    ReaderRenderBlock block,
+    ReaderRenderTheme theme,
+    EpubResourceResolver resolver,
+  ) {
+    final ttsIndex = block.ttsIndex;
+    if (ttsIndex == null || ttsIndex >= _ttsParagraphs.length) {
+      return ReaderBlockRenderer.buildBlock(
+        renderBlock: block,
+        theme: theme,
+        resolver: resolver,
+        isActiveParagraph: false,
+        activeSentenceIndex: -1,
+        previousSentenceIndex: -1,
+        transitionValue: 0,
+        sentenceRecognizer: null,
+        linkRecognizer: _linkRecognizerFor,
+        onTapParagraph: null,
+      );
+    }
+
+    return Consumer(
+      builder: (context, ref, child) {
+        final selection = ref.watch(
+          ttsProvider.select((state) {
+            final active = state.paragraphIndex == ttsIndex;
+            return (active, active ? state.sentenceIndex : -1);
+          }),
+        );
+        return ReaderParagraph(
+          renderBlock: block,
+          theme: theme,
+          resolver: resolver,
+          isActive: selection.$1,
+          sentenceIndex: selection.$2,
+          ttsData: _ttsParagraphs[ttsIndex],
+          sentenceRecognizer: (sentence) =>
+              _sentenceRecognizerFor(ttsIndex, sentence),
+          linkRecognizer: _linkRecognizerFor,
+          onTapParagraph: () => _ttsService.jumpToParagraph(ttsIndex),
+        );
+      },
+    );
+  }
+
   Widget _wrapWithKeyboardScope(Widget child) {
     if (!_desktopHotkeysEnabled) {
       return child;
@@ -967,21 +981,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Watch TTS state for reactive updates
-    final ttsState = ref.watch(ttsProvider);
+    // Playback effects do not require rebuilding the screen. Paragraphs and
+    // controls subscribe to the state they display below.
     ref.listen<TtsPlaybackState>(ttsProvider, (previous, next) {
       if (!mounted || _ttsParagraphs.isEmpty) return;
-      final prevParagraph = previous?.paragraphIndex;
-      final prevSentence = previous?.sentenceIndex;
-      if (prevParagraph == next.paragraphIndex &&
-          prevSentence == next.sentenceIndex) {
-        return;
+      if (previous?.paragraphIndex != next.paragraphIndex ||
+          previous?.sentenceIndex != next.sentenceIndex) {
+        _persistResumePosition(next);
       }
-      _startSentenceHighlightTransition(
-        next.paragraphIndex,
-        next.sentenceIndex,
-      );
-      _persistResumePosition(next);
+      _schedulePlaybackEffects(next);
     });
     final readerTheme = ref.watch(playerThemeProvider);
     final debugEnabled = ref.watch(debugModeProvider);
@@ -989,9 +997,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     setReaderImageLogsEnabled(imageDebugLoggingEnabled);
     final backdropSettings = ref.watch(backdropSettingsProvider);
     final backdrops = ref.watch(backdropLibraryProvider);
-    final isPlaying = ttsState.status == TtsStatus.playing;
-    final currentParagraphIndex = ttsState.paragraphIndex;
-    final currentSentenceIndex = ttsState.sentenceIndex;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final extras = Theme.of(context).extension<AppThemeExtras>();
@@ -1057,29 +1062,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _resourceResolver ??
         EpubResourceResolver(epubPath: _book?.filePath ?? '');
 
-    // Auto-scroll when paragraph changes
-    if (!_hasActiveTextSelection &&
-        currentParagraphIndex != _lastScrolledToTtsIndex &&
-        isPlaying) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBlock(_blockIndexForTts(currentParagraphIndex));
-        _lastScrolledToTtsIndex = currentParagraphIndex;
-      });
-    }
-
-    if (_book != null &&
-        _ttsParagraphs.isNotEmpty &&
-        currentParagraphIndex != _lastBucketTtsIndex) {
-      final targetParagraph = currentParagraphIndex;
-      final targetChapter = _currentChapterIndex;
-      _lastBucketTtsIndex = targetParagraph;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (_book == null || _ttsParagraphs.isEmpty) return;
-        if (_currentChapterIndex != targetChapter) return;
-        _updateBucketProgress(targetParagraph, _ttsParagraphs.length);
-      });
-    }
+    // Also reconcile after chapter/theme changes or releasing text selection.
+    _schedulePlaybackEffects(_ttsService.playbackState);
 
     if (_isLoading) {
       return _wrapWithKeyboardScope(const LoadingScaffold());
@@ -1096,24 +1080,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
       );
     }
-
-    const bucketCount = 64;
-    final debugBuckets = debugEnabled && _book != null
-        ? ref
-                  .watch(
-                    bucketProgressProvider(
-                      BucketProgressArgs(
-                        bookId: _book!.id,
-                        chapterIndex: _currentChapterIndex + 1,
-                        bucketCount: bucketCount,
-                      ),
-                    ),
-                  )
-                  .value ??
-              Uint8List(bucketCount)
-        : null;
-
-    final progress = _calculateProgress(ttsState);
 
     return _wrapWithKeyboardScope(
       Scaffold(
@@ -1179,7 +1145,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
                 ),
-                SpeechStatusBar(state: ttsState, onRetry: _ttsService.retry),
+                Consumer(
+                  builder: (context, ref, child) => SpeechStatusBar(
+                    state: ref.watch(ttsProvider),
+                    onRetry: _ttsService.retry,
+                  ),
+                ),
                 // Text content
                 Expanded(
                   child: _renderBlocks.isEmpty
@@ -1204,49 +1175,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             itemCount: _renderBlocks.length,
                             itemBuilder: (context, index) {
                               final renderBlock = _renderBlocks[index];
-                              final ttsIndex = renderBlock.ttsIndex;
                               final blockKey = index < _blockKeys.length
                                   ? _blockKeys[index]
                                   : GlobalKey();
-                              final isActiveParagraph =
-                                  ttsIndex != null &&
-                                  ttsIndex == currentParagraphIndex;
-                              final ttsData =
-                                  ttsIndex != null &&
-                                      ttsIndex < _ttsParagraphs.length
-                                  ? _ttsParagraphs[ttsIndex]
-                                  : null;
                               return KeyedSubtree(
                                 key: blockKey,
-                                child: ReaderBlockRenderer.buildBlock(
-                                  renderBlock: renderBlock,
-                                  theme: renderTheme,
-                                  resolver: resolver,
-                                  isActiveParagraph: isActiveParagraph,
-                                  activeSentenceIndex: isActiveParagraph
-                                      ? currentSentenceIndex
-                                      : -1,
-                                  previousSentenceIndex: isActiveParagraph
-                                      ? _previousSentenceIndex
-                                      : -1,
-                                  transitionValue: isActiveParagraph
-                                      ? _sentenceHighlightCurve.value
-                                      : 0.0,
-                                  sentenceRecognizer: ttsIndex != null
-                                      ? (sentenceIndex) =>
-                                            _sentenceRecognizerFor(
-                                              ttsIndex,
-                                              sentenceIndex,
-                                            )
-                                      : null,
-                                  linkRecognizer: (target) =>
-                                      _linkRecognizerFor(target),
-                                  onTapParagraph: ttsIndex != null
-                                      ? () => ref
-                                            .read(ttsProvider.notifier)
-                                            .jumpToParagraph(ttsIndex)
-                                      : null,
-                                  ttsData: ttsData,
+                                child: _buildReaderBlock(
+                                  renderBlock,
+                                  renderTheme,
+                                  resolver,
                                 ),
                               );
                             },
@@ -1260,25 +1197,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               left: 0,
               right: 0,
               bottom: 0,
-              child: _PlayerControlsEnhanced(
-                isPlaying: isPlaying,
-                progress: progress,
-                currentParagraph: currentParagraphIndex + 1,
-                totalParagraphs: _ttsParagraphs.length,
-                glassBackground: glassBackground,
-                glassBorder: glassBorder,
-                glassShadow: glassShadow,
-                glassBlur: glassBlur,
-                debugEnabled: debugEnabled,
-                debugBuckets: debugBuckets,
-                onPlayPause: _togglePlayPause,
-                onPrevious: _previousChapter,
-                onNext: _nextChapter,
-                onScrub: (value) => _scrubToProgress(value, ttsState),
-                canGoPrevious: _currentChapterIndex > 0,
-                canGoNext:
-                    _epubBook != null &&
-                    _currentChapterIndex < _epubBook!.sections.length - 1,
+              child: Consumer(
+                builder: (context, ref, child) {
+                  final ttsState = ref.watch(ttsProvider);
+                  const bucketCount = 64;
+                  final debugBuckets = debugEnabled && _book != null
+                      ? ref
+                                .watch(
+                                  bucketProgressProvider(
+                                    BucketProgressArgs(
+                                      bookId: _book!.id,
+                                      chapterIndex: _currentChapterIndex + 1,
+                                      bucketCount: bucketCount,
+                                    ),
+                                  ),
+                                )
+                                .value ??
+                            Uint8List(bucketCount)
+                      : null;
+                  return _PlayerControlsEnhanced(
+                    isPlaying: ttsState.status == TtsStatus.playing,
+                    progress: _calculateProgress(ttsState),
+                    currentParagraph: ttsState.paragraphIndex + 1,
+                    totalParagraphs: _ttsParagraphs.length,
+                    glassBackground: glassBackground,
+                    glassBorder: glassBorder,
+                    glassShadow: glassShadow,
+                    glassBlur: glassBlur,
+                    debugEnabled: debugEnabled,
+                    debugBuckets: debugBuckets,
+                    onPlayPause: _togglePlayPause,
+                    onPrevious: _previousChapter,
+                    onNext: _nextChapter,
+                    onScrub: (value) => _scrubToProgress(value, ttsState),
+                    canGoPrevious: _currentChapterIndex > 0,
+                    canGoNext:
+                        _epubBook != null &&
+                        _currentChapterIndex < _epubBook!.sections.length - 1,
+                  );
+                },
               ),
             ),
             // Settings modal

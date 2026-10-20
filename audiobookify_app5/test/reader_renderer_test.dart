@@ -164,6 +164,7 @@ void main() {
             renderBlock: renderBlock,
             theme: _theme(
               readerTheme: const PlayerThemeSettings(
+                fontFamily: null,
                 textColorMode: PlayerThemeTextColorMode.fixed,
                 textColor: Colors.white,
               ),
@@ -243,7 +244,7 @@ void main() {
 
   testWidgets('renders image blocks from resolver', (tester) async {
     final bytes = base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAp4XfQAAAABJRU5ErkJggg==',
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4b6DwH4QZYAwAUyoJOS9hkwsAAAAASUVORK5CYII=',
     );
     final resolver = EpubResourceResolver.fromMemory({
       'images/pic.png': Uint8List.fromList(bytes),
@@ -298,7 +299,7 @@ void main() {
     tester,
   ) async {
     final bytes = base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAp4XfQAAAABJRU5ErkJggg==',
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4b6DwH4QZYAwAUyoJOS9hkwsAAAAASUVORK5CYII=',
     );
     final resolver = EpubResourceResolver.fromMemory({
       'images/pic.png': Uint8List.fromList(bytes),
@@ -364,7 +365,7 @@ void main() {
     tester,
   ) async {
     final bytes = base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAp4XfQAAAABJRU5ErkJggg==',
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4b6DwH4QZYAwAUyoJOS9hkwsAAAAASUVORK5CYII=',
     );
     final resolver = EpubResourceResolver.fromMemory({
       'images/logo.png': Uint8List.fromList(bytes),
@@ -420,7 +421,7 @@ void main() {
 
   testWidgets('renders inline images and interactive links', (tester) async {
     final bytes = base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAp4XfQAAAABJRU5ErkJggg==',
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4b6DwH4QZYAwAUyoJOS9hkwsAAAAASUVORK5CYII=',
     );
     final resolver = EpubResourceResolver.fromMemory({
       'images/pic.png': Uint8List.fromList(bytes),
@@ -502,7 +503,7 @@ void main() {
 }
 
 ReaderRenderTheme _theme({
-  PlayerThemeSettings readerTheme = const PlayerThemeSettings(),
+  PlayerThemeSettings readerTheme = const PlayerThemeSettings(fontFamily: null),
 }) {
   return ReaderRenderTheme(
     readerTheme: readerTheme,

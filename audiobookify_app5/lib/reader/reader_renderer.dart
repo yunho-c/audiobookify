@@ -121,8 +121,9 @@ class ReaderBlockRenderer {
     final indent = _indentForStyle(theme, style);
     return Padding(
       padding: EdgeInsets.fromLTRB(indent, 12, 0, 12),
-      child: FutureBuilder<Uint8List?>(
-        future: resolver.loadResource(block.resource),
+      child: _ResourceImageBuilder(
+        resolver: resolver,
+        resource: block.resource,
         builder: (context, snapshot) {
           _logImageSnapshot(
             'block',
@@ -132,7 +133,8 @@ class ReaderBlockRenderer {
             bytes: snapshot.data?.length,
             error: snapshot.error,
           );
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return _imagePlaceholder(theme, block.caption);
           }
           if (snapshot.hasError) {
@@ -495,19 +497,19 @@ class ReaderBlockRenderer {
     required Color shadowColor,
     required Widget child,
   }) {
-    if (!showShadow) return child;
-
+    // Preserve the text/image subtree when the active paragraph changes.
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-            blurStyle: BlurStyle.outer,
-          ),
+          if (showShadow)
+            BoxShadow(
+              color: shadowColor,
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+              blurStyle: BlurStyle.outer,
+            ),
         ],
       ),
       child: child,
@@ -541,8 +543,7 @@ class ReaderBlockRenderer {
     for (var sentenceIdx = 0; sentenceIdx < sentences.length; sentenceIdx++) {
       final isCurrentSentence =
           isActiveParagraph && sentenceIdx == activeSentenceIndex;
-      final isPreviousSentence =
-          isActiveParagraph && sentenceIdx == previousSentenceIndex;
+      final isPreviousSentence = sentenceIdx == previousSentenceIndex;
       final highlightIntensity = isCurrentSentence
           ? transitionValue
           : isPreviousSentence
@@ -1077,6 +1078,44 @@ class ReaderBlockRenderer {
   }
 }
 
+/// Owns one resource request for the lifetime of this image identity. Styling
+/// and sentence updates may rebuild the widget without replacing its future.
+class _ResourceImageBuilder extends StatefulWidget {
+  final ReaderResourceRef resource;
+  final EpubResourceResolver resolver;
+  final AsyncWidgetBuilder<Uint8List?> builder;
+
+  _ResourceImageBuilder({
+    required this.resource,
+    required this.resolver,
+    required this.builder,
+  }) : super(
+         key: ValueKey((
+           resolver,
+           resource.href,
+           resource.mediaType,
+           resource.kind,
+         )),
+       );
+
+  @override
+  State<_ResourceImageBuilder> createState() => _ResourceImageBuilderState();
+}
+
+class _ResourceImageBuilderState extends State<_ResourceImageBuilder> {
+  late final Future<Uint8List?> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.resolver.loadResource(widget.resource);
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      FutureBuilder<Uint8List?>(future: _future, builder: widget.builder);
+}
+
 class _InlineImageWidget extends StatelessWidget {
   final ReaderResourceRef resource;
   final String? alt;
@@ -1096,8 +1135,9 @@ class _InlineImageWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List?>(
-      future: resolver.loadResource(resource),
+    return _ResourceImageBuilder(
+      resolver: resolver,
+      resource: resource,
       builder: (context, snapshot) {
         _logImageSnapshot(
           'inline',
