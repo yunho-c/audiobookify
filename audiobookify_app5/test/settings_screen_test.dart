@@ -11,61 +11,102 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-      'SettingsScreen toggles debug mode, crash reporting, labs, and theme preference',
-      (WidgetTester tester) async {
+    'SettingsScreen toggles debug mode, crash reporting, tts debug logs, labs, and theme preference',
+    (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: SettingsScreen()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      Finder switchForTitle(String title) {
+        final rowContainer = find.ancestor(
+          of: find.text(title),
+          matching: find.byType(Padding),
+        );
+        return find.descendant(
+          of: rowContainer.first,
+          matching: find.byType(Switch),
+        );
+      }
+
+      final debugSwitchFinder = switchForTitle('Debug Mode');
+      final crashSwitchFinder = switchForTitle('Crash Reporting');
+      final ttsDebugSwitchFinder = switchForTitle('TTS Debug Logs');
+      final labsSwitchFinder = switchForTitle('Labs');
+
+      expect(debugSwitchFinder, findsOneWidget);
+      expect(crashSwitchFinder, findsOneWidget);
+      expect(ttsDebugSwitchFinder, findsOneWidget);
+      expect(labsSwitchFinder, findsOneWidget);
+
+      final debugSwitch = tester.widget<Switch>(debugSwitchFinder);
+      final crashSwitch = tester.widget<Switch>(crashSwitchFinder);
+      final ttsDebugSwitch = tester.widget<Switch>(ttsDebugSwitchFinder);
+      final labsSwitch = tester.widget<Switch>(labsSwitchFinder);
+      expect(debugSwitch.value, isFalse);
+      expect(crashSwitch.value, isFalse);
+      expect(ttsDebugSwitch.value, isFalse);
+      expect(labsSwitch.value, isFalse);
+
+      expect(find.text('Account'), findsNothing);
+      expect(find.text('Log Out'), findsNothing);
+
+      await tester.ensureVisible(find.text('Debug Mode'));
+      await tester.tap(debugSwitchFinder);
+      await tester.pumpAndSettle();
+      expect(container.read(debugModeProvider), isTrue);
+      expect(prefs.getBool('debug_mode_enabled'), isTrue);
+
+      await tester.ensureVisible(find.text('Crash Reporting'));
+      await tester.tap(crashSwitchFinder);
+      await tester.pumpAndSettle();
+      expect(container.read(crashReportingProvider), isTrue);
+      expect(prefs.getBool(crashReportingPrefsKey), isTrue);
+
+      await tester.ensureVisible(find.text('TTS Debug Logs'));
+      await tester.tap(ttsDebugSwitchFinder);
+      await tester.pumpAndSettle();
+      expect(container.read(ttsDebugLoggingProvider), isTrue);
+      expect(prefs.getBool('tts_debug_logging_enabled'), isTrue);
+
+      await tester.ensureVisible(find.text('Labs'));
+      await tester.tap(labsSwitchFinder);
+      await tester.pumpAndSettle();
+      expect(container.read(labsModeProvider), isTrue);
+      expect(prefs.getBool('labs_mode_enabled'), isTrue);
+      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('Log Out'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Dark'));
+      await tester.tap(find.text('Dark'));
+      await tester.pumpAndSettle();
+      expect(container.read(themePreferenceProvider), AppThemePreference.dark);
+      expect(prefs.getString('app_theme_preference'), 'dark');
+    },
+  );
+
+  testWidgets('SettingsScreen omits retired engine controls', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
-    );
-    addTearDown(container.dispose);
-
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(
-          home: SettingsScreen(),
-        ),
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        child: const MaterialApp(home: SettingsScreen()),
       ),
     );
-
     await tester.pumpAndSettle();
-
-    final switches = find.byType(Switch);
-    expect(switches, findsNWidgets(3));
-
-    final debugSwitch = tester.widget<Switch>(switches.at(0));
-    final crashSwitch = tester.widget<Switch>(switches.at(1));
-    final labsSwitch = tester.widget<Switch>(switches.at(2));
-    expect(debugSwitch.value, isFalse);
-    expect(crashSwitch.value, isTrue);
-    expect(labsSwitch.value, isFalse);
-
-    expect(find.text('Account'), findsNothing);
-    expect(find.text('Log Out'), findsNothing);
-
-    await tester.tap(switches.at(0));
-    await tester.pumpAndSettle();
-    expect(container.read(debugModeProvider), isTrue);
-    expect(prefs.getBool('debug_mode_enabled'), isTrue);
-
-    await tester.tap(switches.at(1));
-    await tester.pumpAndSettle();
-    expect(container.read(crashReportingProvider), isFalse);
-    expect(prefs.getBool(crashReportingPrefsKey), isFalse);
-
-    await tester.tap(switches.at(2));
-    await tester.pumpAndSettle();
-    expect(container.read(labsModeProvider), isTrue);
-    expect(prefs.getBool('labs_mode_enabled'), isTrue);
-    expect(find.text('Account'), findsOneWidget);
-    expect(find.text('Log Out'), findsOneWidget);
-
-    await tester.tap(find.text('Dark'));
-    await tester.pumpAndSettle();
-    expect(container.read(themePreferenceProvider), AppThemePreference.dark);
-    expect(prefs.getString('app_theme_preference'), 'dark');
+    expect(find.text('OpenTTS Execution Provider'), findsNothing);
+    expect(find.textContaining('ONNX'), findsNothing);
   });
 }

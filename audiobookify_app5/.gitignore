@@ -52,3 +52,9 @@ app.*.map.json
 
 # Rust/flutter_rust_bridge generated
 rust/target/
+
+# Generated, verified MLSR model assets and local qualification artifacts.
+.mlsr/
+
+# Pin the application dependency graph for reproducible native packaging.
+!pubspec.lock

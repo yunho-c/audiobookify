@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:file_picker/file_picker.dart';
@@ -16,6 +15,8 @@ import '../core/providers.dart';
 import '../models/backdrop_image.dart';
 import '../models/player_settings.dart';
 import '../models/player_theme_settings.dart';
+import '../services/speech_backend.dart';
+import '../services/system_flutter_tts_backend.dart';
 import '../widgets/shared/pressable.dart';
 
 /// Audio settings modal with interactive sliders for speed and pitch
@@ -332,6 +333,8 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(playerSettingsProvider);
+    final tts = ref.read(ttsProvider.notifier);
+    final backendCapabilities = tts.capabilitiesFor(settings.backend);
     ref.listen<PlayerSettings>(playerSettingsProvider, (previous, next) {
       _syncFromSettings(next);
     });
@@ -339,8 +342,6 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
     final textTheme = Theme.of(context).textTheme;
     final accentPalette = widget.accentPalette;
     final accentSoftPalette = widget.accentSoftPalette;
-    final onSliderDragStart = widget.onSliderDragStart;
-    final onSliderDragEnd = widget.onSliderDragEnd;
     Widget fade(Widget child, {String? sliderId}) {
       return FadeOnSliderDrag(
         isDragging: widget.isDragging,
@@ -365,22 +366,25 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
               icon: LucideIcons.gauge,
               label: 'Speed',
               value: _speedValue,
-              min: 0.5,
-              max: 2.0,
+              min: PlayerSettings.minSpeed,
+              max: PlayerSettings.maxSpeed,
+              divisions: PlayerSettings.speedDivisions,
               displayValue: '${_speedValue.toStringAsFixed(1)}x',
               bgColor: accentSoftPalette[0],
               fgColor: accentPalette[0],
               onChanged: (value) {
                 if (!mounted) return;
-                setState(() => _speedValue = value);
+                setState(
+                  () => _speedValue = PlayerSettings.normalizeSpeed(value),
+                );
               },
               onChangeStart: (_) {
                 _editingSpeed = true;
               },
-              onChangeEnd: (_) {
+              onChangeEnd: (value) {
                 _editingSpeed = false;
                 final notifier = ref.read(playerSettingsProvider.notifier);
-                _scheduleProviderUpdate(() => notifier.setSpeed(_speedValue));
+                _scheduleProviderUpdate(() => notifier.setSpeed(value));
               },
             ),
             sliderId: 'audio_speed',
@@ -393,20 +397,26 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
               value: _pitchValue,
               min: 0.5,
               max: 2.0,
-              displayValue: _pitchValue.toStringAsFixed(1),
+              displayValue: backendCapabilities.supportsPitch
+                  ? _pitchValue.toStringAsFixed(1)
+                  : 'N/A',
               bgColor: accentSoftPalette[1],
               fgColor: accentPalette[1],
+              enabled: backendCapabilities.supportsPitch,
               onChanged: (value) {
+                if (!backendCapabilities.supportsPitch || !mounted) return;
                 if (!mounted) return;
                 setState(() => _pitchValue = value);
               },
               onChangeStart: (_) {
+                if (!backendCapabilities.supportsPitch) return;
                 _editingPitch = true;
               },
-              onChangeEnd: (_) {
+              onChangeEnd: (value) {
+                if (!backendCapabilities.supportsPitch) return;
                 _editingPitch = false;
                 final notifier = ref.read(playerSettingsProvider.notifier);
-                _scheduleProviderUpdate(() => notifier.setPitch(_pitchValue));
+                _scheduleProviderUpdate(() => notifier.setPitch(value));
               },
             ),
             sliderId: 'audio_pitch',
@@ -421,7 +431,7 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
                   child: _SettingCard(
                     icon: LucideIcons.mic2,
                     label: 'Style',
-                    value: settings.voiceName?.split('.').last ?? 'Default',
+                    value: _voiceDisplayLabel(settings),
                     bgColor: accentSoftPalette[2],
                     fgColor: accentPalette[2],
                     onTap: () => _showVoiceSelector(context, ref),
@@ -431,11 +441,11 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
                 Expanded(
                   child: _SettingCard(
                     icon: LucideIcons.languages,
-                    label: 'Accent',
-                    value: 'British',
+                    label: 'Backend',
+                    value: settings.backend.label,
                     bgColor: accentSoftPalette[3],
                     fgColor: accentPalette[3],
-                    onTap: () {}, // No-op
+                    onTap: () => _showBackendSelector(context, ref),
                   ),
                 ),
               ],
@@ -1421,6 +1431,7 @@ class _SettingSlider extends StatefulWidget {
   final String displayValue;
   final Color bgColor;
   final Color fgColor;
+  final bool enabled;
   final ValueChanged<double> onChanged;
   final ValueChanged<double>? onChangeStart;
   final ValueChanged<double>? onChangeEnd;
@@ -1435,6 +1446,7 @@ class _SettingSlider extends StatefulWidget {
     required this.displayValue,
     required this.bgColor,
     required this.fgColor,
+    this.enabled = true,
     required this.onChanged,
     this.onChangeStart,
     this.onChangeEnd,
@@ -1452,8 +1464,8 @@ class _SettingSliderState extends State<_SettingSlider> {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final step = _resolveStep();
-    final canDecrease = widget.value > widget.min + 0.0001;
-    final canIncrease = widget.value < widget.max - 0.0001;
+    final canDecrease = widget.enabled && widget.value > widget.min + 0.0001;
+    final canIncrease = widget.enabled && widget.value < widget.max - 0.0001;
 
     void updateByStep(int direction) {
       final target = (widget.value + step * direction).clamp(
@@ -1462,7 +1474,10 @@ class _SettingSliderState extends State<_SettingSlider> {
       );
       final snapped =
           widget.min + (((target - widget.min) / step).round()) * step;
-      widget.onChanged(snapped.clamp(widget.min, widget.max).toDouble());
+      final value = snapped.clamp(widget.min, widget.max).toDouble();
+      widget.onChangeStart?.call(widget.value);
+      widget.onChanged(value);
+      widget.onChangeEnd?.call(value);
     }
 
     return AnimatedContainer(
@@ -1470,7 +1485,7 @@ class _SettingSliderState extends State<_SettingSlider> {
       curve: Curves.easeOutCubic,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: widget.bgColor,
+        color: widget.enabled ? widget.bgColor : widget.bgColor.withAlpha(160),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
@@ -1535,15 +1550,19 @@ class _SettingSliderState extends State<_SettingSlider> {
                     min: widget.min,
                     max: widget.max,
                     divisions: widget.divisions,
-                    onChanged: widget.onChanged,
-                    onChangeStart: (value) {
-                      setState(() => _isDragging = true);
-                      widget.onChangeStart?.call(value);
-                    },
-                    onChangeEnd: (value) {
-                      setState(() => _isDragging = false);
-                      widget.onChangeEnd?.call(value);
-                    },
+                    onChanged: widget.enabled ? widget.onChanged : null,
+                    onChangeStart: widget.enabled
+                        ? (value) {
+                            setState(() => _isDragging = true);
+                            widget.onChangeStart?.call(value);
+                          }
+                        : null,
+                    onChangeEnd: widget.enabled
+                        ? (value) {
+                            setState(() => _isDragging = false);
+                            widget.onChangeEnd?.call(value);
+                          }
+                        : null,
                   ),
                 ),
               ),
@@ -2242,6 +2261,17 @@ void _showVoiceSelector(BuildContext context, WidgetRef ref) {
   );
 }
 
+void _showBackendSelector(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (context) => _BackendSelectorSheet(ref: ref),
+  );
+}
+
 class _VoiceSelectorSheet extends StatefulWidget {
   final WidgetRef ref;
 
@@ -2252,8 +2282,9 @@ class _VoiceSelectorSheet extends StatefulWidget {
 }
 
 class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
-  List<Map<String, String>> _voices = [];
+  List<SpeechVoiceOption> _voices = [];
   bool _isLoading = true;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -2262,25 +2293,27 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
   }
 
   Future<void> _loadVoices() async {
+    setState(() {
+      _isLoading = true;
+      _loadFailed = false;
+    });
     try {
-      final voices = await _getSystemVoices();
+      final settings = widget.ref.read(playerSettingsProvider);
+      final voices = await widget.ref
+          .read(ttsProvider.notifier)
+          .listVoices(backend: settings.backend);
+      if (!mounted) return;
       setState(() {
-        _voices = voices
-            .where((v) => v['locale']?.contains('en') ?? false)
-            .toList();
+        _voices = voices;
         _isLoading = false;
       });
-    } catch (e) {
-      setState(() => _isLoading = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
     }
-  }
-
-  Future<List<Map<String, String>>> _getSystemVoices() async {
-    final FlutterTts flutterTts = FlutterTts();
-    final voices = await flutterTts.getVoices;
-    return (voices as List)
-        .map((v) => Map<String, String>.from(v as Map))
-        .toList();
   }
 
   @override
@@ -2302,12 +2335,22 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
           const SizedBox(height: 16),
           if (_isLoading)
             Center(child: CircularProgressIndicator(color: colorScheme.primary))
+          else if (_loadFailed)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Could not load voices. Try again or select System speech.',
+                ),
+                TextButton(onPressed: _loadVoices, child: const Text('Retry')),
+              ],
+            )
           else if (_voices.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Text(
-                  'Using system default voice',
+                  'Using backend default voice',
                   style: textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -2321,17 +2364,19 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
                 itemCount: _voices.length,
                 itemBuilder: (context, index) {
                   final voice = _voices[index];
-                  final isSelected = voice['name'] == settings.voiceName;
+                  final isSelected = voice.id == settings.voiceId;
                   return ListTile(
-                    title: Text(voice['name'] ?? 'Unknown'),
-                    subtitle: Text(voice['locale'] ?? ''),
+                    title: Text(voice.label),
+                    subtitle: Text(
+                      voice.localeLabel ?? voice.languageCode ?? voice.id,
+                    ),
                     trailing: isSelected
                         ? Icon(LucideIcons.check, color: colorScheme.primary)
                         : null,
                     onTap: () {
                       widget.ref
                           .read(playerSettingsProvider.notifier)
-                          .setVoice(voice['name']!, voice['locale']!);
+                          .setVoice(voice.id);
                       Navigator.pop(context);
                     },
                   );
@@ -2342,6 +2387,60 @@ class _VoiceSelectorSheetState extends State<_VoiceSelectorSheet> {
       ),
     );
   }
+}
+
+class _BackendSelectorSheet extends StatelessWidget {
+  final WidgetRef ref;
+
+  const _BackendSelectorSheet({required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = ref.watch(playerSettingsProvider);
+    final backends = ref.read(ttsProvider.notifier).availableBackends;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Select Backend',
+            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          for (final backend in backends)
+            ListTile(
+              title: Text(backend.label),
+              trailing: backend == settings.backend
+                  ? Icon(LucideIcons.check, color: colorScheme.primary)
+                  : null,
+              onTap: () {
+                ref.read(playerSettingsProvider.notifier).setBackend(backend);
+                Navigator.pop(context);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String _voiceDisplayLabel(PlayerSettings settings) {
+  final voiceId = settings.voiceId;
+  if (voiceId == null || voiceId.isEmpty) {
+    return 'Default';
+  }
+  if (settings.backend == SpeechBackendKind.system) {
+    final parsed = SystemFlutterTtsBackend.parseVoiceId(voiceId);
+    if (parsed != null) {
+      return parsed.name;
+    }
+  }
+  return voiceId;
 }
 
 class _WheelPainter extends CustomPainter {

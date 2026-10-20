@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:audiobookify/core/providers.dart';
 import 'package:audiobookify/models/book.dart';
@@ -9,8 +10,11 @@ import 'package:audiobookify/screens/home_screen.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('HomeScreen shows continue listening for in-progress book',
-      (WidgetTester tester) async {
+  testWidgets('HomeScreen shows continue listening for in-progress book', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     final bookA = Book(
       id: 1,
       title: 'Alpha',
@@ -33,11 +37,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
           booksProvider.overrideWith((ref) => Stream.value([bookA, bookB])),
         ],
-        child: const MaterialApp(
-          home: HomeScreen(),
-        ),
+        child: const MaterialApp(home: HomeScreen()),
       ),
     );
 
@@ -48,8 +51,11 @@ void main() {
     expect(find.text('2 titles'), findsOneWidget);
   });
 
-  testWidgets('HomeScreen hides continue section when nothing in progress',
-      (WidgetTester tester) async {
+  testWidgets('HomeScreen hides continue section when nothing in progress', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     final completed = Book(
       id: 3,
       title: 'Completed',
@@ -63,11 +69,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
           booksProvider.overrideWith((ref) => Stream.value([completed])),
         ],
-        child: const MaterialApp(
-          home: HomeScreen(),
-        ),
+        child: const MaterialApp(home: HomeScreen()),
       ),
     );
 

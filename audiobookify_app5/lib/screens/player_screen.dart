@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +27,7 @@ import '../models/backdrop_image.dart';
 import '../models/player_theme_settings.dart';
 import '../src/rust/api/epub.dart';
 import '../widgets/settings_wheel.dart';
+import '../widgets/speech_status_bar.dart';
 import '../widgets/shared/glass_icon_button.dart';
 import '../widgets/shared/pressable.dart';
 import '../widgets/shared/state_scaffolds.dart';
@@ -101,6 +103,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _lastResumeChapter = -1;
   int _lastResumeParagraph = -1;
   int _lastResumeSentence = -1;
+  bool _hasActiveTextSelection = false;
 
   @override
   void initState() {
@@ -182,7 +185,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       // Try to advance to next chapter
       if (_currentChapterIndex < (_epubBook?.sections.length ?? 1) - 1) {
-        _loadChapter(_currentChapterIndex + 1);
+        _loadChapter(_currentChapterIndex + 1, continuePlayback: true);
       } else {
         _saveProgress();
       }
@@ -263,6 +266,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     int? resumeParagraphIndex,
     int? resumeSentenceIndex,
     String? navigateFragment,
+    bool continuePlayback = false,
   }) async {
     if (_epubBook == null || !mounted) return;
 
@@ -284,16 +288,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _blockKeys = List.generate(_renderBlocks.length, (_) => GlobalKey());
       _lastScrolledToTtsIndex = -1;
       _lastBucketTtsIndex = -1;
+      _hasActiveTextSelection = false;
       _isLoading = false;
     });
 
     _updateNowPlaying();
 
     // Load content into TTS provider
-    final wasPlaying = _ttsService.state.status == TtsStatus.playing;
+    final wasPlaying =
+        continuePlayback ||
+        _ttsService.playbackState.status == TtsStatus.playing;
     final paragraphTexts = _ttsParagraphs.map((p) => p.plainText).toList();
     final sentenceData = _ttsParagraphs.map((p) => p.sentences).toList();
-    _ttsService.loadContent(paragraphTexts, sentences: sentenceData);
+    _ttsService.loadContent(
+      paragraphTexts,
+      sentences: sentenceData,
+      languageCode: _epubBook!.metadata.language ?? _book?.language,
+    );
 
     if (resumeParagraphIndex != null && _ttsParagraphs.isNotEmpty) {
       final targetParagraph = resumeParagraphIndex
@@ -393,7 +404,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _togglePlayPause() async {
     HapticFeedback.lightImpact();
-    final ttsState = _ttsService.state;
+    final ttsState = _ttsService.playbackState;
 
     if (ttsState.status == TtsStatus.playing) {
       await _audioHandler.pause();
@@ -436,7 +447,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _jumpSentenceRelative(int delta) async {
     if (delta == 0 || _ttsParagraphs.isEmpty) return;
 
-    final ttsState = _ttsService.state;
+    final ttsState = _ttsService.playbackState;
     final sentences = ttsState.sentencesPerParagraph;
     if (sentences.isEmpty) return;
 
@@ -924,6 +935,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  void _handleSelectionChanged(SelectedContent? selectedContent) {
+    final hasActiveSelection = selectedContent?.plainText.isNotEmpty ?? false;
+    if (!mounted || hasActiveSelection == _hasActiveTextSelection) {
+      return;
+    }
+    setState(() {
+      _hasActiveTextSelection = hasActiveSelection;
+    });
+  }
+
   Widget _wrapWithKeyboardScope(Widget child) {
     if (!_desktopHotkeysEnabled) {
       return child;
@@ -1037,7 +1058,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         EpubResourceResolver(epubPath: _book?.filePath ?? '');
 
     // Auto-scroll when paragraph changes
-    if (currentParagraphIndex != _lastScrolledToTtsIndex && isPlaying) {
+    if (!_hasActiveTextSelection &&
+        currentParagraphIndex != _lastScrolledToTtsIndex &&
+        isPlaying) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToBlock(_blockIndexForTts(currentParagraphIndex));
         _lastScrolledToTtsIndex = currentParagraphIndex;
@@ -1156,6 +1179,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
                 ),
+                SpeechStatusBar(state: ttsState, onRetry: _ttsService.retry),
                 // Text content
                 Expanded(
                   child: _renderBlocks.isEmpty
@@ -1167,62 +1191,66 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ),
                           ),
                         )
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: EdgeInsets.fromLTRB(
-                            safePagePaddingHorizontal,
-                            safePagePaddingVertical,
-                            safePagePaddingHorizontal,
-                            safePagePaddingVertical + 260,
+                      : SelectionArea(
+                          onSelectionChanged: _handleSelectionChanged,
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            padding: EdgeInsets.fromLTRB(
+                              safePagePaddingHorizontal,
+                              safePagePaddingVertical,
+                              safePagePaddingHorizontal,
+                              safePagePaddingVertical + 260,
+                            ),
+                            itemCount: _renderBlocks.length,
+                            itemBuilder: (context, index) {
+                              final renderBlock = _renderBlocks[index];
+                              final ttsIndex = renderBlock.ttsIndex;
+                              final blockKey = index < _blockKeys.length
+                                  ? _blockKeys[index]
+                                  : GlobalKey();
+                              final isActiveParagraph =
+                                  ttsIndex != null &&
+                                  ttsIndex == currentParagraphIndex;
+                              final ttsData =
+                                  ttsIndex != null &&
+                                      ttsIndex < _ttsParagraphs.length
+                                  ? _ttsParagraphs[ttsIndex]
+                                  : null;
+                              return KeyedSubtree(
+                                key: blockKey,
+                                child: ReaderBlockRenderer.buildBlock(
+                                  renderBlock: renderBlock,
+                                  theme: renderTheme,
+                                  resolver: resolver,
+                                  isActiveParagraph: isActiveParagraph,
+                                  activeSentenceIndex: isActiveParagraph
+                                      ? currentSentenceIndex
+                                      : -1,
+                                  previousSentenceIndex: isActiveParagraph
+                                      ? _previousSentenceIndex
+                                      : -1,
+                                  transitionValue: isActiveParagraph
+                                      ? _sentenceHighlightCurve.value
+                                      : 0.0,
+                                  sentenceRecognizer: ttsIndex != null
+                                      ? (sentenceIndex) =>
+                                            _sentenceRecognizerFor(
+                                              ttsIndex,
+                                              sentenceIndex,
+                                            )
+                                      : null,
+                                  linkRecognizer: (target) =>
+                                      _linkRecognizerFor(target),
+                                  onTapParagraph: ttsIndex != null
+                                      ? () => ref
+                                            .read(ttsProvider.notifier)
+                                            .jumpToParagraph(ttsIndex)
+                                      : null,
+                                  ttsData: ttsData,
+                                ),
+                              );
+                            },
                           ),
-                          itemCount: _renderBlocks.length,
-                          itemBuilder: (context, index) {
-                            final renderBlock = _renderBlocks[index];
-                            final ttsIndex = renderBlock.ttsIndex;
-                            final blockKey = index < _blockKeys.length
-                                ? _blockKeys[index]
-                                : GlobalKey();
-                            final isActiveParagraph =
-                                ttsIndex != null &&
-                                ttsIndex == currentParagraphIndex;
-                            final ttsData =
-                                ttsIndex != null &&
-                                    ttsIndex < _ttsParagraphs.length
-                                ? _ttsParagraphs[ttsIndex]
-                                : null;
-                            return KeyedSubtree(
-                              key: blockKey,
-                              child: ReaderBlockRenderer.buildBlock(
-                                renderBlock: renderBlock,
-                                theme: renderTheme,
-                                resolver: resolver,
-                                isActiveParagraph: isActiveParagraph,
-                                activeSentenceIndex: isActiveParagraph
-                                    ? currentSentenceIndex
-                                    : -1,
-                                previousSentenceIndex: isActiveParagraph
-                                    ? _previousSentenceIndex
-                                    : -1,
-                                transitionValue: isActiveParagraph
-                                    ? _sentenceHighlightCurve.value
-                                    : 0.0,
-                                sentenceRecognizer: ttsIndex != null
-                                    ? (sentenceIndex) => _sentenceRecognizerFor(
-                                        ttsIndex,
-                                        sentenceIndex,
-                                      )
-                                    : null,
-                                linkRecognizer: (target) =>
-                                    _linkRecognizerFor(target),
-                                onTapParagraph: ttsIndex != null
-                                    ? () => ref
-                                          .read(ttsProvider.notifier)
-                                          .jumpToParagraph(ttsIndex)
-                                    : null,
-                                ttsData: ttsData,
-                              ),
-                            );
-                          },
                         ),
                 ),
               ],

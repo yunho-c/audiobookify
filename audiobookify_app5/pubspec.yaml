@@ -19,7 +19,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.4
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -44,6 +45,12 @@ dependencies:
   objectbox: ^5.1.0
   objectbox_flutter_libs: ^5.1.0
   flutter_tts: ^4.2.3
+  mlsr:
+    path: ../../MLSR/bindings/dart
+  mlsr_flutter:
+    path: ../../MLSR/bindings/flutter
+  mlsr_app_models:
+    path: .mlsr/model_assets
   html: ^0.15.6
   flutter_riverpod: ^3.0.3
   shared_preferences: ^2.2.0
@@ -127,3 +134,10 @@ msix_config:
   msix_version: 1.0.0.0
   logo_path: windows/runner/resources/app_icon.ico
   capabilities: internetClient
+
+# The current MLSR native output/resource adapters target macOS arm64.
+hooks:
+  user_defines:
+    mlsr:
+      coreml: true
+      apple-output: true

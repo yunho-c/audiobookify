@@ -9,7 +9,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audiobookify/src/rust/frb_generated.dart';
-import 'package:audiobookify/objectbox.g.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'core/app_theme.dart';
 import 'core/desktop_window.dart';
@@ -23,6 +22,9 @@ import 'screens/book_detail_screen.dart';
 import 'screens/player_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/system_flutter_tts_backend.dart';
+import 'services/library_store.dart';
+import 'services/mlsr_speech_backend.dart';
 import 'services/tts_audio_handler.dart';
 import 'services/tts_service.dart';
 import 'widgets/shared/desktop_window_frame.dart';
@@ -80,13 +82,25 @@ Future<void> _startApp(SharedPreferences prefs) async {
 
     // Initialize ObjectBox
     final appDir = await getApplicationDocumentsDirectory();
-    final store = await openStore(directory: '${appDir.path}/objectbox');
+    final store = await openLibraryStore(directory: '${appDir.path}/objectbox');
 
     // Initialize SharedPreferences
     await _maybeRequestAndroidNotificationPermission(prefs);
 
     // Initialize audio handler + TTS service for background controls.
-    final ttsService = TtsService();
+    final mlsrBackend = Platform.isMacOS ? MlsrSpeechBackend() : null;
+    await migrateSpeechPreferences(prefs, mlsrAvailable: mlsrBackend != null);
+    final initialPlayerSettings = loadPlayerSettingsFromPrefs(
+      prefs,
+      preferMlsr: mlsrBackend != null,
+    );
+    final ttsService = TtsService(
+      backends: [
+        SystemFlutterTtsBackend(),
+        if (mlsrBackend != null) mlsrBackend,
+      ],
+      initialSettings: initialPlayerSettings,
+    );
     final audioHandler = await AudioService.init(
       builder: () => TtsAudioHandler(ttsService),
       config: const AudioServiceConfig(
@@ -103,6 +117,7 @@ Future<void> _startApp(SharedPreferences prefs) async {
         overrides: [
           storeProvider.overrideWithValue(store),
           sharedPreferencesProvider.overrideWithValue(prefs),
+          mlsrBackendProvider.overrideWithValue(mlsrBackend),
           ttsProvider.overrideWith((ref) => ttsService),
           audioHandlerProvider.overrideWithValue(audioHandler),
         ],
@@ -198,6 +213,7 @@ class AudiobookifyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(ttsSettingsSyncProvider);
+    ref.watch(ttsDebugLoggingSyncProvider);
     ref.watch(crashReportingSyncProvider);
     final themePreference = ref.watch(themePreferenceProvider);
     return MaterialApp.router(
