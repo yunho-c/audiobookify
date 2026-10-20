@@ -16,6 +16,14 @@ extension SpeechBackendKindLabel on SpeechBackendKind {
 /// Model for player settings (speed, pitch, voice)
 @immutable
 class PlayerSettings {
+  static const minSpeed = 0.5;
+  static const maxSpeed = 2.0;
+  static const speedDivisions = 15;
+
+  /// Keep persisted and applied speed on the same 0.1x grid as its label.
+  static double normalizeSpeed(double speed) =>
+      (speed.clamp(minSpeed, maxSpeed) * 10).round() / 10;
+
   final double speed; // 0.5 - 2.0
   final double pitch; // 0.5 - 2.0
   final SpeechBackendKind backend;

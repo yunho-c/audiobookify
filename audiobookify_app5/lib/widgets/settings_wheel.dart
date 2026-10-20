@@ -366,22 +366,25 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
               icon: LucideIcons.gauge,
               label: 'Speed',
               value: _speedValue,
-              min: 0.5,
-              max: 2.0,
+              min: PlayerSettings.minSpeed,
+              max: PlayerSettings.maxSpeed,
+              divisions: PlayerSettings.speedDivisions,
               displayValue: '${_speedValue.toStringAsFixed(1)}x',
               bgColor: accentSoftPalette[0],
               fgColor: accentPalette[0],
               onChanged: (value) {
                 if (!mounted) return;
-                setState(() => _speedValue = value);
+                setState(
+                  () => _speedValue = PlayerSettings.normalizeSpeed(value),
+                );
               },
               onChangeStart: (_) {
                 _editingSpeed = true;
               },
-              onChangeEnd: (_) {
+              onChangeEnd: (value) {
                 _editingSpeed = false;
                 final notifier = ref.read(playerSettingsProvider.notifier);
-                _scheduleProviderUpdate(() => notifier.setSpeed(_speedValue));
+                _scheduleProviderUpdate(() => notifier.setSpeed(value));
               },
             ),
             sliderId: 'audio_speed',
@@ -409,11 +412,11 @@ class _AudioSettingsTabState extends ConsumerState<_AudioSettingsTab> {
                 if (!backendCapabilities.supportsPitch) return;
                 _editingPitch = true;
               },
-              onChangeEnd: (_) {
+              onChangeEnd: (value) {
                 if (!backendCapabilities.supportsPitch) return;
                 _editingPitch = false;
                 final notifier = ref.read(playerSettingsProvider.notifier);
-                _scheduleProviderUpdate(() => notifier.setPitch(_pitchValue));
+                _scheduleProviderUpdate(() => notifier.setPitch(value));
               },
             ),
             sliderId: 'audio_pitch',
@@ -1471,7 +1474,10 @@ class _SettingSliderState extends State<_SettingSlider> {
       );
       final snapped =
           widget.min + (((target - widget.min) / step).round()) * step;
-      widget.onChanged(snapped.clamp(widget.min, widget.max).toDouble());
+      final value = snapped.clamp(widget.min, widget.max).toDouble();
+      widget.onChangeStart?.call(widget.value);
+      widget.onChanged(value);
+      widget.onChangeEnd?.call(value);
     }
 
     return AnimatedContainer(

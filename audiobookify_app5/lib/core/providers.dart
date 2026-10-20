@@ -66,7 +66,9 @@ PlayerSettings loadPlayerSettingsFromPrefs(
       storedBackend != 'mlsr' &&
       storedBackend != 'system';
   return PlayerSettings(
-    speed: (prefs.getDouble(_playerSpeedKey) ?? 1.0).clamp(0.5, 2.0),
+    speed: PlayerSettings.normalizeSpeed(
+      prefs.getDouble(_playerSpeedKey) ?? 1.0,
+    ),
     pitch: (prefs.getDouble(_playerPitchKey) ?? 1.0).clamp(0.5, 2.0),
     backend: backend,
     voiceId: retired || unavailableMlsr || unknownBackend
@@ -75,11 +77,16 @@ PlayerSettings loadPlayerSettingsFromPrefs(
   );
 }
 
-/// Run once at bootstrap; pure settings reads also tolerate pre-migration data.
+/// Migrate retired settings and align legacy continuous speeds with the UI.
 Future<void> migrateSpeechPreferences(
   SharedPreferences prefs, {
   required bool mlsrAvailable,
 }) async {
+  final storedSpeed = prefs.getDouble(_playerSpeedKey);
+  if (storedSpeed != null) {
+    final speed = PlayerSettings.normalizeSpeed(storedSpeed);
+    if (speed != storedSpeed) await prefs.setDouble(_playerSpeedKey, speed);
+  }
   if (_retiredSpeechBackends.contains(prefs.getString(_playerBackendKey))) {
     final backend = mlsrAvailable
         ? SpeechBackendKind.mlsr
@@ -234,7 +241,7 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
   }
 
   void setSpeed(double speed) {
-    state = state.copyWith(speed: speed.clamp(0.5, 2.0));
+    state = state.copyWith(speed: PlayerSettings.normalizeSpeed(speed));
     _saveToPrefs();
   }
 

@@ -82,6 +82,33 @@ void main() {
   });
 
   test(
+    'legacy fractional speed matches its label and is persisted exactly',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'player_backend': 'mlsr',
+        'player_voice_id': 'supertonic3:M3',
+        'player_speed': 1.03,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      expect(loadPlayerSettingsFromPrefs(prefs, preferMlsr: true).speed, 1.0);
+
+      await migrateSpeechPreferences(prefs, mlsrAvailable: true);
+      expect(prefs.getDouble('player_speed'), 1.0);
+      expect(prefs.getString('player_voice_id'), 'supertonic3:M3');
+
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+      container.read(playerSettingsProvider.notifier).setSpeed(1.44);
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(playerSettingsProvider).speed, 1.4);
+      expect(prefs.getDouble('player_speed'), 1.4);
+      expect(loadPlayerSettingsFromPrefs(prefs, preferMlsr: true).speed, 1.4);
+    },
+  );
+
+  test(
     'PlayerSettingsNotifier defaults fresh installs to MLSR when ready',
     () async {
       SharedPreferences.setMockInitialValues({});
